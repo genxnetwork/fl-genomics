@@ -1,0 +1,6 @@
+data:
+  root: ''
+  train:
+  val:
+  test:
+model:
