@@ -1,0 +1,17 @@
+name: fl
+channels:
+    - pytorch
+    - conda-forge
+    - bioconda
+dependencies:
+    - pandas
+    - matplotlib
+    - numpy
+    - pytorch
+    - scikit-learn
+    - pip
+    - pip:
+      - pytorch-lightning
+      - mlflow
+      - flwr
+      - hydra-core
