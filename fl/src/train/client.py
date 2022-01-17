@@ -1,7 +1,6 @@
-from pydoc import cli
 from omegaconf import DictConfig, OmegaConf
 import hydra
-
+from typing import Dict
 import mlflow
 
 from datasets.memory import Dataset
@@ -10,10 +9,10 @@ from model.mlp import Net
 from federation.client import FLClient
 
 
-def train_model(data_module, model, client):
+def train_model(data_module: DataModule, model: Net, client: FLClient):
     pass
 
-def evaluate_model(data_module, model, client):
+def evaluate_model(data_module: DataModule, model: Net, client: FLClient) -> Dict[str, float]:
     pass
 
 
