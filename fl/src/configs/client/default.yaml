@@ -4,3 +4,6 @@ data:
   val:
   test:
 model:
+experiment:
+  random_state: 1
+  
