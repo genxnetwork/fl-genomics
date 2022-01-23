@@ -9,6 +9,7 @@ dependencies:
     - numpy
     - pytorch
     - scikit-learn
+    - cython
     - pip
     - pip:
       - pytorch-lightning
