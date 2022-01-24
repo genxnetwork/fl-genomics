@@ -5,14 +5,34 @@ import mlflow
 
 from datasets.memory import load_from_pgen, load_phenotype
 from datasets.lightning import DataModule
-from model.mlp import Net
+from model.mlp import BaseNet
 from federation.client import FLClient
 
 
-def train_model(data_module: DataModule, model: Net, client: FLClient):
+def train_model(data_module: DataModule, model: BaseNet, client: FLClient):
+    """
+    Trains a model using data from {data_module} and using {client} for FL 
+
+    Args:
+        data_module (DataModule): Local data loaders manager
+        model (BaseNet): Model to train
+        client (FLClient): Federation Learning client which should implement weights exchange procedures.
+    """
     pass
 
-def evaluate_model(data_module: DataModule, model: Net, client: FLClient) -> Dict[str, float]:
+
+def evaluate_model(data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
+    """
+    Evaluates a trained model locally
+
+    Args:
+        data_module (DataModule): Local data loaders manager.
+        model (BaseNet): Model to evaluate.
+        client (FLClient): Federation Learning client which should implement weights exchange procedures.
+
+    Returns:
+        Dict[str, float]: Dict with 'val_loss', 'val_accuracy'. 
+    """    
     pass
 
 
@@ -22,7 +42,7 @@ def main(cfg: DictConfig):
     y_train, y_val = load_phenotype(cfg.data.phenotype.train), load_phenotype(cfg.data.phenotype.val)
 
     data_module = DataModule(X_train, X_val, y_train, y_val, cfg.training.batch_size)
-    net = Net(cfg.model)
+    net = BaseNet(cfg.model)
     
     client = FLClient()
 
