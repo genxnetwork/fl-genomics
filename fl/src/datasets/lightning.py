@@ -18,3 +18,12 @@ class DataModule(LightningDataModule):
     def val_dataloader(self) -> DataLoader:
         loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2)
         return loader
+
+    def _dataset_len(self, dataset: TensorDataset):
+        return len(dataset) // self.batch_size + int(len(dataset) % self.batch_size > 0) 
+
+    def train_len(self):
+        return self._dataset_len(self.train_dataset)
+    
+    def val_len(self):
+        return self._dataset_len(self.val_dataset)
