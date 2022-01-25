@@ -11,3 +11,4 @@
 
 1. .tsv file with p-values for all SNPs in .pgen file
 2. .pgen file with maximum possible number of significant SNPs: 10K
+
