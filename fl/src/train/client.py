@@ -3,28 +3,48 @@ import hydra
 from typing import Dict
 import mlflow
 
-from datasets.memory import Dataset
+from datasets.memory import load_from_pgen, load_phenotype
 from datasets.lightning import DataModule
-from model.mlp import Net
+from model.mlp import BaseNet
 from federation.client import FLClient
 
 
-def train_model(data_module: DataModule, model: Net, client: FLClient):
+def train_model(data_module: DataModule, model: BaseNet, client: FLClient):
+    """
+    Trains a model using data from {data_module} and using {client} for FL 
+
+    Args:
+        data_module (DataModule): Local data loaders manager
+        model (BaseNet): Model to train
+        client (FLClient): Federation Learning client which should implement weights exchange procedures.
+    """
     pass
 
-def evaluate_model(data_module: DataModule, model: Net, client: FLClient) -> Dict[str, float]:
+
+def evaluate_model(data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
+    """
+    Evaluates a trained model locally
+
+    Args:
+        data_module (DataModule): Local data loaders manager.
+        model (BaseNet): Model to evaluate.
+        client (FLClient): Federation Learning client which should implement weights exchange procedures.
+
+    Returns:
+        Dict[str, float]: Dict with 'val_loss', 'val_accuracy'. 
+    """    
     pass
 
 
 @hydra.main(config_path='configs', config_name='default')
 def main(cfg: DictConfig):
-    train_dataset = Dataset(cfg.data.train)
-    val_dataset = Dataset(cfg.data.val)
-    data_module = DataModule(train_dataset, val_dataset)
+    X_train, X_val = load_from_pgen(cfg.data.train, cfg.data.gwas), load_from_pgen(cfg.data.val, cfg.data.gwas)
+    y_train, y_val = load_phenotype(cfg.data.phenotype.train), load_phenotype(cfg.data.phenotype.val)
 
-    net = Net(cfg.model)
-    
-    client = FLClient()
+    data_module = DataModule(X_train, X_val, y_train, y_val, cfg.training.batch_size)
+
+    net = BaseNet(cfg.model)
+    client = FLClient(net, data_module, None, cfg.model, cfg.training)
 
     with mlflow.start_run(
         tags={

@@ -3,4 +3,13 @@ data:
   train:
   val:
   test:
+  phenotype:
+    train:
+    val:
 model:
+  input_size: 
+  l1:
+  lr:
+  epochs:
+training:
+  batch_size: 
