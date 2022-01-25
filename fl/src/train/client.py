@@ -42,9 +42,9 @@ def main(cfg: DictConfig):
     y_train, y_val = load_phenotype(cfg.data.phenotype.train), load_phenotype(cfg.data.phenotype.val)
 
     data_module = DataModule(X_train, X_val, y_train, y_val, cfg.training.batch_size)
+
     net = BaseNet(cfg.model)
-    
-    client = FLClient()
+    client = FLClient(net, data_module, None, cfg.model, cfg.training)
 
     with mlflow.start_run(
         tags={
