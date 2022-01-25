@@ -11,7 +11,9 @@ def get_gwas_output_path(output_path: str, phenotype_type: str):
         return output_path + '.glm.linear.tsv'
 
 
-@hydra.main(config_path='configs', config_name='default')
+
+
+@hydra.main(config_path='configs', config_name='gwas')
 def main(cfg: DictConfig):
     args = [
         '--pfile', cfg.genotype.train,
