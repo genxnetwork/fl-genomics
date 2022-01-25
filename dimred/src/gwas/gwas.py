@@ -1,16 +1,8 @@
-from email.policy import default
-import subprocess
 import hydra
 from omegaconf import DictConfig
-from typing import List
+from utils.plink import run_plink
 import shutil
 
-
-def run_plink(args: List[str]):
-    plink = subprocess.run(['plink2'] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if plink.returncode != 0:
-        raise RuntimeError(plink.stderr.decode('utf-8'))
-    
 
 def get_gwas_output_path(output_path: str, phenotype_type: str):
     if phenotype_type == 'binary':
@@ -19,7 +11,7 @@ def get_gwas_output_path(output_path: str, phenotype_type: str):
         return output_path + '.glm.linear.tsv'
 
 
-@hydra.main(config_path='configs', config_name=default)
+@hydra.main(config_path='configs', config_name='default')
 def main(cfg: DictConfig):
     args = [
         '--pfile', cfg.genotype.train,
@@ -31,6 +23,8 @@ def main(cfg: DictConfig):
     ]
     run_plink(args)
 
+    # plink GWAS output filename depends on phenotype and regression. 
+    # We rename it to be always cfg.output.path + .tsv 
     shutil.move(get_gwas_output_path(cfg.output.path, cfg.phenotype.type), cfg.output.path + '.tsv')
 
 
