@@ -62,12 +62,15 @@ for i in range(5):
 np.random.seed(32)
 holdout_idx = np.random.choice(df.index, size=df.shape[0]//5, replace=False)
 
+np.random.seed(32)
+holdout_idx = np.random.choice(df.index, size=df.shape[0]//5, replace=False)
+
 df['split']= None
 
 df.loc[holdout_idx, 'split'] = 5
 
 for i in range(5):
-    df.loc[(df.split_code == i) & (df.split == 'train'), 'split'] = i
+    df.loc[(df.split_code == i) & (df.split != 5), 'split'] = i
     
 for i in range(6):
     df.loc[(df.split == i), ['FID', 'IID', 'sex']]\
