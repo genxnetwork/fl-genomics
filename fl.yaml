@@ -9,9 +9,12 @@ dependencies:
     - numpy
     - pytorch
     - scikit-learn
+    - cython
+    - plink2
     - pip
     - pip:
       - pytorch-lightning
       - mlflow
       - flwr
       - hydra-core
+      - ukb-loader

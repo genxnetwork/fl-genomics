@@ -1,0 +1,14 @@
+phenotype:
+  code: '50'
+  name: 'height'
+  path: 
+  type: 'real'
+covariates:
+  path: 
+genotype:
+  root:  
+  train: '${.root}/train/plink'
+  val: '${.root}/val/plink'
+output:
+  path: 
+threads: 16
