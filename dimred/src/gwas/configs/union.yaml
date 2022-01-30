@@ -1,0 +1,9 @@
+strategy: topk # one of topk, pvalue, mixed
+split_dir: /gpfs/gpfs0/ukb_data/fml/ethnic_split/
+split_count: 5
+phenotype:
+  name: standing_height
+  code: 50
+threads: 4
+memory_mb: 20000
+max_snp_count: 1000 
