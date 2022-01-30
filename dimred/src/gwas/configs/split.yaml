@@ -4,3 +4,5 @@ phenotype:
   name: standing_height
   code: 50
 threads: 4
+memory_mb: 20000
+random_state: 1111
