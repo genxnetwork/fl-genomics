@@ -11,4 +11,4 @@ genotype:
   train: ${split_dir}/genotypes/split${split_index}_filtered_train
 output:
   path: ${split_dir}/gwas/split${split_index}
-threads: 16
+threads: 4

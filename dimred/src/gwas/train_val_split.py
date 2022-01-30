@@ -133,11 +133,11 @@ def main(cfg: DictConfig):
             os.makedirs(phenotypes_dir, exist_ok=True)
             os.makedirs(cov_dir, exist_ok=True)
 
-            # split_genotypes(os.path.join(cfg.split_dir, 'genotypes'), split_index, cfg.threads, cfg.memory_mb, part_name, part_ids)
+            split_genotypes(os.path.join(cfg.split_dir, 'genotypes'), split_index, cfg.threads, cfg.memory_mb, part_name, part_ids)
 
-            # split_phenotypes(cov_pheno_dir, cfg.phenotype.name, split_index, part_name, part_ids)
+            split_phenotypes(cov_pheno_dir, cfg.phenotype.name, split_index, part_name, part_ids)
 
-            # split_pca(pca_dir, split_index, part_name, part_ids)
+            split_pca(pca_dir, split_index, part_name, part_ids)
         
             prepare_cov_and_phenotypes(pca_dir, cov_pheno_dir, cfg.phenotype.name, part_name, split_index, cov_dir, phenotypes_dir)  
 

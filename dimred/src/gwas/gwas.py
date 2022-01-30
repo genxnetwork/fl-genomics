@@ -1,15 +1,8 @@
 import os
 import hydra
 from omegaconf import DictConfig
-from utils.plink import run_plink
+from utils.plink import run_plink, get_gwas_output_path
 import shutil
-
-
-def get_gwas_output_path(output_path: str, phenotype_name: str, phenotype_type: str):
-    if phenotype_type == 'binary':
-        return f'{output_path}.{phenotype_name}.glm.logistic.firth'
-    else:
-        return f'{output_path}.{phenotype_name}.glm.linear'
 
 
 @hydra.main(config_path='configs', config_name='gwas')
@@ -30,6 +23,8 @@ def main(cfg: DictConfig):
     # We rename it to be always cfg.output.path + .tsv 
     shutil.move(get_gwas_output_path(cfg.output.path, cfg.phenotype.name, cfg.phenotype.type), 
         f'{cfg.output.path}.{cfg.phenotype.name}.tsv')
+
+    print(f'GWAS for phenotype {cfg.phenotype.name} and split {cfg.split_index} finished')
 
 
 if __name__ == '__main__':
