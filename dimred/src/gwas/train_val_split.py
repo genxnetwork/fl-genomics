@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, List
 import hydra
 from omegaconf import DictConfig
 import pandas
@@ -95,6 +95,7 @@ def prepare_cov_and_phenotypes(pca_dir: str,
     merged = pca.merge(cov_pheno, how='inner', on=['FID', 'IID'])
     
     pca_cov = merged.loc[:, ['FID', 'IID'] + [f'PC{i}' for i in range(1, 11)] + cov_columns]
+    pca_cov.fillna(pca_cov.mean(), inplace=True)
     phenotype = merged.loc[:, ['FID', 'IID'] + [pheno_column]]
 
     phenotype_path = get_phenotype_path(phenotypes_dir, pheno_name, split_index, part_name)
@@ -106,13 +107,17 @@ def prepare_cov_and_phenotypes(pca_dir: str,
     return phenotype_path, pca_cov_path
 
 
-def standardize(train_path: str, val_path: str):
+def standardize(train_path: str, val_path: str, columns: List[str] = None):
     train_data = pandas.read_table(train_path)
     val_data = pandas.read_table(val_path)
 
     scaler = StandardScaler()
-    train_data.iloc[:, 2:] = scaler.fit_transform(train_data.iloc[:, 2:]) # 0,1 are FID, IID
-    val_data.iloc[:, 2:] = scaler.transform(val_data.iloc[:, 2:])
+    if columns is None:
+        train_data.iloc[:, 2:] = scaler.fit_transform(train_data.iloc[:, 2:]) # 0,1 are FID, IID
+        val_data.iloc[:, 2:] = scaler.transform(val_data.iloc[:, 2:])
+    else:
+        train_data.loc[:, columns] = scaler.fit_transform(train_data.loc[:, columns]) 
+        val_data.loc[:, columns] = scaler.transform(val_data.loc[:, columns])
 
     train_data.to_csv(train_path, sep='\t', index=False)
     val_data.to_csv(val_path, sep='\t', index=False)
@@ -141,11 +146,12 @@ def main(cfg: DictConfig):
         
             prepare_cov_and_phenotypes(pca_dir, cov_pheno_dir, cfg.phenotype.name, part_name, split_index, cov_dir, phenotypes_dir)  
 
-            print(f'Covariates and phenotypes were prepared for split {split_index} and part {part_name}') 
+            print(f'Genotypes, covariates, and phenotypes were prepared for split {split_index} and part {part_name}') 
         
         standardize(
             get_pca_cov_path(cov_dir, cfg.phenotype.name, split_index, 'train'),
-            get_pca_cov_path(cov_dir, cfg.phenotype.name, split_index, 'val')
+            get_pca_cov_path(cov_dir, cfg.phenotype.name, split_index, 'val'),
+            cfg.zstd_covariates
         )
 
         standardize(

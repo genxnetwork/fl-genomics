@@ -1,13 +1,10 @@
 import os
-from shutil import which
 import hydra
 from omegaconf import DictConfig
 import matplotlib.pyplot as plt
 import pandas
 import numpy
 from qmplot import qqplot
-import qmplot
-from scipy.stats import lognorm
 
 
 def plot_manhattan(gwas: pandas.DataFrame, output_path: str):
@@ -68,13 +65,13 @@ def plot_log10p(gwas: pandas.DataFrame, output_path: str):
 def main(cfg: DictConfig):
 
     gwas_results_path = f'{cfg.output.path}.{cfg.phenotype.name}.tsv'
-    pvalues_plot_path = f'{cfg.output.path}.log10p.png'
+    # pvalues_plot_path = f'{cfg.output.path}.log10p.png'
     qq_plot_path = f'{cfg.output.path}.qqplot.png'
     hist_plot_path = f'{cfg.output.path}.hist.png'
     manhattan_plot_path = f'{cfg.output.path}.manhattan.png'
 
     gwas = pandas.read_table(gwas_results_path)
-    plot_log10p(gwas, pvalues_plot_path)
+    # plot_log10p(gwas, pvalues_plot_path)
     plot_qq(gwas, qq_plot_path)
     plot_hist(gwas, hist_plot_path)
     plot_manhattan(gwas, manhattan_plot_path)

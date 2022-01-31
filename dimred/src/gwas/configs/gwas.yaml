@@ -1,5 +1,5 @@
 split_index: 0
-split_dir: /gpfs/gpfs0/ukb_data/fml/ethnic_split
+split_dir: /gpfs/gpfs0/ukb_data/fml/british_split
 phenotype:
   code: 50
   name: standing_height

@@ -1,8 +1,8 @@
 #!/bin/bash 
 #SBATCH --job-name ukb_gwas # good manners rule 
-#SBATCH --partition gpu_devel # or gpu_small
+#SBATCH --partition gpu_devel # 
 #SBATCH --nodes 1 # amount of nodes allocated 
-#SBATCH --time 01:30:00# hh:mm:ss, walltime (less requested time -> 
+#SBATCH --time 01:30:00# hh:mm:ss, walltime 
 #SBATCH --mem 24000
 #SBATCH --cpus-per-task 4
 
