@@ -6,7 +6,8 @@ import pandas as pd
 import sys
 sys.path.append('../config')
 
-from config.path import data_root, valid_ids_path, ukb_loader_dir
+from config.path import data_root, valid_ids_path, ukb_loader_dir, ukb_bfile_path
+from utils.plink import run_plink
 
 class SplitBase(object):
     def __init__(self, split_config: dict):
@@ -36,39 +37,55 @@ class SplitBase(object):
         df['split_code'] = df.ethnic_background.map(self.split_config['split_map'])
         
         return df
+    
+    def make_split_pgen(self, split_id_path: str) -> None:
+        run_plink(args_dict={'--bfile': ukb_bfile_path,
+                             '--out': local_prefix,
+                             '--keep': split_id_path},
+                  args_list=['--make-pgen'])
 
     
 class SplitIID(SplitBase):
-    def split(self):
+    def split(self, make_pgen=True):
         df = self.split_by_ethnicity()
         df = df.loc[df.split_code == 0]
         
         seed(32)
         df['split'] = choice(list(range(self.split_config['n_iid_splits'])), size=df.shape[0], replace=True)
         
+        prefix_list = []        
         for i in range(self.split_config['n_iid_splits']):
-            df.loc[(df.split == i), ['FID', 'IID', 'sex']]\
-                .to_csv(f"{data_root}/{self.split_config['iid_split_name']}/split_ids/{i}.csv", index=False, sep='\t')
+            split_id_path = f"{data_root}/{self.split_config['iid_split_name']}/split_ids/{i}.csv"
+            prefix = f"{data_root}/{self.split_config['iid_split_name']}/genotypes/split_{i}"
+            prefix_list.append(prefix)
+            df.loc[(df.split == i), ['FID', 'IID', 'sex']].to_csv(split_id_path, index=False, sep='\t')
             
-        return [f"{data_root}/{self.split_config['iid_split_name']}/genotypes/split_{i}" \
-                    for i in range(self.split_config['n_iid_splits'])]
+            if make_pgen:
+                make_split_pgen(split_id_path)
+            
+        return prefix_list
         
         
 class SplitNonIID(SplitBase):
-    def split(self):
+    def split(self, make_pgen=True):
         df = self.split_by_ethnicity()
         seed(32)
-        holdout_idx = choice(df.index, size=int(df.shape[0]*split_config['non_iid_holdout_ratio']), replace=False)
+        holdout_idx = choice(df.index, size=int(df.shape[0]*self.split_config['non_iid_holdout_ratio']), replace=False)
         df['split']= None
         df.loc[holdout_idx, 'split'] = 5
                         
         for i in range(5):
             df.loc[(df.split_code == i) & (df.split != 5), 'split'] = i
-    
-        for i in range(6):
-            df.loc[(df.split == i), ['FID', 'IID', 'sex']]\
-                .to_csv(f"{data_root}/{self.split_config['non_iid_split_name']}/split_ids/{i}.csv", index=False, sep='\t')
         
-        return [f"{data_root}/{self.split_config['non_iid_split_name']}/genotypes/split_{i}" \
-                    for i in range(6)]
+        prefix_list = []
+        for i in range(6):
+            split_id_path = f"{data_root}/{self.split_config['non_iid_split_name']}/split_ids/{i}.csv"
+            prefix = f"{data_root}/{self.split_config['non_iid_split_name']}/genotypes/split_{i}"
+            prefix_list.append(prefix)
+            df.loc[(df.split == i), ['FID', 'IID', 'sex']].to_csv(split_id_path, index=False, sep='\t')
+            
+            if make_pgen:
+                make_split_pgen(split_id_path)
+        
+        return prefix_list
         
