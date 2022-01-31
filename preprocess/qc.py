@@ -8,7 +8,8 @@ class QC(object):
     @staticmethod
     def qc(input_prefix: str, qc_config: dict) -> str:
         """ Runs plink command that performs QC """
-        run_plink(args_dict=qc_config)
-                
         output_prefix = input_prefix + '_filtered'
+        run_plink(args_dict={**{'--pfile': input_prefix, # Merging dicts here
+                                '--out': output_prefix},
+                             **qc_config})
         return output_prefix
