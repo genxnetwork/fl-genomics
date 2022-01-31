@@ -17,7 +17,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logger = logging.getLogger()
     
-    Generate file with sample IDs that pass central QC with UKB fields
+#     Generate file with sample IDs that pass central QC with UKB fields
     logger.info(f'Saving valid IDs to {valid_ids_path}')
     central_qc(ukb_loader_dir, valid_ids_path)
 
