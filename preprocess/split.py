@@ -7,7 +7,7 @@ pd.options.mode.chained_assignment = None # Shush
 import sys
 sys.path.append('../config')
 
-from config.path import data_root, valid_ids_path, ukb_loader_dir, ukb_bfile_path
+from config.path import data_root, valid_ids_path, ukb_loader_dir, ukb_pfile_path
 from config.split_config import split_map
 from utils.plink import run_plink
 
@@ -41,7 +41,7 @@ class SplitBase(object):
         return df
     
     def make_split_pgen(self, split_id_path: str, prefix: str) -> None:
-        run_plink(args_dict={'--bfile': ukb_bfile_path,
+        run_plink(args_dict={'--pfile': ukb_pfile_path,
                              '--out': prefix,
                              '--keep': split_id_path},
                   args_list=['--make-pgen'])
