@@ -14,7 +14,7 @@ def run_plink(args_list=[], args_dict={}):
     """
     if len(args_list) + len(args_dict) == 0:
         raise ValueError("PLINK command has no arguments!")
-    plink = subprocess.run(['plink2'] + args_list + [f'{key} {value}' for key, value in args_dict.items()],
+    plink = subprocess.run(['plink2'] + args_list + [item for key_value in args_dict.items() for item in key_value],
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if plink.returncode != 0:
         raise RuntimeError(plink.stderr.decode('utf-8'))
