@@ -50,8 +50,7 @@ class SplitBase(object):
 class SplitIID(SplitBase):
     def split(self, make_pgen=True):
         df = self.split_by_ethnicity()
-        df = df.loc[df.split_code == 0]
-        
+        df = df.loc[df.split_code == 0]       
         seed(32)
         df['split'] = choice(list(range(self.split_config['n_iid_splits'])), size=df.shape[0], replace=True)
         
