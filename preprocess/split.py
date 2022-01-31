@@ -38,9 +38,9 @@ class SplitBase(object):
         
         return df
     
-    def make_split_pgen(self, split_id_path: str) -> None:
+    def make_split_pgen(self, split_id_path: str, prefix: str) -> None:
         run_plink(args_dict={'--bfile': ukb_bfile_path,
-                             '--out': local_prefix,
+                             '--out': prefix,
                              '--keep': split_id_path},
                   args_list=['--make-pgen'])
 
@@ -61,7 +61,7 @@ class SplitIID(SplitBase):
             df.loc[(df.split == i), ['FID', 'IID', 'sex']].to_csv(split_id_path, index=False, sep='\t')
             
             if make_pgen:
-                make_split_pgen(split_id_path)
+                self.make_split_pgen(split_id_path, prefix)
             
         return prefix_list
         
@@ -85,7 +85,7 @@ class SplitNonIID(SplitBase):
             df.loc[(df.split == i), ['FID', 'IID', 'sex']].to_csv(split_id_path, index=False, sep='\t')
             
             if make_pgen:
-                make_split_pgen(split_id_path)
+                self.make_split_pgen(split_id_path, prefix)
         
         return prefix_list
         

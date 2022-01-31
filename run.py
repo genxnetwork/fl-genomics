@@ -17,7 +17,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logger = logging.getLogger()
     
-#     Generate file with sample IDs that pass central QC with UKB fields
+    # Generate file with sample IDs that pass central QC with UKB fields
     logger.info(f'Saving valid IDs to {valid_ids_path}')
     central_qc(ukb_loader_dir, valid_ids_path)
 
@@ -33,5 +33,5 @@ if __name__ == '__main__':
         logger.info(f'Running local QC for {local_prefix}')
         local_prefix_qc = QC.qc(input_prefix=local_prefix, qc_config=qc_config)
         # todo
-        PCA.run(input_prefix=local_prefix_qc, pca_config=pca_config, output_tag='smth else')
+        # PCA.run(input_prefix=local_prefix_qc, pca_config=pca_config, output_tag='smth else')
 
