@@ -7,6 +7,7 @@ import sys
 sys.path.append('../config')
 
 from config.path import data_root, valid_ids_path, ukb_loader_dir, ukb_bfile_path
+from config.split_config import split_map
 from utils.plink import run_plink
 
 class SplitBase(object):
@@ -34,7 +35,7 @@ class SplitBase(object):
         # Drop samples with missing/prefer not to answer ethnic background
         df = df[~df.ethnic_background.isin([-1, -3, 0])]
         # Map ethnic backgrounds to our defined splits
-        df['split_code'] = df.ethnic_background.map(self.split_config['split_map'])
+        df['split_code'] = df.ethnic_background.map(split_map)
         
         return df
     
