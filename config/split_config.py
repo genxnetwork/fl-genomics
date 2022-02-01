@@ -38,4 +38,27 @@ split_map = {
     6: 4,    
 }
 
+ethnic_background_name_map = {
+    1:	'White',
+    1001:	'British',
+    2001:	'White and Black Caribbean',
+    3001:	'Indian',
+    4001:	'Caribbean',
+    2:	'Mixed',
+    1002:	'Irish',
+    2002:	'White and Black African',
+    3002:	'Pakistani',
+    4002:	'African',
+    3:	'Asian or Asian British',
+    1003:	'Any other white background',
+    2003:	'White and Asian',
+    3003:	'Bangladeshi',
+    4003:	'Any other Black background',
+    4:	'Black or Black British',
+    2004:	'Any other mixed background',
+    3004:	'Any other Asian background',
+    5: 'Chinese',
+    6:	'Other ethnic group'
+}
+
 random_seed = 32
