@@ -38,4 +38,4 @@ split_map = {
     6: 4,    
 }
 
-
+random_seed = 32
