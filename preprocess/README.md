@@ -30,3 +30,18 @@ Any other Black background       118
 Mixed                             46
 Asian or Asian British            41
 Black or Black British            26
+
+## Data directory structure
+```
+
+$data_root
+|- pca/...
+|- figures/...
+|- $split_name -+- genotypes/...
+|               +- phenotypes/...
+|               +- split_ids/...
+|- valid_ids.csv  
+
+
+```
+
