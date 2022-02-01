@@ -24,8 +24,9 @@ if __name__ == '__main__':
     # Generate file with sample IDs that pass central QC with UKB fields
     logger.info(f'Saving valid IDs to {valid_ids_path}')
     central_qc(ukb_loader_dir, valid_ids_path)
-
-    PCA.run(input_prefix=ukb_pfile_path, pca_config=pca_config, output_tag='global')
+    
+    logger.info(f'Running global PCA')
+    PCA().run(input_prefix=ukb_pfile_path, pca_config=pca_config, output_tag='global')
 
     # Split dataset into IID and non-IID datasets and then QC + PCA each local dataset
     logger.info("Splitting IID dataset")
