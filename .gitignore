@@ -161,3 +161,4 @@ image.sif
 
 # hydra outputs
 fl/src/outputs
+fl/src/slurm-*.out
