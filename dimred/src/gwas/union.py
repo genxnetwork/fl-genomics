@@ -37,7 +37,7 @@ def _get_snp_list_path(strategy: str, split_dir: str) -> str:
 
 
 def _get_pfile_dir(split_dir: str, split_index: int, strategy: str) -> str:
-    return os.path.join(split_dir, f'split{split_index}', strategy)
+    return os.path.join(split_dir, 'genotypes', 'union', f'split_{split_index}', strategy)
 
 
 def _get_selection_snp_ids(gwas_data: List[pandas.DataFrame], max_snp_count: int) -> Set:
@@ -90,7 +90,7 @@ def generate_pfiles(cfg: DictConfig):
         for part in ['train', 'val']:
             args = ['--pfile', os.path.join(cfg.split_dir, 'genotypes', f'split{split_index}_filtered_{part}'),
                     '--extract', snp_list_path,
-                    '--make-pgen', '--out', os.path.join(pfile_dir, f'train_top{cfg.max_snp_count}')]
+                    '--make-pgen', '--out', os.path.join(pfile_dir, f'{cfg.phenotype.name}.train_top{cfg.max_snp_count}')]
             run_plink(args)
         
         print(f'Top {cfg.max_snp_count} SNP selection completed for split {split_index} and part {part} with strategy {cfg.strategy}')
