@@ -1,0 +1,14 @@
+split_index: 0
+split_dir: /gpfs/gpfs0/ukb_data/fml/british_split
+phenotype:
+  code: 50
+  name: standing_height
+  path: ${split_dir}/only_phenotypes/${.name}_split_${split_index}_train.tsv
+  type: real
+covariates:
+  path: ${split_dir}/covariates/${phenotype.name}_split_${split_index}_train.tsv
+genotype:
+  train: ${split_dir}/genotypes/split${split_index}_filtered_train
+output:
+  path: ${split_dir}/gwas/split${split_index}
+threads: 4

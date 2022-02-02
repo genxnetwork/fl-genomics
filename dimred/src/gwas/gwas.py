@@ -1,31 +1,30 @@
+import os
 import hydra
 from omegaconf import DictConfig
-from utils.plink import run_plink
+from utils.plink import run_plink, get_gwas_output_path
 import shutil
 
 
-def get_gwas_output_path(output_path: str, phenotype_type: str):
-    if phenotype_type == 'binary':
-        return output_path + '.glm.logistic.firth.tsv'
-    else:
-        return output_path + '.glm.linear.tsv'
-
-
-@hydra.main(config_path='configs', config_name='default')
+@hydra.main(config_path='configs', config_name='gwas')
 def main(cfg: DictConfig):
+    os.makedirs(os.path.join(cfg.split_dir, 'gwas'), exist_ok=True)
     args = [
         '--pfile', cfg.genotype.train,
         '--covar', cfg.covariates.path,
         '--pheno', cfg.phenotype.path,
-        '--glm', 'sex', 'log10', 'hide-covar',
+        '--no-psam-pheno', '--pheno-name', cfg.phenotype.name,
+        '--glm', 'no-x-sex', 'log10', 'hide-covar',
         '--out', cfg.output.path,
-        '--threads', cfg.threads
+        '--threads', str(cfg.threads)
     ]
     run_plink(args)
 
     # plink GWAS output filename depends on phenotype and regression. 
     # We rename it to be always cfg.output.path + .tsv 
-    shutil.move(get_gwas_output_path(cfg.output.path, cfg.phenotype.type), cfg.output.path + '.tsv')
+    shutil.move(get_gwas_output_path(cfg.output.path, cfg.phenotype.name, cfg.phenotype.type), 
+        f'{cfg.output.path}.{cfg.phenotype.name}.tsv')
+
+    print(f'GWAS for phenotype {cfg.phenotype.name} and split {cfg.split_index} finished')
 
 
 if __name__ == '__main__':
