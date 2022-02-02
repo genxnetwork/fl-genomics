@@ -1,9 +1,16 @@
 strategy: topk # one of topk, pvalue, mixed
-split_dir: /gpfs/gpfs0/ukb_data/fml/british_split/
+split_dir: /gpfs/gpfs0/ukb_data/fml/british_split
 split_count: 4
 phenotype:
   name: standing_height
   code: 50
 threads: 4
 memory_mb: 20000
-max_snp_count: 1000 
+max_snp_count: 10000 
+analysis:
+  snp_counts:
+   - 1000
+   - 2000
+   - 5000
+   - 10000
+  plot_path: ${split_dir}/gwas/snp_selection.png 

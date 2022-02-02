@@ -20,6 +20,17 @@ def get_pca_cov_path(source_dir: str, name: str, split_index: int, part_name: st
 
 
 def split_ids(split_ids_dir: str, split_index: int, random_state: int) -> Tuple[str, str]:
+    """
+    Splits sample ids into train and val subsets
+    
+    Args:
+        split_ids_dir (str): Dir where sample ids files are located
+        split_index (int): Index of split part
+        random_state (int): Fixed random_state for train_test_split sklearn function
+
+    Returns:
+        Tuple[str, str]: Paths to files with train sample ids and val sample ids
+    """    
     path = os.path.join(split_ids_dir, f'{split_index}.csv')
     ids = pandas.read_table(path)
     fid_train, fid_val, iid_train, iid_val = train_test_split(ids.FID, ids.IID, random_state=random_state)
@@ -37,6 +48,17 @@ def split_ids(split_ids_dir: str, split_index: int, random_state: int) -> Tuple[
 
 
 def split_genotypes(genotype_dir: str, split_index: int, threads: int, memory_mb: int, part_name: str, split_ids_path: str):
+    """
+    Extracts train or val subset of genotypes
+
+    Args:
+        genotype_dir (str): Dir where source genotype files are located for each {split_index}
+        split_index (int): Index of particular split part
+        threads (int): Number of threads for plink
+        memory_mb (int): Maximum memory for plink to allocate
+        part_name (str): train or val
+        split_ids_path (str): Path where ids for particular split part and train or val subsets are located
+    """    
     args = [
         '--pfile',
         os.path.join(genotype_dir, f'split{split_index}_filtered'),
@@ -48,6 +70,19 @@ def split_genotypes(genotype_dir: str, split_index: int, threads: int, memory_mb
 
 
 def split_phenotypes(phenotype_dir: str, phenotype_name: str, split_index: int, part_name: str, split_ids_path: str) -> str:
+    """
+    Extracts train or val subset of samples from file with phenotypes and covariates
+
+    Args:
+        phenotype_dir (str): Dir where source files are located for each {split_index}
+        phenotype_name (str): Name of phenotype
+        split_index (int): Index of particular split part
+        part_name (str): train or val
+        split_ids_path (str): Path where ids for particular split part and train or val subsets are located
+
+    Returns:
+        str: Path to extracted subset of samples with phenotypes and covariates
+    """    
     phenotype = pandas.read_table(get_phenotype_path(phenotype_dir, phenotype_name, split_index, None))
     split_ids = pandas.read_table(split_ids_path)
 
@@ -59,6 +94,17 @@ def split_phenotypes(phenotype_dir: str, phenotype_name: str, split_index: int, 
 
 
 def split_pca(pca_dir: str, split_index: int, part_name: str, split_ids_path: str) -> str:
+    """
+    Extracts train or val subset of samples from file with principal components
+    Args:
+        pca_dir (str): Dir where source PC files are located for each split part
+        split_index (int): Index of particular split part
+        part_name (str): train or val
+        split_ids_path (str): Path where ids for particular split part and train or val subsets are located
+
+    Returns:
+        str: Path to extracted subset of samples with PCs
+    """    
     pca = pandas.read_table(os.path.join(pca_dir, f'{split_index}_projections.csv.eigenvec'))
     split_ids = pandas.read_table(split_ids_path)
     pca.rename({'#FID': 'FID'}, axis='columns', inplace=True)
@@ -108,6 +154,14 @@ def prepare_cov_and_phenotypes(pca_dir: str,
 
 
 def standardize(train_path: str, val_path: str, columns: List[str] = None):
+    """
+    Infers mean and std from columns in {train_path} and standardizes both train and val columns
+
+    Args:
+        train_path (str): Path to .tsv file with train data. First two columns should be FID, IID
+        val_path (str): Path to .tsv file with val data. First two columns should be FID, IID
+        columns (List[str], optional): List of columns to standardize. By default all columns except FID and IID will be standardized. Defaults to None. 
+    """    
     train_data = pandas.read_table(train_path)
     val_data = pandas.read_table(val_path)
 
@@ -125,7 +179,6 @@ def standardize(train_path: str, val_path: str, columns: List[str] = None):
 
 @hydra.main(config_path='configs', config_name='split')
 def main(cfg: DictConfig):
-
     for split_index in range(cfg.split_count):
         train_ids, val_ids = split_ids(os.path.join(cfg.split_dir, 'split_ids'), split_index, cfg.random_state)
         cov_dir = os.path.join(cfg.split_dir, 'covariates')
@@ -137,23 +190,30 @@ def main(cfg: DictConfig):
             
             os.makedirs(phenotypes_dir, exist_ok=True)
             os.makedirs(cov_dir, exist_ok=True)
-
+            
+            # split genotypes into train and test val for split part {part_name}
             split_genotypes(os.path.join(cfg.split_dir, 'genotypes'), split_index, cfg.threads, cfg.memory_mb, part_name, part_ids)
 
+            # split phenotypes and covariates into train and val for split part {part_name}
             split_phenotypes(cov_pheno_dir, cfg.phenotype.name, split_index, part_name, part_ids)
 
+            # split file with PCs into train and val for split part {part_name}
             split_pca(pca_dir, split_index, part_name, part_ids)
-        
+
+            # extract covariates from cov_pheno file and merge it with PCs.
+            # write phenotype-only files
             prepare_cov_and_phenotypes(pca_dir, cov_pheno_dir, cfg.phenotype.name, part_name, split_index, cov_dir, phenotypes_dir)  
 
             print(f'Genotypes, covariates, and phenotypes were prepared for split {split_index} and part {part_name}') 
         
+        # standardize {cfg.zstd_covariates} columns in covariate files
         standardize(
             get_pca_cov_path(cov_dir, cfg.phenotype.name, split_index, 'train'),
             get_pca_cov_path(cov_dir, cfg.phenotype.name, split_index, 'val'),
             cfg.zstd_covariates
         )
 
+        # standardize phenotype in phenotype-only file
         standardize(
             get_phenotype_path(phenotypes_dir, cfg.phenotype.name, split_index, 'train'),
             get_phenotype_path(phenotypes_dir, cfg.phenotype.name, split_index, 'val')
