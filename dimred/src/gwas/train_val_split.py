@@ -64,7 +64,7 @@ def split_genotypes(genotype_dir: str, split_index: int, threads: int, memory_mb
         os.path.join(genotype_dir, f'split{split_index}_filtered'),
         '--threads', str(threads), '--memory', str(memory_mb),
         '--keep', split_ids_path,
-        '--make-pgen', '--out', os.path.join(genotype_dir, f'split{split_index}_filtered_{part_name}')
+        '--make-pgen', '--out', os.path.join(genotype_dir, f'split_{split_index}_filtered_{part_name}')
     ]
     run_plink(args)
 
