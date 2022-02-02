@@ -21,7 +21,7 @@ def _read_all_gwas(gwas_dir: str, phenotype_name: str, split_count: int) -> List
     """    
     results = []
     for split_index in range(split_count):
-        gwas_path = os.path.join(gwas_dir, f'split{split_index}.{phenotype_name}.tsv')
+        gwas_path = os.path.join(gwas_dir, f'split_{split_index}.{phenotype_name}.tsv')
         gwas = pandas.read_table(gwas_path)
         results.append(gwas.loc[:, ['#CHROM', 'POS', 'ID', 'LOG10_P']].set_index('ID'))
     return results
@@ -88,7 +88,7 @@ def generate_pfiles(cfg: DictConfig):
         pfile_dir = _get_pfile_dir(cfg.split_dir, split_index, cfg.strategy)
         os.makedirs(pfile_dir, exist_ok=True)
         for part in ['train', 'val']:
-            args = ['--pfile', os.path.join(cfg.split_dir, 'genotypes', f'split{split_index}_filtered_{part}'),
+            args = ['--pfile', os.path.join(cfg.split_dir, 'genotypes', f'split_{split_index}_filtered_{part}'),
                     '--extract', snp_list_path,
                     '--make-pgen', '--out', os.path.join(pfile_dir, f'{cfg.phenotype.name}.train_top{cfg.max_snp_count}')]
             run_plink(args)
