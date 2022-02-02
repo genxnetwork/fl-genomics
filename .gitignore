@@ -157,3 +157,7 @@ dimred/src/slurm-*.out
 image.sif
 .gitignore
 .vscode/settings.json
+
+
+# hydra outputs
+fl/src/outputs

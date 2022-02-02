@@ -13,3 +13,6 @@ model:
   epochs:
 training:
   batch_size: 
+experiment:
+  random_state: 1
+  
