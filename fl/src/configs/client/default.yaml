@@ -1,18 +1,29 @@
+node_index: 0
+split_dir: /gpfs/gpfs0/ukb_data/fml/british_split/
+
+phenotype:
+  name: standing_height
+  code: 50
+
 data:
-  root: ''
-  train:
-  val:
-  test:
+  genotype:
+    root: ${split_dir}/genotypes/union/split_${node_index}/topk/${phenotype.name}
+    train: ${.root}.train_top1000
+    val: ${.root}.val_top1000
   phenotype:
-    train:
-    val:
+    root: ${split_dir}/only_phenotypes/${phenotype.name}_split_${node_index}
+    train: ${.root}_train.tsv
+    val: ${.root}_val.tsv
+  gwas: ${split_dir}/gwas/split_${node_index}.${phenotype.name}.tsv
+
 model:
-  input_size: 
-  l1:
-  lr:
-  epochs:
+  input_size: 1
+  l1: 1
+  lr: 1
+  epochs: 1
 training:
-  batch_size: 
+  batch_size: 1
 experiment:
   random_state: 1
+  description: test mlflow client run
   
