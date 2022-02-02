@@ -2,11 +2,11 @@
 
 ## Datasets
 
-1. British                          429653
-2. Indian + Pakistani + Bangladeshi 7618
-3. African + Caribbean              7491
-4. Chinese                          1503
-5. Others and Mixed                 38099
+0. British                          429653
+1. Indian + Pakistani + Bangladeshi 7618
+2. African + Caribbean              7491
+3. Chinese                          1503
+4. Others and Mixed                 38099
 
 ## Ethnicity Stats
 
