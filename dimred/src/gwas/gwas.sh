@@ -9,4 +9,4 @@
 module load python/mambaforge3
 cd /trinity/home/$USER/uk-biobank/dimred/src
 singularity exec --nv -B /gpfs/gpfs0/ukb_data,/gpfs/gpfs0/$USER \
-../../image.sif /trinity/home/a.medvedev/.conda/fl/bin/python -m gwas.gwas "$@"
+../../image.sif /trinity/home/$USER/.conda/fl/bin/python -m gwas.gwas "$@"
