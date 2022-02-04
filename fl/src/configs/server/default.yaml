@@ -1,2 +1,3 @@
 experiment:
   description: test mlflow server run
+epochs: 64

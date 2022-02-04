@@ -1,4 +1,3 @@
-from turtle import forward
 from typing import Dict, Any, List, Tuple
 from pytorch_lightning import LightningModule
 import torch
@@ -25,7 +24,7 @@ class BaseNet(LightningModule):
         loss = self.calculate_loss(y_hat, y)
         if self.l1 is not None:
             loss += self.regularization()
-        return {loss: 'loss'}
+        return {'loss': loss}
 
     def regularization(self):
         return self.l1 * torch.norm(self.layer.weight, p=1)
@@ -51,13 +50,14 @@ class BaseNet(LightningModule):
                                                         max_lr=self.lr,
                                                         total_steps=self.epochs,
                                                         pct_start=0.1,
+                                                        #last_epoch=self.curren
                                                         cycle_momentum=False)
-        return [optimizer], [scheduler]
+        return [optimizer], []
 
 
 class LinearRegressor(BaseNet):
     def __init__(self, input_size: int, l1: float, lr: float, momentum: float, epochs: float) -> None:
-        super().__init__()
+        super().__init__(input_size, l1, lr, momentum, epochs)
         self.layer = Linear(input_size, 1)
         self.l1 = l1
         self.lr = lr

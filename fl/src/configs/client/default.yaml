@@ -8,8 +8,8 @@ phenotype:
 data:
   genotype:
     root: ${split_dir}/genotypes/union/split_${node_index}/topk/${phenotype.name}
-    train: ${.root}.train_top1000
-    val: ${.root}.val_top1000
+    train: ${.root}.train_top200
+    val: ${.root}.val_top200
   phenotype:
     root: ${split_dir}/only_phenotypes/${phenotype.name}_split_${node_index}
     train: ${.root}_train.tsv
@@ -17,12 +17,17 @@ data:
   gwas: ${split_dir}/gwas/split_${node_index}.${phenotype.name}.tsv
 
 model:
-  input_size: 1
-  l1: 1
-  lr: 1
+  l1: 1e-3
+  lr: 1e-3
   epochs: 1
+  momentum: 0.9
+  batch_size: 512
 training:
-  batch_size: 1
+  gpus:
+   - 0
+  max_epochs: 1
+  enable_progress_bar: False
+  enable_model_summary: False
 experiment:
   random_state: 1
   description: test mlflow client run

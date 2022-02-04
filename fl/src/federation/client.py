@@ -32,7 +32,7 @@ class FLClient(NumPyClient):
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
-        self.model.current_step = config['current_step']
+        # self.model.current_step = config['current_step']
         trainer = Trainer(logger=self.logger, **self.training_params)
         trainer.fit(self.model, datamodule=self.data_module)
         
@@ -43,18 +43,16 @@ class FLClient(NumPyClient):
 
         # trainer = Trainer(progress_bar_refresh_rate=0, enable_model_summary=False, logger=self.logger)
         trainer = Trainer(logger=self.logger, **self.training_params)
-        val_loader = self.model.val_dataloader()
-        train_loader = self.model.unshuffled_train_dataloader()
         # train_loader = DataLoader(self.model.train_dataset, batch_size=64, num_workers=1, shuffle=False)
         
-        val_results = trainer.validate(self.model, val_loader, verbose=False)
-        train_results = trainer.validate(self.model, train_loader, verbose=False)
+        val_results = trainer.validate(self.model, datamodule=self.data_module, verbose=False)
+        # train_results = trainer.validate(self.model, train_loader, verbose=False)
+        # train_loss, train_accuracy = train_results[0]["val_loss"], train_results[0]["val_accuracy"]
+        val_loss = val_results[0]["val_loss"]
 
-        train_loss, train_accuracy = train_results[0]["val_loss"], train_results[0]["val_accuracy"]
-        val_loss, val_accuracy = val_results[0]["val_loss"], val_results[0]["val_accuracy"]
-
-        logging.info(f'loss: {train_loss:.4f}\ttrain_acc: {train_accuracy:.4f}\tval_loss: {val_loss:.4f}\tval_acc: {val_accuracy:.4f}')
-        return val_loss, len(val_loader), {"loss": val_loss, "accuracy": val_accuracy}
+        # logging.info(f'loss: {train_loss:.4f}\ttrain_acc: {train_accuracy:.4f}\tval_loss: {val_loss:.4f}\tval_acc: {val_accuracy:.4f}')
+        logging.info(f'loss: {val_loss}')
+        return val_loss, self.data_module.val_len(), {"loss": val_loss}
 
 
 def _get_parameters(model):

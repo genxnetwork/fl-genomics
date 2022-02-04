@@ -26,11 +26,11 @@ def write_hostname():
 def main(cfg: DictConfig):
     # print(os.environ)
     strategy = flwr.server.strategy.FedAvg(
-        fraction_fit=0.5,
-        fraction_eval=0.5,
-        min_fit_clients = 1,
-        min_eval_clients = 1,
-        min_available_clients = 1,
+        fraction_fit=0.99,
+        fraction_eval=0.99,
+        min_fit_clients = 2,
+        min_eval_clients = 2,
+        min_available_clients = 2,
     )
 
     with mlflow.start_run(
@@ -46,7 +46,7 @@ def main(cfg: DictConfig):
         flwr.server.start_server(
                         server_address="[::]:8080",
                         strategy=strategy,
-                        config={"num_rounds": 32}
+                        config={"num_rounds": cfg.epochs}
         )
 
         mlflow.log_metric('test_metric', 0.0)
