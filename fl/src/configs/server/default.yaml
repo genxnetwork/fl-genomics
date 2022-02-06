@@ -1,3 +1,4 @@
 experiment:
   description: test mlflow server run
 epochs: 64
+node_count: 4

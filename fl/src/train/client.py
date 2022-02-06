@@ -14,7 +14,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from datasets.memory import load_from_pgen, load_phenotype
 from datasets.lightning import DataModule
-from model.mlp import BaseNet, LinearRegressor
+from model.mlp import BaseNet, LinearRegressor, MLPRegressor
 from federation.client import FLClient
 
 
@@ -72,6 +72,36 @@ def configure_logging():
     logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
 
 
+def create_linear_regressor(input_size: int, params: Any) -> LinearRegressor:
+    return LinearRegressor(
+        input_size=input_size,
+        l1=params.l1,
+        l2=params.l2,
+        lr=params.lr,
+        momentum=params.momentum,
+        epochs=params.epochs
+    )
+
+def create_mlp_regressor(input_size: int, params: Any) -> MLPRegressor:
+    return MLPRegressor(
+        input_size=input_size,
+        hidden_size=params.hidden_size,
+        l1=params.l1,
+        l2=params.l2,
+        lr=params.lr,
+        momentum=params.momentum,
+        epochs=params.epochs
+    )
+
+def create_model(input_size: int, params: Any) -> BaseNet:
+    if params.kind == 'linear_regressor':
+        return create_linear_regressor(input_size, params)
+    elif params.kind == 'mlp_regressor':
+        return create_mlp_regressor(input_size, params)
+    else:
+        raise ValueError(f'model kind {params.kind} is unknown')
+
+
 @hydra.main(config_path='../configs/client', config_name='default')
 def main(cfg: DictConfig):
     configure_logging()
@@ -84,19 +114,12 @@ def main(cfg: DictConfig):
     X_val = load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, None) # load all snps
     print('Genotype data loaded')
     print(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
-    print(X_train[:5,:5])
 
     y_train, y_val = load_phenotype(cfg.data.phenotype.train), load_phenotype(cfg.data.phenotype.val)
     print(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
     data_module = DataModule(X_train, X_val, y_train, y_val, cfg.model.batch_size)
 
-    net = LinearRegressor(
-        input_size=X_train.shape[1],
-        l1=cfg.model.l1,
-        lr=cfg.model.lr,
-        momentum=cfg.model.momentum,
-        epochs=cfg.model.epochs
-    )
+    net = create_model(X_train.shape[1], cfg.model)
     # custom experiment name, because on the same filesystem 
     # default tensorboard logger creates logs directory with the same name in the same folder in the federated setting
     # it leads to a fail of one of the clients 

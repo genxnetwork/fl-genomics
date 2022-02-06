@@ -8,8 +8,8 @@ phenotype:
 data:
   genotype:
     root: ${split_dir}/genotypes/union/split_${node_index}/topk/${phenotype.name}
-    train: ${.root}.train_top200
-    val: ${.root}.val_top200
+    train: ${.root}.train_top1000
+    val: ${.root}.val_top1000
   phenotype:
     root: ${split_dir}/only_phenotypes/${phenotype.name}_split_${node_index}
     train: ${.root}_train.tsv
@@ -17,15 +17,17 @@ data:
   gwas: ${split_dir}/gwas/split_${node_index}.${phenotype.name}.tsv
 
 model:
-  l1: 1e-3
+  kind: linear_regressor
+  l1: 0.0
+  l2: 1e-3
   lr: 1e-3
   epochs: 1
-  momentum: 0.9
+  momentum: 0.8
   batch_size: 512
 training:
   gpus:
    - 0
-  max_epochs: 1
+  max_epochs: 64
   enable_progress_bar: False
   enable_model_summary: False
 experiment:

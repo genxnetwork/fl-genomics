@@ -21,3 +21,12 @@
 
 1. Launch `server.py` script with `python -m train.server`
 2. Launch `client.py` scripts with `python -m train.client`
+
+
+**MLP Regressor Training**
+
+```
+sbatch train/server.sh node_count=2 epochs=4
+sbatch train/client.sh node_index=0 model.kind=mlp_regressor +model.hidden_size=32 model.lr=5e-2 experiment.random_state=10
+sbatch train/client.sh node_index=1 model.kind=mlp_regressor +model.hidden_size=32 model.lr=5e-2 experiment.random_state=11
+```

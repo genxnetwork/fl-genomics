@@ -35,13 +35,11 @@ class FLClient(NumPyClient):
         # self.model.current_step = config['current_step']
         trainer = Trainer(logger=self.logger, **self.training_params)
         trainer.fit(self.model, datamodule=self.data_module)
-        
         return self.get_parameters(), self.data_module.train_len(), {}
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
 
-        # trainer = Trainer(progress_bar_refresh_rate=0, enable_model_summary=False, logger=self.logger)
         trainer = Trainer(logger=self.logger, **self.training_params)
         # train_loader = DataLoader(self.model.train_dataset, batch_size=64, num_workers=1, shuffle=False)
         
@@ -51,7 +49,7 @@ class FLClient(NumPyClient):
         val_loss = val_results[0]["val_loss"]
 
         # logging.info(f'loss: {train_loss:.4f}\ttrain_acc: {train_accuracy:.4f}\tval_loss: {val_loss:.4f}\tval_acc: {val_accuracy:.4f}')
-        logging.info(f'loss: {val_loss}')
+        logging.info(f'val_loss: {val_loss:.4f}')
         return val_loss, self.data_module.val_len(), {"loss": val_loss}
 
 

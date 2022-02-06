@@ -28,9 +28,9 @@ def main(cfg: DictConfig):
     strategy = flwr.server.strategy.FedAvg(
         fraction_fit=0.99,
         fraction_eval=0.99,
-        min_fit_clients = 2,
-        min_eval_clients = 2,
-        min_available_clients = 2,
+        min_fit_clients = cfg.node_count,
+        min_eval_clients = cfg.node_count,
+        min_available_clients = cfg.node_count,
     )
 
     with mlflow.start_run(
