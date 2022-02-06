@@ -67,7 +67,7 @@ def create_mlflow_client() -> MlflowClient:
 
 
 def configure_logging():
-    # to disable printing GPU TPU IPU info for each trainer 
+    # to disable printing GPU TPU IPU info for each trainer each FL step
     # https://github.com/PyTorchLightning/pytorch-lightning/issues/3431
     logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
 
@@ -110,8 +110,8 @@ def main(cfg: DictConfig):
     print(f'parent_run_id is {parent_run_id}')
     mlflow_client = create_mlflow_client()
 
-    X_train = load_from_pgen(cfg.data.genotype.train, cfg.data.gwas, None) # load all snps
-    X_val = load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, None) # load all snps
+    X_train = load_from_pgen(cfg.data.genotype.train, cfg.data.gwas, None, missing=cfg.experiment.missing) # load all snps
+    X_val = load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, None, missing=cfg.experiment.missing) # load all snps
     print('Genotype data loaded')
     print(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
 
@@ -140,7 +140,7 @@ def main(cfg: DictConfig):
         train_model(client)
         metrics = evaluate_model(data_module, net, client)
 
-        mlflow.log_metrics(metrics)
+        # mlflow.log_metrics(metrics)
 
 
 if __name__ == '__main__':

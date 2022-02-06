@@ -49,7 +49,6 @@ def main(cfg: DictConfig):
                         config={"num_rounds": cfg.epochs}
         )
 
-        mlflow.log_metric('test_metric', 0.0)
 
 if __name__ == '__main__':
     main()

@@ -8,9 +8,12 @@
 #SBATCH --gpus 1
 #SBATCH --export ALL
 
+# mlflow credentials are needed for saving artifacts in s3 bucket
 set -o allexport
 source /trinity/home/$USER/.mlflow/credentials
 
+# these two files are written by server 
+# client uses them to create child mlflow run id and to connect to server
 cd /trinity/home/$USER/uk-biobank/fl/src
 source .mlflow_parent_run_id
 source .server_hostname
