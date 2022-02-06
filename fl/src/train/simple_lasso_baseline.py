@@ -11,8 +11,8 @@ from sklearn.linear_model import LassoCV
 @hydra.main(config_path='../configs/client', config_name='default')
 def main(cfg: DictConfig):
 
-    X_train = load_from_pgen(cfg.data.genotype.train, cfg.data.gwas, None) # load all snps
-    X_val = load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, None) # load all snps
+    X_train = load_from_pgen(cfg.data.genotype.train, cfg.data.gwas, None, missing=cfg.experiment.missing) # load all snps
+    X_val = load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, None, missing=cfg.experiment.missing) # load all snps
     print('Genotype data loaded')
     print(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
 
