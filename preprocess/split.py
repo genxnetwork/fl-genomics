@@ -28,14 +28,13 @@ class SplitBase(object):
         loader = UKBDataLoader(ukb_loader_dir, 'split', '21000', ['31'])
         df = pd.concat((loader.load_train(), loader.load_val(), loader.load_test()))
         df.columns = ['sex', 'ethnic_background']
-        df = df.loc[~df.ethnic_background.isna()]
+        df.loc[df.ethnic_background.isna(), 'ethnic_background'] = 0
         df.ethnic_background = df.ethnic_background.astype('int')
         
         # Include FID/IID fields for plink to play nice with the output files
-        df['FID'] = df.index
-        df['IID'] = df.index
+        df['FID'] = df['IID'] = df.index
         # Leave only those samples that passed population QC
-        pop_qc_ids = pd.read_csv(valid_ids_path, index_col='IID')
+        pop_qc_ids = pd.read_csv(valid_ids_path, index_col='IID', sep='\t')
         df = df.loc[df.index.intersection(pop_qc_ids.index)]
         
         return df

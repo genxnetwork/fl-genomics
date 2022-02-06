@@ -18,5 +18,11 @@ def central_qc(split_dir: str, valid_ids_path: str) -> None:
 
     # Drop outlier indices
     df = df.loc[df.index.difference(outliers[1].index.union(outliers[0].index))]
-
-    df.to_csv(valid_ids_path, index=True, index_label="IID", columns=[])
+    
+    # Keep only samples with a reported ethnic background
+    loader = UKBDataLoader(split_dir, 'split', '21000', ['31'])
+    eb_df = pd.concat((loader.load_train(), loader.load_val(), loader.load_test()))
+    df = df.loc[df.index.intersection(eb_df.index)]
+    
+    df['IID'] = df['FID'] = df.index
+    df.to_csv(valid_ids_path, index=False, columns=['IID', 'FID'], sep='\t')

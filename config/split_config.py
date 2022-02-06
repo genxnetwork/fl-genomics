@@ -58,7 +58,10 @@ ethnic_background_name_map = {
     2004:	'Any other mixed background',
     3004:	'Any other Asian background',
     5: 'Chinese',
-    6:	'Other ethnic group'
+    6:	'Other ethnic group',
+    0: 'Missing',
+    -1:	'Do not know',
+    -3:	'Prefer not to answer'
 }
 
 random_seed = 32
