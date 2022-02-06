@@ -162,3 +162,6 @@ image.sif
 # hydra outputs
 fl/src/outputs
 fl/src/slurm-*.out
+fl/src/.server_hostname
+
+fl/src/.mlflow_parent_run_id
