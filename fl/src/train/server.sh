@@ -2,7 +2,7 @@
 #SBATCH --job-name ukb_fl_server # good manners rule 
 #SBATCH --partition gpu_devel # one of gpu, gpu_devel 
 #SBATCH --nodes 1 # amount of nodes allocated 
-#SBATCH --time 0:40:00 # hh:mm:ss, walltime 
+#SBATCH --time 2:00:00 # hh:mm:ss, walltime 
 #SBATCH --mem 2000
 #SBATCH --cpus-per-task 1
 #SBATCH --export ALL
