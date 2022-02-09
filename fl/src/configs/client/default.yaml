@@ -17,17 +17,23 @@ data:
   gwas: ${split_dir}/gwas/split_${node_index}.${phenotype.name}.tsv
 
 model:
-  kind: linear_regressor
+  name: linear_regressor
   l1: 0.0
-  l2: 1e-3
-  lr: 1e-3
-  epochs: 1
-  momentum: 0.8
-  batch_size: 512
+  batch_size: 1024
+  optimizer:
+    name: adamw
+    lr: 1e-2
+    weight_decay: 1e-2
+  scheduler:
+    name: one_cycle_lr
+    rounds: 16
+    epochs_in_round: 16
+    div_factor: 25
+    final_div_factor: 1e+4
 training:
   gpus:
    - 0
-  max_epochs: 64
+  max_epochs: ${model.scheduler.epochs_in_round}
   enable_progress_bar: False
   enable_model_summary: False
 experiment:
