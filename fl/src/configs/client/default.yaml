@@ -1,4 +1,4 @@
-node_index: 0
+node_index: ${oc.decode:${oc.env:SLURM_ARRAY_TASK_ID}}
 split_dir: /gpfs/gpfs0/ukb_data/fml/british_split/
 
 phenotype:
@@ -38,6 +38,6 @@ training:
   enable_model_summary: False
 experiment:
   missing: zero
-  random_state: 1
-  description: test mlflow client run
+  random_state: ${node_index}
+  description: ${model.name} on ${phenotype.name}
   
