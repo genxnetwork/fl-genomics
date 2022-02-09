@@ -3,7 +3,7 @@ import pandas
 from pgenlib import PgenReader
 
 
-def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, missing='zero') -> numpy.ndarray:
+def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, missing='zero', sample_indices: numpy.ndarray=None) -> numpy.ndarray:
     """
     Loads genotypes from .pgen into numpy array and selects top {snp_count} snps
 
@@ -19,9 +19,9 @@ def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, missing='zer
     Returns:
         numpy.ndarray: An int8 sample-major array with {snp_count} genotypes
     """    
-    reader = PgenReader((pfile_path + '.pgen').encode('utf-8'))
+    reader = PgenReader((pfile_path + '.pgen').encode('utf-8'), sample_subset=sample_indices)
     max_snp_count = reader.get_variant_ct()
-    sample_count = reader.get_raw_sample_ct()
+    sample_count = len(sample_indices) if sample_indices.any() else reader.get_raw_sample_ct()
     if snp_count is not None and snp_count > max_snp_count:
         raise ValueError(f'snp_count {snp_count} should be not greater than max_snp_count {max_snp_count}')
     
@@ -52,4 +52,9 @@ def get_snp_list(pfile_path: str, gwas_path: str, snp_count: int) -> numpy.ndarr
     snp_ids = set(gwas.ID.values[:snp_count])
     snp_indices = numpy.arange(pvar.shape[0])[pvar.ID.isin(snp_ids)].astype(numpy.uint32)
     return snp_indices
-    
+
+def get_sample_indices(pfile_path:str, phenotype_path: str) -> numpy.ndarray:
+    psam = pandas.read_table(pfile_path + '.psam')
+    pheno = pandas.read_table(phenotype_path)
+    psam['idx'] = numpy.arange(0, psam.shape[0])
+    return psam.loc[psam.IID.isin(pheno.IID), 'idx'].values.astype('uint32')
