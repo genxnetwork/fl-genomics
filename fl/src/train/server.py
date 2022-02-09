@@ -1,6 +1,7 @@
 from omegaconf import DictConfig, OmegaConf
 import hydra
 from hydra.utils import to_absolute_path
+import logging
 import mlflow
 import flwr
 import socket
@@ -21,9 +22,23 @@ def write_hostname():
         hn_file.write(f'FLWR_SERVER_HOSTNAME={host_name}')    
 
 
+def configure_logging():
+    flower = logging.getLogger('flower')
+    root = logging.getLogger()
+    print('flower handlers:')
+    for handler in flower.handlers:
+        print(handler)
+    print()
+    print(f'root handlers:') 
+    for handler in root.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            handler.setLevel(logging.INFO)
+        print(handler)
+
 @hydra.main(config_path='../configs/server', config_name='default')
 def main(cfg: DictConfig):
-    # print(os.environ)
+    
+    configure_logging()
     strategy = MlflowStrategy(
         fraction_fit=0.99,
         fraction_eval=0.99,
