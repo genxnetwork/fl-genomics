@@ -1,10 +1,10 @@
 #!/bin/bash 
-#SBATCH --job-name split_ukb_test # good manners rule 
+#SBATCH --job-name split_ukb_split # good manners rule 
 #SBATCH --partition gpu_devel # or gpu_small
 #SBATCH --nodes 1 # amount of nodes allocated 
-#SBATCH --time 01:30:00# hh:mm:ss, walltime (less requested time -> 
-#SBATCH --mem 20000
-#SBATCH --cpus-per-task 4
+#SBATCH --time 00:30:00# hh:mm:ss, walltime (less requested time -> 
+#SBATCH --mem 6000
+#SBATCH --cpus-per-task 1
 
 module load python/mambaforge3
 cd /trinity/home/$USER/uk-biobank/dimred/src
