@@ -21,9 +21,13 @@ def get_phenotype_path(source_dir: str, name: str, node_index: int, fold_index: 
 def ensure_cov_pheno_dir(cov_pheno_dir: str, phenotype_name: str, node_index: int):
     os.makedirs(os.path.join(cov_pheno_dir, phenotype_name, f'node_{node_index}'), exist_ok=True)
 
-
 def get_pca_cov_path(source_dir: str, name: str, node_index: int, fold_index: int, part: str) -> str:
-    return os.path.join(source_dir, f'{name}_node_{node_index}_fold_{fold_index}_{part}.tsv')
+    return os.path.join(source_dir, name, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
+
+
+def ensure_pca_cov_dir(source_dir: str, name: str, node_index: int):
+    os.makedirs(os.path.join(source_dir, name, f'node_{node_index}'), exist_ok=True)
+
 
 def get_pca_path(pca_dir: str, node_index: int, fold_index: int = None, part: str = None) -> str:
     if fold_index is None or part is None:
@@ -125,7 +129,7 @@ def prepare_cov_and_phenotypes(pca_dir: str, cov_pheno_dir: str, covariates_dir:
             pca_cov_path = get_pca_cov_path(covariates_dir, phenotype_name, node_index, fold_index, part)
             phenotype_path = get_phenotype_path(phenotypes_dir, phenotype_name, node_index, fold_index, part)
             ensure_phenotypes_only_dir(phenotypes_dir, phenotype_name, node_index)
-
+            ensure_pca_cov_dir(covariates_dir, phenotype_name, node_index)
             prepare_cov_and_phenotype_for_fold(pca_path, cov_pheno_path, pca_cov_path, phenotype_path)
 
 
@@ -211,19 +215,19 @@ def standardize(train_path: str, val_path: str, test_path: str, columns: List[st
 
 @hydra.main(config_path='configs', config_name='split')
 def main(cfg: DictConfig):
+    
+    cov_dir = os.path.join(cfg.split_dir, 'covariates')
+    cov_pheno_dir = os.path.join(cfg.split_dir, 'phenotypes')
+    pca_dir = os.path.join(cfg.split_dir, 'pca')
+    phenotypes_dir = os.path.join(cfg.split_dir, 'only_phenotypes')
+    os.makedirs(phenotypes_dir, exist_ok=True)
+    os.makedirs(cov_dir, exist_ok=True)
+
     for node_index in range(cfg.node_count):
         split_ids_dir = os.path.join(cfg.split_dir, 'split_ids')
         os.makedirs(os.path.join(split_ids_dir, f'node_{node_index}'), exist_ok=True)
 
         split_ids(split_ids_dir, node_index, cfg.random_state)
-        
-        cov_dir = os.path.join(cfg.split_dir, 'covariates')
-        cov_pheno_dir = os.path.join(cfg.split_dir, 'phenotypes')
-        pca_dir = os.path.join(cfg.split_dir, 'pca')
-        phenotypes_dir = os.path.join(cfg.split_dir, 'only_phenotypes')
-
-        os.makedirs(phenotypes_dir, exist_ok=True)
-        os.makedirs(cov_dir, exist_ok=True)
 
         split_phenotypes(cov_pheno_dir, cfg.phenotype.name, split_ids_dir, node_index)
 
