@@ -7,9 +7,9 @@ import shutil
 
 @hydra.main(config_path='configs', config_name='gwas')
 def main(cfg: DictConfig):
-    os.makedirs(os.path.join(cfg.split_dir, 'gwas'), exist_ok=True)
+    os.makedirs(cfg.output.root_dir, exist_ok=True)
     args = [
-        '--pfile', cfg.genotype.train,
+        '--pfile', cfg.genotype,
         '--covar', cfg.covariates.path,
         '--pheno', cfg.phenotype.path,
         '--no-psam-pheno', '--pheno-name', cfg.phenotype.name,
@@ -22,9 +22,9 @@ def main(cfg: DictConfig):
     # plink GWAS output filename depends on phenotype and regression. 
     # We rename it to be always cfg.output.path + .tsv 
     shutil.move(get_gwas_output_path(cfg.output.path, cfg.phenotype.name, cfg.phenotype.type), 
-        f'{cfg.output.path}.{cfg.phenotype.name}.tsv')
+        f'{cfg.output.path}.tsv')
 
-    print(f'GWAS for phenotype {cfg.phenotype.name} and split {cfg.split_index} finished')
+    print(f'GWAS for phenotype {cfg.phenotype.name} and split {cfg.node_index} and fold {cfg.fold_index} finished ')
 
 
 if __name__ == '__main__':

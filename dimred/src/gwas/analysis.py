@@ -64,7 +64,7 @@ def plot_log10p(gwas: pandas.DataFrame, output_path: str):
 @hydra.main(config_path='configs', config_name='gwas')
 def main(cfg: DictConfig):
 
-    gwas_results_path = f'{cfg.output.path}.{cfg.phenotype.name}.tsv'
+    gwas_results_path = f'{cfg.output.path}.tsv'
     # pvalues_plot_path = f'{cfg.output.path}.log10p.png'
     qq_plot_path = f'{cfg.output.path}.qqplot.png'
     hist_plot_path = f'{cfg.output.path}.hist.png'
@@ -76,7 +76,7 @@ def main(cfg: DictConfig):
     plot_hist(gwas, hist_plot_path)
     plot_manhattan(gwas, manhattan_plot_path)
 
-    print(f'GWAS analysis for phenotype {cfg.phenotype.name} and split_index {cfg.split_index} finished')
+    print(f'GWAS analysis for phenotype {cfg.phenotype.name} and node_index {cfg.node_index} and fold_index {cfg.fold_index} finished')
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 node_index: 0
-fold_index: 0
+fold_index: ${oc.decode:${oc.env:SLURM_ARRAY_TASK_ID}}
 split_dir: /gpfs/gpfs0/ukb_data/fml/british_split
 phenotype:
   code: 50
@@ -8,8 +8,8 @@ phenotype:
   type: real
 covariates:
   path: ${split_dir}/covariates/${phenotype.name}/node_${node_index}/fold_${fold_index}_train.tsv
-genotype:
-  train: ${split_dir}/genotypes/split_${node_index}_filtered_train
+genotype: ${split_dir}/genotypes/split_${node_index}_filtered
 output:
-  path: ${split_dir}/gwas/split${node_index}
+  root_dir: ${split_dir}/gwas/${phenotype.name}/node_${node_index}
+  path: ${.root_dir}/fold_${fold_index}
 threads: 4
