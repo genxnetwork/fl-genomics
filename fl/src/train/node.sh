@@ -15,7 +15,7 @@ set -o allexport
 source /trinity/home/$USER/.mlflow/credentials
 
 # these two files are written by server 
-# client uses them to create child mlflow run id and to connect to server
+# node model uses them to create child mlflow run id and to connect to server
 cd /trinity/home/$USER/uk-biobank/fl/src
 while [ ! -f .mlflow_parent_run_id ]; do sleep 2; done
 source .mlflow_parent_run_id
@@ -23,4 +23,4 @@ source .server_hostname
 set +o allexport
 
 singularity exec --nv -B /gpfs/gpfs0/ukb_data,/gpfs/gpfs0/$USER \
-../../image.sif /trinity/home/$USER/.conda/fl/bin/python -u -m train.client "$@"
+../../image.sif /trinity/home/$USER/.conda/fl/bin/python -u -m train.node "$@"

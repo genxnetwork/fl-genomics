@@ -12,11 +12,6 @@ from datasets.lightning import DataModule
 
 
 class FLClient(NumPyClient):
-    def __init__(self) -> None:
-        super().__init__()
-
-
-class FLClient(NumPyClient):
     def __init__(self, model: BaseNet, data_module: DataModule, logger: TensorBoardLogger, model_params: Dict, training_params: Dict):
         self.model = model
         self.data_module = data_module
@@ -26,11 +21,12 @@ class FLClient(NumPyClient):
         self.training_params = training_params
 
     def get_parameters(self):
-        parameters = _get_parameters(self.model)
-        return parameters
+        return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
 
     def set_parameters(self, parameters):
-        _set_parameters(self.model, parameters)
+        params_dict = zip(self.model.state_dict().keys(), parameters)
+        state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict if v.shape != ()})
+        self.model.load_state_dict(state_dict, strict=True)
 
     def fit(self, parameters, config):
         self.set_parameters(parameters)
@@ -60,13 +56,3 @@ class FLClient(NumPyClient):
 
         logging.info(f'train_loss: {train_loss:.4f}\tval_loss: {val_loss:.4f}')
         return val_loss, self.data_module.val_len(), {"val_loss": val_loss, "train_loss": train_loss}
-
-
-def _get_parameters(model):
-    return [val.cpu().numpy() for _, val in model.state_dict().items()]
-
-
-def _set_parameters(model, parameters):
-    params_dict = zip(model.state_dict().keys(), parameters)
-    state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict if v.shape != ()})
-    model.load_state_dict(state_dict, strict=True)

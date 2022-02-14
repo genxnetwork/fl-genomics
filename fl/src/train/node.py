@@ -110,7 +110,7 @@ def model_params_to_dict(cfg: DictConfig) -> Dict[str, Any]:
     return {'model': model_params, 'scheduler': scheduler_params, 'optimizer': optim_params}
 
 
-@hydra.main(config_path='../configs/client', config_name='default')
+@hydra.main(config_path='../configs/node', config_name='default')
 def main(cfg: DictConfig):
     configure_logging()
 
