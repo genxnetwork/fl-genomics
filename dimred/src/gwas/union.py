@@ -89,10 +89,16 @@ def generate_pfiles(cfg: DictConfig):
     for node_index in range(cfg.split_count):
         pfile_dir = _get_pfile_dir(cfg.split_dir, node_index, cfg.strategy)
         os.makedirs(pfile_dir, exist_ok=True)
+
         for part in ['train', 'val']:
-            args = ['--pfile', os.path.join(cfg.split_dir, 'genotypes', f'split_{split_index}_filtered_{part}'),
-                    '--extract', snp_list_path,
-                    '--make-pgen', '--out', os.path.join(pfile_dir, f'{cfg.phenotype.name}.train_top{cfg.max_snp_count}')]
+            
+            phenotype_path = os.path.join(cfg.split_dir, 'only_phenotypes', f'{cfg.phenotype.name}_split_{split_index}_{part}.tsv')
+            output_path = os.path.join(pfile_dir, f'{cfg.phenotype.name}.{part}_top{cfg.max_snp_count}')
+            pfile_path = os.path.join(cfg.split_dir, 'genotypes', f'split_{split_index}_filtered_{part}')
+            
+            args = ['--pfile', pfile_path,
+                    '--extract', snp_list_path, '--keep', phenotype_path, 
+                    '--make-pgen', '--out', output_path]
             run_plink(args)
         
         print(f'Top {cfg.max_snp_count} SNP selection completed for split {split_index} and part {part} with strategy {cfg.strategy}')
