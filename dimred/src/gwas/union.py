@@ -7,21 +7,21 @@ from utils.plink import run_plink
 import matplotlib.pyplot as plt
 
 
-def _read_all_gwas(gwas_dir: str, phenotype_name: str, split_count: int) -> List[pandas.DataFrame]:
+def _read_all_gwas(gwas_dir: str, phenotype_name: str, node_count: int, fold_index: int) -> List[pandas.DataFrame]:
     """
     Reads all GWAS results for a particular phenotype and split from {gwas_dir}
 
     Args:
         gwas_dir (str): Dir with table-delimited files with GWAS results from plink 2.0 
         phenotype_name (str): Name of the phenotype
-        split_count (int): Number of parts in split
+        node_count (int): Number of nodes in split
 
     Returns:
         List[pandas.DataFrame]: List of GWAS results with #CHROM, POS, LOG10_P columns and ID as index 
     """    
     results = []
-    for split_index in range(split_count):
-        gwas_path = os.path.join(gwas_dir, f'split_{split_index}.{phenotype_name}.tsv')
+    for node_index in range(node_count):
+        gwas_path = os.path.join(gwas_dir, phenotype_name, f'node_{node_index}', f'fold_{fold_index}.tsv')
         gwas = pandas.read_table(gwas_path)
         results.append(gwas.loc[:, ['#CHROM', 'POS', 'ID', 'LOG10_P']].set_index('ID'))
     return results
@@ -33,7 +33,9 @@ def _get_topk_snps(gwas: pandas.DataFrame, max_snp_count: int) -> pandas.DataFra
 
 
 def _get_snp_list_path(strategy: str, split_dir: str) -> str:
-    return os.path.join(split_dir, 'gwas', f'union_{strategy}.snplist')
+    snplists_dir = os.path.join(split_dir, 'gwas', 'snplists')
+    os.makedirs(snplists_dir, exist_ok=True)
+    return os.path.join(snplists_dir, f'union_{strategy}.snplist')
 
 
 def _get_pfile_dir(split_dir: str, split_index: int, strategy: str) -> str:
@@ -84,8 +86,8 @@ def generate_pfiles(cfg: DictConfig):
         cfg (DictConfig): Main script config
     """    
     snp_list_path = _get_snp_list_path(cfg.strategy, cfg.split_dir)
-    for split_index in range(cfg.split_count):
-        pfile_dir = _get_pfile_dir(cfg.split_dir, split_index, cfg.strategy)
+    for node_index in range(cfg.split_count):
+        pfile_dir = _get_pfile_dir(cfg.split_dir, node_index, cfg.strategy)
         os.makedirs(pfile_dir, exist_ok=True)
         for part in ['train', 'val']:
             args = ['--pfile', os.path.join(cfg.split_dir, 'genotypes', f'split_{split_index}_filtered_{part}'),
