@@ -1,0 +1,66 @@
+from os import makedirs
+from os.path import join
+
+
+class Split:
+    def __init__(self, root_dir: str, phenotype: str, node_count: int, fold_count: int = 10) -> None:
+        """Creates necessary directory structure for dimred and encapsulates path manipulation for nodes and folds
+
+        Args:
+            root_dir (str): Directory where all work with this split will be done.
+            phenotype (str): Name of phenotype.
+            node_count (int): Number of nodes in split. 
+            fold_count (int, optional): Number of cv folds. Defaults to 10.
+        """        
+        self.root_dir = root_dir
+        self.phenotype = phenotype
+        self.node_count = node_count
+        self.fold_count = fold_count
+
+        self.cov_pheno_dir = join(self.root_dir, 'phenotypes')
+        self.pca_dir = join(self.root_dir, 'pca')
+        self.pca_cov_dir = join(self.root_dir, 'covariates')
+        self.phenotypes_dir = join(self.root_dir, 'only_phenotypes')
+        self.node_ids_dir = join(self.root_dir, 'split_ids')
+
+        self._create_dir_structure()
+
+    def _create_dir_structure(self):
+        for _dir in [self.cov_pheno_dir,
+                     self.pca_dir,
+                     self.pca_cov_dir,
+                     self.phenotypes_dir,
+                     self.node_ids_dir]:
+            makedirs(_dir, exist_ok=True)
+        
+        for node_index in range(self.node_count):
+            makedirs(join(self.node_ids_dir, f'node_{node_index}'), exist_ok=True)
+            makedirs(join(self.cov_pheno_dir, self.phenotype, f'node_{node_index}'), exist_ok=True)
+            makedirs(join(self.phenotypes_dir, self.phenotype, f'node_{node_index}'), exist_ok=True)
+            makedirs(join(self.pca_dir, f'node_{node_index}'), exist_ok=True)
+            makedirs(join(self.pca_cov_dir, self.phenotype, f'node_{node_index}'), exist_ok=True)
+
+    def get_source_ids_path(self, node_index: int) -> str:
+        return join(self.node_ids_dir, f'{node_index}.csv')
+
+    def get_ids_path(self, node_index: int, fold_index: int, part_name: str) -> str:
+        return join(self.node_ids_dir, f'node_{node_index}', f'fold_{fold_index}_{part_name}.tsv')
+
+    def get_source_phenotype_path(self, node_index: int) -> str:
+        # TODO: rename split to node in preprocessing
+        return join(self.cov_pheno_dir, f'{self.phenotype}_split_{node_index}.csv')
+
+    def get_cov_pheno_path(self, node_index: int, fold_index: int, part: str) -> str:
+        return join(self.cov_pheno_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
+
+    def get_phenotype_path(self, node_index: int, fold_index: int, part: str) -> str:
+        return join(self.phenotypes_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
+
+    def get_source_pca_path(self, node_index: int) -> str:
+        return join(self.pca_dir, f'{node_index}_projections.csv.eigenvec')
+
+    def get_pca_path(self, node_index: int, fold_index: int, part: str) -> str:            
+        return join(self.pca_dir, f'node_{node_index}', f'fold_{fold_index}_projections_{part}.csv.eigenvec')
+
+    def get_pca_cov_path(self, node_index: int, fold_index: int, part: str) -> str:
+        return join(self.pca_cov_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
