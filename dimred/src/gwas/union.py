@@ -32,10 +32,15 @@ def _get_topk_snps(gwas: pandas.DataFrame, max_snp_count: int) -> pandas.DataFra
     return sorted_gwas.drop('LOG10_P', axis='columns')
 
 
-def _get_snp_list_path(strategy: str, split_dir: str) -> str:
+def _get_snp_list_path(strategy: str, split_dir: str, node_index: int = None, fold_index: int = None) -> str:
+
     snplists_dir = os.path.join(split_dir, 'gwas', 'snplists')
     os.makedirs(snplists_dir, exist_ok=True)
-    return os.path.join(snplists_dir, f'union_{strategy}.snplist')
+
+    if node_index is None or fold_index is None:
+        return os.path.join(snplists_dir, f'{strategy}.snplist')
+    else:
+        return os.path.join(snplists_dir, f'node_{node_index}_fold_{fold_index}_{strategy}.snplist')
 
 
 def _get_pfile_dir(split_dir: str, split_index: int, strategy: str) -> str:
@@ -92,7 +97,12 @@ def generate_pfiles(cfg: DictConfig):
 
         for part in ['train', 'val']:
             
-            phenotype_path = os.path.join(cfg.split_dir, 'only_phenotypes', f'{cfg.phenotype.name}_split_{split_index}_{part}.tsv')
+            phenotype_path = os.path.join(cfg.split_dir, 
+                'only_phenotypes', 
+                f'{cfg.phenotype.name}', 
+                f'node_{node_index}', 
+                f'fold_{cfg.fold_index}_{part}.tsv'
+            )
             output_path = os.path.join(pfile_dir, f'{cfg.phenotype.name}.{part}_top{cfg.max_snp_count}')
             pfile_path = os.path.join(cfg.split_dir, 'genotypes', f'split_{split_index}_filtered_{part}')
             
@@ -135,6 +145,22 @@ def mixed(cfg: DictConfig):
     pass
 
 
+def no_union(cfg: DictConfig):
+    """Selects top k SNPs by p-value from each node independently. 
+    Each node will have DIFFERENT set of SNPs
+
+    Args:
+        cfg (DictConfig): Main script config
+    """    
+    gwas_data = _read_all_gwas(os.path.join(cfg.split_dir, 'gwas'), cfg.phenotype.name, cfg.split_count)
+    topk_data = [_get_topk_snps(gwas, cfg.max_snp_count) for gwas in gwas_data]
+
+    for node_index, topk in enumerate(topk_data):
+        snp_list_path = _get_snp_list_path(cfg.strategy, cfg.split_dir, node_index, cfg.fold_index)
+        with open(snp_list_path, 'w') as file:
+            file.write('\n'.join(topk['ID'].tolist()))
+
+
 @hydra.main(config_path='configs', config_name='union')
 def main(cfg: DictConfig):
     # select SNPs based on GWAS results with specified union strategy
@@ -142,6 +168,7 @@ def main(cfg: DictConfig):
         'topk': topk,
         'pvalue': pvalue,
         'mixed': mixed,
+        'no_union': no_union
     }[cfg.strategy]
     strategy(cfg)
     # plot lengths of unions for different thresholds

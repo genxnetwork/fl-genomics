@@ -1,4 +1,4 @@
-strategy: topk # one of topk, pvalue, mixed
+strategy: topk # one of topk, pvalue, mixed, no_union
 split_dir: /gpfs/gpfs0/ukb_data/fml/british_split
 node_count: 4
 fold_index: ${oc.decode:${oc.env:SLURM_ARRAY_TASK_ID}}
