@@ -87,22 +87,30 @@ def create_mlp_regressor(input_size: int, params: Any) -> MLPRegressor:
         input_size=input_size,
         hidden_size=params.hidden_size,
         l1=params.l1,
-        l2=params.l2,
-        lr=params.lr,
-        momentum=params.momentum,
-        epochs=params.epochs
+        optim_params=params['optimizer'],
+        scheduler_params=params['scheduler']
     )
 
 def create_model(input_size: int, params: Any) -> BaseNet:
-    if params.kind == 'linear_regressor':
+    if params.name == 'linear_regressor':
         return create_linear_regressor(input_size, params)
-    elif params.kind == 'mlp_regressor':
+    elif params.name == 'mlp_regressor':
         return create_mlp_regressor(input_size, params)
     else:
-        raise ValueError(f'model kind {params.kind} is unknown')
+        raise ValueError(f'model name {params.name} is unknown')
 
 
-@hydra.main(config_path='../configs/client', config_name='default')
+def model_params_to_dict(cfg: DictConfig) -> Dict[str, Any]:
+    model_params = OmegaConf.to_container(cfg.model)
+    scheduler_params = model_params['scheduler']
+    optim_params = model_params['optimizer']
+
+    del model_params['scheduler']
+    del model_params['optimizer']
+    return {'model': model_params, 'scheduler': scheduler_params, 'optimizer': optim_params}
+
+
+@hydra.main(config_path='../configs/node', config_name='default')
 def main(cfg: DictConfig):
     configure_logging()
 
@@ -133,9 +141,7 @@ def main(cfg: DictConfig):
             'description': cfg.experiment.description
         }
     ):
-        mlflow.log_params({  
-            'model': OmegaConf.to_container(cfg.model)
-        })
+        mlflow.log_params(model_params_to_dict(cfg))
 
         train_model(client)
         metrics = evaluate_model(data_module, net, client)

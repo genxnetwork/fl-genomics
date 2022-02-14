@@ -26,7 +26,8 @@
 **MLP Regressor Training**
 
 ```
-sbatch train/server.sh node_count=2 epochs=4
-sbatch train/client.sh node_index=0 model.kind=mlp_regressor +model.hidden_size=32 model.lr=5e-2 experiment.random_state=10
-sbatch train/client.sh node_index=1 model.kind=mlp_regressor +model.hidden_size=32 model.lr=5e-2 experiment.random_state=11
+# will use cpu partition by default
+sbatch train/server.sh node_count=4 epochs=128
+# will launch 4 total jobs
+sbatch --array=0-3 train/client.sh model.name=mlp_regressor +model.hidden_size=512 model.scheduler.rounds=128 model.scheduler.epochs_in_round=4
 ```

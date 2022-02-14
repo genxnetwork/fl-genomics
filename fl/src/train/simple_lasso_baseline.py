@@ -1,3 +1,4 @@
+from statistics import mean
 from omegaconf import DictConfig, OmegaConf
 import hydra
 
@@ -6,6 +7,7 @@ from datasets.lightning import DataModule
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LassoCV
+from sklearn.metrics import mean_squared_error, r2_score
 
 
 @hydra.main(config_path='../configs/client', config_name='default')
@@ -24,12 +26,19 @@ def main(cfg: DictConfig):
     X_val = scaler.transform(X_val)
 
     print(y_train.mean(), y_val.mean())
-    lasso = LassoCV()
+    lasso = LassoCV(max_iter=2000)
     lasso.fit(X_train, y_train)
-    train_r2 = lasso.score(X_train, y_train)
-    val_r2 = lasso.score(X_val, y_val)
+    y_train_pred = lasso.predict(X_train)
+    y_val_pred = lasso.predict(X_val)
+    
+    train_r2 = r2_score(y_train, y_train_pred)
+    val_r2 = r2_score(y_val, y_val_pred)
     print(f'Train R^2 is {train_r2:.4f}, val R^2 is {val_r2:.4f}')
+    
+    train_mse = mean_squared_error(y_train, y_train_pred)
+    val_mse = mean_squared_error(y_val, y_val_pred)
 
+    print(f'Train MSE is {train_mse:.4f}, Val MSE is {val_mse:.4f}')
 
 
 if __name__ == '__main__':
