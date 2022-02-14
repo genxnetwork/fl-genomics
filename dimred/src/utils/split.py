@@ -22,6 +22,9 @@ class Split:
         self.pca_cov_dir = join(self.root_dir, 'covariates')
         self.phenotypes_dir = join(self.root_dir, 'only_phenotypes')
         self.node_ids_dir = join(self.root_dir, 'split_ids')
+        self.gwas_dir = join(self.root_dir, 'gwas')
+        self.snplists_dir = join(self.root_dir, 'gwas', 'snplists')
+        self.genotypes_dir = join(self.root_dir, 'genotypes')
 
         self._create_dir_structure()
 
@@ -30,15 +33,21 @@ class Split:
                      self.pca_dir,
                      self.pca_cov_dir,
                      self.phenotypes_dir,
-                     self.node_ids_dir]:
+                     self.node_ids_dir,
+                     self.gwas_dir,
+                     self.snplists_dir,
+                     self.genotypes_dir]:
             makedirs(_dir, exist_ok=True)
-        
+
+        makedirs(join(self.snplists_dir, self.phenotype), exist_ok=True)
+
         for node_index in range(self.node_count):
             makedirs(join(self.node_ids_dir, f'node_{node_index}'), exist_ok=True)
             makedirs(join(self.cov_pheno_dir, self.phenotype, f'node_{node_index}'), exist_ok=True)
             makedirs(join(self.phenotypes_dir, self.phenotype, f'node_{node_index}'), exist_ok=True)
             makedirs(join(self.pca_dir, f'node_{node_index}'), exist_ok=True)
             makedirs(join(self.pca_cov_dir, self.phenotype, f'node_{node_index}'), exist_ok=True)
+            makedirs(join(self.gwas_dir, self.phenotype, f'node_{node_index}'), exist_ok=True)
 
     def get_source_ids_path(self, node_index: int) -> str:
         return join(self.node_ids_dir, f'{node_index}.csv')
@@ -64,3 +73,21 @@ class Split:
 
     def get_pca_cov_path(self, node_index: int, fold_index: int, part: str) -> str:
         return join(self.pca_cov_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
+
+    def get_gwas_path(self, node_index: int, fold_index: int) -> str:
+        return join(self.gwas_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}.tsv')
+
+    def get_snplist_path(self, strategy: str, node_index: int, fold_index: int) -> str:
+        return join(self.snplists_dir, self.phenotype, f'node_{node_index}_fold_{fold_index}_{strategy}.snplist')
+
+    def get_source_pfile_path(self, node_index: int) -> str:
+        return join(self.genotypes_dir, f'split_{node_index}_filtered')
+
+    def get_topk_pfile_path(self, strategy: str, node_index: int, fold_index: int, snp_count: int, part: str, sample_count: int = None) -> str:
+        fold_dir =  join(self.genotypes_dir, self.phenotype, f'node_{node_index}', strategy, f'fold_{fold_index}')
+        makedirs(fold_dir, exist_ok=True)
+        if sample_count is None:
+            return join(fold_dir, f'top_{snp_count}_{part}')
+        else:
+            return join(fold_dir, f'top_{snp_count}_{part}_samples_{sample_count}')
+

@@ -169,6 +169,7 @@ class CVSplitter:
     def standardize(self, train_path: str, val_path: str, test_path: str, columns: List[str]):
         """
         Infers mean and std from columns in {train_path} and standardizes both train, test and val columns in-place
+        TODO: think about non-iid data!!!
 
         Args:
             train_path (str): Path to .tsv file with train data. First two columns should be FID, IID

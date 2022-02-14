@@ -24,7 +24,7 @@ def main(cfg: DictConfig):
     shutil.move(get_gwas_output_path(cfg.output.path, cfg.phenotype.name, cfg.phenotype.type), 
         f'{cfg.output.path}.tsv')
 
-    print(f'GWAS for phenotype {cfg.phenotype.name} and split {cfg.node_index} and fold {cfg.fold_index} finished ')
+    print(f'GWAS for phenotype {cfg.phenotype.name} and node {cfg.node_index} and fold {cfg.fold_index} finished ')
 
 
 if __name__ == '__main__':

@@ -14,4 +14,4 @@ analysis:
    - 2000
    - 5000
    - 10000
-  plot_path: ${split_dir}/gwas/${phenotype.name}/node_${node_index}/fold_${fold_index}_snp_selection.png 
+  plot_path: ${split_dir}/gwas/${phenotype.name}/fold_${fold_index}_snp_selection.png 
