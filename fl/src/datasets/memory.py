@@ -45,10 +45,6 @@ def load_phenotype(phenotype_path: str) -> numpy.ndarray:
     data = pandas.read_table(phenotype_path)
     return data.iloc[:, -1].values
 
-def load_covariates(covariates_path: str) -> numpy.ndarray:
-    data = pandas.read_table(covariates_path)
-    return data.iloc[:, 2:].values
-
 
 def get_snp_list(pfile_path: str, gwas_path: str, snp_count: int) -> numpy.ndarray:
     pvar = pandas.read_table(pfile_path + '.pvar')
@@ -57,14 +53,3 @@ def get_snp_list(pfile_path: str, gwas_path: str, snp_count: int) -> numpy.ndarr
     snp_ids = set(gwas.ID.values[:snp_count])
     snp_indices = numpy.arange(pvar.shape[0])[pvar.ID.isin(snp_ids)].astype(numpy.uint32)
     return snp_indices
-
-def get_phenotype_adjuster(phenotype_path_tr: str, covariates_path_tr: str) -> LinearRegression:
-    """
-    Returns a LinearRegression model used to adjust phenotypes to control for all of the given covariates.
-    Expects a file with only the phenotype.
-    """
-    X_tr = load_covariates(covariates_path_tr)
-    y_tr = load_phenotype(phenotype_path_tr)
-    
-    return LinearRegression().fit(X_tr, y_tr)
-
