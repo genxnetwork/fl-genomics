@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import pandas
 import numpy
 from qmplot import qqplot
+from sklearn.metrics import mean_squared_error
+from scipy.stats import spearmanr
 
 
 def plot_manhattan(gwas: pandas.DataFrame, output_path: str):
@@ -61,6 +63,27 @@ def plot_log10p(gwas: pandas.DataFrame, output_path: str):
     plt.savefig(output_path)
 
 
+def compare_adjusted_unadjusted_gwas(adjusted_path: str, unadjusted_path: str):
+    adjusted = pandas.read_table(adjusted_path)
+    unadjusted = pandas.read_table(unadjusted_path)
+    
+    mse = mean_squared_error(adjusted['LOG10_P'].values, unadjusted['LOG10_P'].values)
+    print(f'mse is {mse:.4f}')
+    sp = spearmanr(adjusted['LOG10_P'].values, unadjusted['LOG10_P'].values)
+    print(f'spearman corr results are: {sp}')
+
+    # plink 2.0 actually outputs -log10(p), therefore greater ['LOG10_P'] values correspond to smaller p-values
+    adjusted.sort_values(by='LOG10_P', ascending=False, inplace=True)
+    unadjusted.sort_values(by='LOG10_P', ascending=False, inplace=True)
+
+    total_equality = (adjusted['ID'].values == unadjusted['ID'].values).all()
+    print(f'are they totally identical? {total_equality}')
+
+    adj_top10k = adjusted['ID'].tolist()[:10000]
+    unadj_top10k = unadjusted['ID'].tolist()[:10000]
+    print(len(set(adj_top10k) & set(unadj_top10k)))
+    
+
 @hydra.main(config_path='configs', config_name='gwas')
 def main(cfg: DictConfig):
 
@@ -75,7 +98,8 @@ def main(cfg: DictConfig):
     plot_qq(gwas, qq_plot_path)
     plot_hist(gwas, hist_plot_path)
     plot_manhattan(gwas, manhattan_plot_path)
-
+    if not cfg.phenotype.adjust and os.path.exists(f'{cfg.output.path}.adjusted.tsv'):
+        compare_adjusted_unadjusted_gwas(f'{cfg.output.path}.adjusted.tsv', f'{cfg.output.path}.tsv')
     print(f'GWAS analysis for phenotype {cfg.phenotype.name} and node_index {cfg.node_index} and fold_index {cfg.fold_index} finished')
 
 

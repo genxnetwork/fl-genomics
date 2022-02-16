@@ -7,6 +7,7 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
 
 from utils.split import Split
+from utils.phenotype import adjust_and_write
 
 
 FOLD_COUNT = 10
@@ -142,8 +143,8 @@ class CVSplitter:
         pca_cov.to_csv(pca_cov_path, sep='\t', index=False)
 
 
-    def standardize_covariates_and_phenotypes(self, node_index: int, covariates: List[str] = None):
-        """Z-standardizes {covariates} and phenotype for each fold and particular node {node_index}
+    def standardize_covariates(self, node_index: int, covariates: List[str] = None):
+        """Z-standardizes {covariates} for each fold and particular node {node_index}
 
         Args:
             node_index (int): Index of node
@@ -158,13 +159,14 @@ class CVSplitter:
             )
 
             # standardize phenotype in phenotype-only file
+            '''
             self.standardize(
                     self.split.get_phenotype_path(node_index, fold_index, 'train'),
                     self.split.get_phenotype_path(node_index, fold_index, 'val'),
                     self.split.get_phenotype_path(node_index, fold_index, 'test'),
                     None
             )
-
+            '''
 
     def standardize(self, train_path: str, val_path: str, test_path: str, columns: List[str]):
         """
@@ -185,15 +187,22 @@ class CVSplitter:
             train_data.iloc[:, 2:] = scaler.fit_transform(train_data.iloc[:, 2:]) # 0,1 are FID, IID
             val_data.iloc[:, 2:] = scaler.transform(val_data.iloc[:, 2:])
             test_data.iloc[:, 2:] = scaler.transform(test_data.iloc[:, 2:])
-
+            print('Means and stds are: ')
+            print({col: f'mean {mean:.4f}\tstd {scale:.4f}' for col, mean, scale in zip(train_data.columns[2:], scaler.mean_, scaler.scale_)})
         else:
             train_data.loc[:, columns] = scaler.fit_transform(train_data.loc[:, columns]) 
             val_data.loc[:, columns] = scaler.transform(val_data.loc[:, columns])
             test_data.loc[:, columns] = scaler.transform(test_data.loc[:, columns])
+            print('Means and stds are: ')
+            print({col: f'mean {mean:.4f}, std {scale:.4f}' for col, mean, scale in zip(columns, scaler.mean_, scaler.scale_)})
 
         train_data.to_csv(train_path, sep='\t', index=False)
         val_data.to_csv(val_path, sep='\t', index=False)
         test_data.to_csv(test_path, sep='\t', index=False)
+
+    def adjust_phenotype(self, node_index: int):
+        for fold_index in range(FOLD_COUNT):
+            adjust_and_write(self.split, node_index, fold_index)
 
 
 @hydra.main(config_path='configs', config_name='split')
@@ -217,9 +226,11 @@ def main(cfg: DictConfig):
         cv.prepare_cov_and_phenotypes(node_index)
         print(f'covariates and phenotypes were prepared')
 
-        cv.standardize_covariates_and_phenotypes(node_index, cfg.zstd_covariates)
-        print(f'covariates {cfg.zstd_covariates} and phenotype were standardized')
+        cv.standardize_covariates(node_index, cfg.zstd_covariates)
+        print(f'covariates {cfg.zstd_covariates} were standardized')
 
+        cv.adjust_phenotype(node_index)
+        print(f'phenotype {cfg.phenotype.name} was adjusted')
         print(f'splitting into {FOLD_COUNT} folds for node {node_index} completed')
         print()
         

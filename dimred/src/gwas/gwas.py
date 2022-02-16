@@ -1,22 +1,35 @@
 import os
 import hydra
 from omegaconf import DictConfig
-from utils.plink import run_plink, get_gwas_output_path
 import shutil
+
+from utils.plink import run_plink, get_gwas_output_path
 
 
 @hydra.main(config_path='configs', config_name='gwas')
 def main(cfg: DictConfig):
     os.makedirs(cfg.output.root_dir, exist_ok=True)
-    args = [
-        '--pfile', cfg.genotype,
-        '--covar', cfg.covariates.path,
-        '--pheno', cfg.phenotype.path,
-        '--no-psam-pheno', '--pheno-name', cfg.phenotype.name,
-        '--glm', 'no-x-sex', 'log10', 'hide-covar',
-        '--out', cfg.output.path,
-        '--threads', str(cfg.threads)
-    ]
+    if cfg.phenotype.adjust:
+        # temporary ugly hack
+        # adjusted_phenotype_path = cfg.phenotype.path[:-3] + 'adjusted.tsv'
+        args = [
+            '--pfile', cfg.genotype,
+            '--pheno', cfg.phenotype.path,
+            '--no-psam-pheno', '--pheno-name', cfg.phenotype.name,
+            '--glm', 'no-x-sex', 'log10', 'allow-no-covars',
+            '--out', cfg.output.path,
+            '--threads', str(cfg.threads)
+        ]
+    else:
+        args = [
+            '--pfile', cfg.genotype,
+            '--covar', cfg.covariates.path,
+            '--pheno', cfg.phenotype.path,
+            '--no-psam-pheno', '--pheno-name', cfg.phenotype.name,
+            '--glm', 'no-x-sex', 'log10', 'hide-covar',
+            '--out', cfg.output.path,
+            '--threads', str(cfg.threads)
+        ]
     run_plink(args)
 
     # plink GWAS output filename depends on phenotype and regression. 

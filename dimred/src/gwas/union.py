@@ -22,7 +22,7 @@ def _read_all_gwas(split: Split, node_count: int, fold_index: int) -> List[panda
     """    
     results = []
     for node_index in range(node_count):
-        gwas_path = split.get_gwas_path(node_index, fold_index)
+        gwas_path = split.get_gwas_path(node_index, fold_index, adjusted=True)
         gwas = pandas.read_table(gwas_path)
         results.append(gwas.loc[:, ['#CHROM', 'POS', 'ID', 'LOG10_P']].set_index('ID'))
     return results
@@ -65,10 +65,11 @@ def topk(cfg: DictConfig, split: Split):
 
     print(f'topk strategy: final selection of SNPs contains {len(selection)} SNPs')
 
-    snp_list_path = split.get_snplist_path(cfg.strategy, None, None)
-    print(f'We have {len(selection)} SNPs to write to {snp_list_path}')
-    with open(snp_list_path, 'w') as file:
-        file.write('\n'.join(selection))
+    for node_index in range(cfg.node_count):
+        snp_list_path = split.get_snplist_path(cfg.strategy, node_index, cfg.fold_index)
+        print(f'We have {len(selection)} SNPs to write to {snp_list_path}')
+        with open(snp_list_path, 'w') as file:
+            file.write('\n'.join(selection))
 
 
 def generate_pfiles(cfg: DictConfig, split: Split):
@@ -115,6 +116,7 @@ def plot_union_thresholds(cfg: DictConfig, split: Split):
     plt.ylabel('Number of SNPs in resulting dataset', fontsize=20)
     plt.plot(cfg.analysis.snp_counts, sel_lens, linewidth=2, marker='o', markersize=16)
     plt.xticks(cfg.analysis.snp_counts, [str(t) for t in cfg.analysis.snp_counts], fontsize=20, rotation=90, visible=True)
+    print(f'Saving fig into {cfg.analysis.plot_path}')
     plt.savefig(cfg.analysis.plot_path)
 
 
@@ -154,7 +156,8 @@ def main(cfg: DictConfig):
     split = Split(cfg.split_dir, cfg.phenotype.name, cfg.node_count, FOLD_COUNT)
     strategy(cfg, split)
     # plot lengths of unions for different thresholds
-    if strategy == 'topk':
+    if cfg.strategy == 'topk':
+        print(f'Plotting union threshold')
         plot_union_thresholds(cfg, split)
     # generate pfiles for each node
     generate_pfiles(cfg, split)

@@ -62,8 +62,11 @@ class Split:
     def get_cov_pheno_path(self, node_index: int, fold_index: int, part: str) -> str:
         return join(self.cov_pheno_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
 
-    def get_phenotype_path(self, node_index: int, fold_index: int, part: str) -> str:
-        return join(self.phenotypes_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
+    def get_phenotype_path(self, node_index: int, fold_index: int, part: str, adjusted: bool = False) -> str:
+        if adjusted:
+            return join(self.phenotypes_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.adjusted.tsv')
+        else:
+            return join(self.phenotypes_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
 
     def get_source_pca_path(self, node_index: int) -> str:
         return join(self.pca_dir, f'{node_index}_projections.csv.eigenvec')
@@ -74,8 +77,8 @@ class Split:
     def get_pca_cov_path(self, node_index: int, fold_index: int, part: str) -> str:
         return join(self.pca_cov_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
 
-    def get_gwas_path(self, node_index: int, fold_index: int) -> str:
-        return join(self.gwas_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}.tsv')
+    def get_gwas_path(self, node_index: int, fold_index: int, adjusted: bool = False) -> str:
+        return join(self.gwas_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}.adjusted.tsv' if adjusted else f'fold_{fold_index}.tsv')
 
     def get_snplist_path(self, strategy: str, node_index: int, fold_index: int) -> str:
         return join(self.snplists_dir, self.phenotype, f'node_{node_index}_fold_{fold_index}_{strategy}.snplist')
