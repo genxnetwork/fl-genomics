@@ -90,6 +90,14 @@ def local_experiment(cfg: DictConfig):
         val_r2 = r2_score(y_raw_val, y_raw_val - y_adj_val + val_preds[:, best_col])
         test_r2 = r2_score(y_raw_test, y_raw_test - y_adj_test + test_preds[:, best_col])
         
+        adj_train_r2 = r2_score(y_adj_train, preds[:, best_col])
+        adj_val_r2 = r2_score(y_adj_val, val_preds[:, best_col])
+        adj_test_r2 = r2_score(y_adj_test, test_preds[:, best_col])
+        
+        mlflow.log_metric('adj_train_r2', adj_train_r2)
+        mlflow.log_metric('adj_val_r2', adj_val_r2)
+        mlflow.log_metric('adj_test_r2', adj_test_r2)
+        
         mlflow.log_metric('train_r2', train_r2)
         mlflow.log_metric('val_r2', val_r2)
         mlflow.log_metric('test_r2', test_r2)
