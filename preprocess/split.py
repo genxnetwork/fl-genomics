@@ -33,7 +33,7 @@ class SplitBase(object):
         df['FID'] = df.index
         df['IID'] = df.index
         # Leave only those samples that passed population QC
-        sample_qc_ids = pd.read_csv(f'{sample_qc_ids_path}.king.cutoff.in.id', index_col='IID')
+        sample_qc_ids = pd.read_table(f'{sample_qc_ids_path}.id', index_col='IID')
         df = df.loc[df.index.intersection(sample_qc_ids.index)]
         
         return df
@@ -85,7 +85,7 @@ class SplitNonIID(SplitBase):
         
         prefix_list = []
         for i in range(max(list(split_map.values()))+1):
-            split_id_path = os.path.join(split_id_dir, f"node_{i}.csv")
+            split_id_path = os.path.join(split_id_dir, f"{i}.csv")
             prefix = os.path.join(genotype_dir, f"node_{i}")
             prefix_list.append(prefix)
             df.loc[(df.split == i), ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
