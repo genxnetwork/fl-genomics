@@ -16,13 +16,13 @@
 
 ### How to Run
 
-1. Split genotype and phenotype data into train and validation datasets
+1. Split genotype and phenotype data into 10 cv folds. Each fold contains 80% train, 10% val and 10% test samples.
 ```
-    sbatch src/gwas/train_test_split.sh split_dir=<dir with split> split_count=<number of split parts>
+    sbatch src/gwas/train_test_split.sh split_dir=<dir with split> node_count=<number of split parts>
 ```
-2. Run a GWAS on each split index
+2. Run a GWAS on each node index
 ```
-    sbatch src/gwas/gwas.sh split_dir=<dir with split> split_index=0
+    sbatch src/gwas/gwas.sh split_dir=<dir with split> node_index=0
 ```
 3. Visualise GWAS results.
 Analysis script will produce the following plots in `<split_dir>/gwas`:
