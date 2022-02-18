@@ -2,6 +2,10 @@ from utils.plink import run_plink
 from config.qc_config import sample_qc_config
 
 def sample_qc(ukb_pfile_path: str, output_path: str):
+    """
+    Performs sample QC on the whole UKB dataset, writing filtered sample IDs
+    to the output path.
+    """
     run_plink(
         args_dict = {**{'--pfile': ukb_pfile_path,
                         '--out': output_path},
