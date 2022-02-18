@@ -3,11 +3,9 @@ from ukb_loader import UKBDataLoader
 from numpy.random import seed, choice
 import pandas as pd
 pd.options.mode.chained_assignment = None # Shush
+import os
 
-import sys
-sys.path.append('../config')
-
-from config.path import data_root, valid_ids_path, ukb_loader_dir, ukb_pfile_path
+from config.path import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path
 from config.split_config import split_map, random_seed
 from utils.plink import run_plink
 
@@ -35,8 +33,8 @@ class SplitBase(object):
         df['FID'] = df.index
         df['IID'] = df.index
         # Leave only those samples that passed population QC
-        pop_qc_ids = pd.read_csv(valid_ids_path, index_col='IID')
-        df = df.loc[df.index.intersection(pop_qc_ids.index)]
+        sample_qc_ids = pd.read_csv(f'{sample_qc_ids_path}.king.cutoff.in.id', index_col='IID')
+        df = df.loc[df.index.intersection(sample_qc_ids.index)]
         
         return df
     
@@ -76,21 +74,21 @@ class SplitNonIID(SplitBase):
         # Drop samples with missing/prefer not to answer ethnic background
         df = df[~df.ethnic_background.isin([-1, -3, 0])]
         # Map ethnic backgrounds to our defined splits
-        df['split_code'] = df.ethnic_background.map(split_map)
-        num_test_split = max(list(split_map.values())) + 1
+        df['split'] = df.ethnic_background.map(split_map)
         
-        seed(random_seed)
-        holdout_idx = choice(df.index, size=int(df.shape[0]*self.split_config['non_iid_holdout_ratio']), replace=False)
         
-        df['split'] = df['split_code'].copy()
-        df.loc[holdout_idx, 'split'] = num_test_split
+        split_id_dir = os.path.join(data_root, self.split_config['non_iid_split_name'], 'split_ids')
+        genotype_dir = os.path.join(data_root, self.split_config['non_iid_split_name'], 'genotypes')
+        
+        for dir_ in [split_id_dir, genotype_dir]:
+            os.makedirs(dir_, exist_ok=True)
         
         prefix_list = []
-        for i in range(num_test_split+1):
-            split_id_path = f"{data_root}/{self.split_config['non_iid_split_name']}/split_ids/{i}.csv"
-            prefix = f"{data_root}/{self.split_config['non_iid_split_name']}/genotypes/split_{i}"
+        for i in range(max(list(split_map.values()))+1):
+            split_id_path = os.path.join(split_id_dir, f"node_{i}.csv")
+            prefix = os.path.join(genotype_dir, f"node_{i}")
             prefix_list.append(prefix)
-            df.loc[(df.split == i), ['FID', 'IID', 'sex']].to_csv(split_id_path, index=False, sep='\t')
+            df.loc[(df.split == i), ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
             
             if make_pgen:
                 self.make_split_pgen(split_id_path, prefix)
