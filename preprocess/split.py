@@ -6,12 +6,12 @@ pd.options.mode.chained_assignment = None # Shush
 import os
 
 from config.path import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path
-from config.split_config import split_map, random_seed
+from config.split_config import non_iid_split_name, split_map, random_seed
 from utils.plink import run_plink
 
 class SplitBase(object):
-    def __init__(self, split_config: dict):
-        self.split_config = split_config
+    def __init__(self):
+        pass
 
     @abstractmethod
     def split(self):
@@ -43,28 +43,6 @@ class SplitBase(object):
                              '--out': prefix,
                              '--keep': split_id_path},
                   args_list=['--make-pgen'])
-
-    
-class SplitIID(SplitBase):
-    def split(self, make_pgen=True):
-        df = self.get_ethnic_background()
-        # Leave only white british individuals in the IID split
-        df = df.loc[df.ethnic_background == 1001]      
-        
-        seed(random_seed)
-        df['split'] = choice(list(range(self.split_config['n_iid_splits'])), size=df.shape[0], replace=True)
-        
-        prefix_list = []        
-        for i in range(self.split_config['n_iid_splits']):
-            split_id_path = f"{data_root}/{self.split_config['iid_split_name']}/split_ids/{i}.csv"
-            prefix = f"{data_root}/{self.split_config['iid_split_name']}/genotypes/split_{i}"
-            prefix_list.append(prefix)
-            df.loc[(df.split == i), ['FID', 'IID', 'sex']].to_csv(split_id_path, index=False, sep='\t')
-            
-            if make_pgen:
-                self.make_split_pgen(split_id_path, prefix)
-            
-        return prefix_list
         
         
 class SplitNonIID(SplitBase):
@@ -77,8 +55,8 @@ class SplitNonIID(SplitBase):
         df['split'] = df.ethnic_background.map(split_map)
         
         
-        split_id_dir = os.path.join(data_root, self.split_config['non_iid_split_name'], 'split_ids')
-        genotype_dir = os.path.join(data_root, self.split_config['non_iid_split_name'], 'genotypes')
+        split_id_dir = os.path.join(data_root, non_iid_split_name, 'split_ids')
+        genotype_dir = os.path.join(data_root, non_iid_split_name, 'genotypes')
         
         for dir_ in [split_id_dir, genotype_dir]:
             os.makedirs(dir_, exist_ok=True)
