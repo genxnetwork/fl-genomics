@@ -112,7 +112,6 @@ rule cv_split_samples_phenotypes:
     input: 
         samples="{{ethnicity}}/samples.tsv",
         phenotypes="{{ethnicity}}/{phenotype}/target.tsv"
-        
     output: 
         expand(("{{ethnicity}}/fold_{{fold}}/ids/{part}.tsv", part=PARTS))
     script: 
