@@ -1,12 +1,10 @@
-iid_split_config = {
-    'iid_split_name': 'british_split',
-    'n_iid_splits': 5,
+uniform_split_config = {
+    'uniform_split_name': 'uniform_split',
+    'num_uniform_splits': 5,
 }
 
-non_iid_split_config = {
-    'non_iid_split_name': 'ethnic_split',
-    'non_iid_holdout_ratio': 0.2
-}
+non_iid_split_name= 'ethnic_split'
+
 
 # Maps ethnic backgrounds to split_ids
 # 0 - white british
@@ -14,7 +12,6 @@ non_iid_split_config = {
 # 2 - african and carribean
 # 3 - chinese
 # 4 - others
-# 5 - held-out test split from common mixture
 split_map = { 
     1001: 0,
     3001: 1,
