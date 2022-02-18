@@ -1,0 +1,28 @@
+
+rule ALL:
+    input: "test_pipeline/gpu_bound.output"
+
+
+rule cpu_bound:
+    output: 'test_pipeline/cpu_bound.output'
+    resources: 
+        partition='cpu',
+        time='00:05:00'
+    shell: 
+        '''
+            sleep 20
+            touch {output}
+        '''
+
+rule gpu_bound:
+    input: rules.cpu_bound.output
+    output: 'test_pipeline/gpu_bound.output'
+    resources:
+        partition='gpu_devel',
+        time='00:05:00'
+    shell:
+        '''
+            sleep 20
+            touch {output}
+        '''
+    

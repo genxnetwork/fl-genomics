@@ -165,3 +165,7 @@ fl/src/slurm-*.out
 fl/src/.server_hostname
 fl/src/slurm-outputs
 fl/src/.mlflow_parent_run_id
+
+.snakemake/
+test_pipeline/
+logs/
