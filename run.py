@@ -9,7 +9,7 @@ from utils.plink import run_plink
 import sys
 sys.path.append('dimred/src')
 from utils.split import Split
-from gwas.train_val_split import CVSplitter, WBUniformSplitter
+from gwas.train_val_split import CVSplitter, WBUniformSplitter, WBUnevenSplitter
 
 import logging
 from os.path import join
@@ -24,7 +24,7 @@ if __name__ == '__main__':
                         )
     logger = logging.getLogger()
     
-    # Generate file with sample IDs that pass central QC with UKB fields
+    # Generate file with sample IDs that pass central QC with plink
     logger.info(f'Running sample QC and saving valid ids to {sample_qc_ids_path}')
     sample_qc(ukb_pfile_path, sample_qc_ids_path)
     
@@ -49,6 +49,15 @@ if __name__ == '__main__':
                           uniform_split_config['num_uniform_splits'])
     uniform_splitter = WBUniformSplitter(ethnic_split, uniform_split)
     uniform_splitter.split_ids()
+    
+    
+    logger.info("Generating white_british uneven split")
+    uneven_shares = [0.01777, 0.00349, 1/2, 1/4, 1/8, 1/16 , 1/32]
+    uneven_split = Split(join(data_root, 'uneven_split'),
+                          'standing_height',
+                         len(uneven_shares)+1)
+    uneven_splitter = WBUnevenSplitter(ethnic_split, uneven_split, uneven_shares=uneven_shares)
+    uneven_splitter.split_ids()
         
     for local_prefix in prefix_splits:
         logger.info(f'Running local QC for {local_prefix}')
