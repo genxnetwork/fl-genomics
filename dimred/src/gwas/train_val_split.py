@@ -14,61 +14,25 @@ from utils.phenotype import adjust_and_write
 
 FOLD_COUNT = 10
 
-class WBUniformSplitter:
-    def __init__(self, ethnic_split: Split, uniform_split: Split, n_uniform_nodes: int=5, n_folds: int=FOLD_COUNT):
+class WBSplitter:
+    def __init__(self, ethnic_split: Split, new_split: Split, n_nodes: int, array_split_arg, n_folds: int=FOLD_COUNT):
         """
-        Splits the white british node into a number of uniform nodes
-        for a different split.
+        Splits the white british node of the ethnic split into a number of nodes
+        in a new split using numpy's array_split.
         
         Args:
             ethnic_split: Split object for ethnic split ID paths (dummy phenotypes)
-            uniform_split: Split object for uniform_split ID paths (dummy phenotypes)
-            n_uniform_nodes: Number of nodes in the uniform split
+            new_split: Split object for new split ID paths (dummy phenotypes)
+            n_nodes: Number of nodes in the new split
+            array_split_args: either the number or uniform splits or a list of share sizes
+                              for the new split.
             n_folds: Number of CV folds
         """
         self.ethnic_split = ethnic_split
-        self.uniform_split = uniform_split
-        self.n_uniform_nodes = n_uniform_nodes
-        self.n_folds = n_folds
-        
-    def split_ids(self):
-        for fold_index in range(self.n_folds):
-            for part_name in ["train", "val"]:
-                path = self.ethnic_split.get_ids_path(0, fold_index, part_name)
-                ids = pandas.read_table(path).loc[:, ['FID', 'IID']]        
-                uniform_split_ids_list = array_split(ids, self.n_uniform_nodes)
-                for node_index, split_ids in enumerate(uniform_split_ids_list):
-                    out_path = self.uniform_split.get_ids_path(node_index, fold_index, part_name)
-                    split_ids.to_csv(out_path, sep='\t', index=False)
-             
-            for node_index in range(self.n_uniform_nodes):
-                source_path = self.ethnic_split.get_ids_path(0, fold_index, 'test')
-                destination_path = self.uniform_split.get_ids_path(node_index, fold_index, 'test')
-                try:
-                    symlink(source_path, destination_path)
-                except FileExistsError:
-                    pass
-                
-
-class WBUnevenSplitter:
-    def __init__(self,
-                 ethnic_split: Split,
-                 uniform_split: Split,
-                 uneven_shares: list,
-                 n_folds: int=FOLD_COUNT):
-        """
-        Splits the white british node into a number of uniform nodes
-        for a different split.
-        
-        Args:
-            ethnic_split: Split object for ethnic split ID paths (dummy phenotypes)
-            uniform_split: Split object for uniform_split ID paths (dummy phenotypes)
-            n_folds: Number of CV folds
-            n_uniform_nodes: Number of nodes in the uniform split
-        """
-        self.ethnic_split = ethnic_split
-        self.uniform_split = uniform_split
-        self.uneven_shares = uneven_shares
+        self.new_split = new_split
+        self.n_nodes = n_nodes
+        assert isinstance(array_split_arg, int) or isinstance(array_split_arg, list)
+        self.array_split_arg = array_split_arg
         self.n_folds = n_folds
         
     def split_ids(self):
@@ -76,22 +40,25 @@ class WBUnevenSplitter:
             for part_name in ["train", "val"]:
                 path = self.ethnic_split.get_ids_path(0, fold_index, part_name)
                 ids = pandas.read_table(path).loc[:, ['FID', 'IID']]
-                split_partition_ids = (cumsum(array(self.uneven_shares))*len(ids)).astype(int)
-                uniform_split_ids_list = array_split(ids, split_partition_ids)
-                for node_index, split_ids in enumerate(uniform_split_ids_list):
-                    out_path = self.uniform_split.get_ids_path(node_index, fold_index, part_name)
+                
+                if isinstance(self.array_split_arg, int):
+                    split_ids_list = array_split(ids, self.array_split_arg)
+                elif isinstance(self.array_split_arg, list):
+                    split_ids_list = array_split(ids, (cumsum(array(self.array_split_arg))*len(ids)).astype(int))
+                    
+                for node_index, split_ids in enumerate(split_ids_list):
+                    out_path = self.new_split.get_ids_path(node_index, fold_index, part_name)
                     split_ids.to_csv(out_path, sep='\t', index=False)
              
-            for node_index in range(len(self.uneven_shares)+1):
+            for node_index in range(self.n_nodes):
                 source_path = self.ethnic_split.get_ids_path(0, fold_index, 'test')
-                destination_path = self.uniform_split.get_ids_path(node_index, fold_index, 'test')
+                destination_path = self.new_split.get_ids_path(node_index, fold_index, 'test')
                 try:
                     symlink(source_path, destination_path)
                 except FileExistsError:
                     pass
 
-
-
+              
 class CVSplitter:
     def __init__(self, split: Split) -> None:
         """Splits PCs, phenotypes and covariates into folds. 

@@ -1,10 +1,10 @@
 uniform_split_config = {
     'uniform_split_name': 'uniform_split',
-    'num_uniform_splits': 5,
+    'n_nodes': 5,
 }
 
-non_iid_split_name= 'ethnic_split'
-
+non_iid_split_name = 'ethnic_split'
+uneven_split_shares_list = [0.01777, 0.00349, 1/2, 1/4, 1/8, 1/16 , 1/32]
 
 # Maps ethnic backgrounds to split_ids
 # 0 - white british

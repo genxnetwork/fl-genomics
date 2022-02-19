@@ -1,7 +1,7 @@
 from config.path import ukb_loader_dir, sample_qc_ids_path, ukb_pfile_path, data_root
 from config.pca_config import pca_config
 from config.qc_config import sample_qc_config
-from config.split_config import non_iid_split_name, uniform_split_config, split_map
+from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list
 from preprocess.pca import PCA
 from preprocess.qc import QC, sample_qc
 from preprocess.split import SplitNonIID
@@ -9,7 +9,7 @@ from utils.plink import run_plink
 import sys
 sys.path.append('dimred/src')
 from utils.split import Split
-from gwas.train_val_split import CVSplitter, WBUniformSplitter, WBUnevenSplitter
+from gwas.train_val_split import CVSplitter, WBSplitter
 
 import logging
 from os.path import join
@@ -46,17 +46,22 @@ if __name__ == '__main__':
     logger.info("Generating white_british uniform split")
     uniform_split = Split(join(data_root, uniform_split_config['uniform_split_name']),
                           'standing_height',
-                          uniform_split_config['num_uniform_splits'])
-    uniform_splitter = WBUniformSplitter(ethnic_split, uniform_split)
+                          uniform_split_config['n_nodes'])
+    uniform_splitter = WBSplitter(ethnic_split=ethnic_split,
+                                  new_split=uniform_split,
+                                  n_nodes=uniform_split_config['n_nodes'],
+                                  array_split_arg=uniform_split_config['n_nodes'])
     uniform_splitter.split_ids()
     
     
     logger.info("Generating white_british uneven split")
-    uneven_shares = [0.01777, 0.00349, 1/2, 1/4, 1/8, 1/16 , 1/32]
     uneven_split = Split(join(data_root, 'uneven_split'),
                           'standing_height',
-                         len(uneven_shares)+1)
-    uneven_splitter = WBUnevenSplitter(ethnic_split, uneven_split, uneven_shares=uneven_shares)
+                         len(uneven_split_shares_list)+1)
+    uneven_splitter = WBSplitter(ethnic_split=ethnic_split,
+                                 new_split=uneven_split,
+                                 n_nodes=len(uneven_split_shares_list)+1,
+                                 array_split_arg=uneven_split_shares_list)
     uneven_splitter.split_ids()
         
     for local_prefix in prefix_splits:
