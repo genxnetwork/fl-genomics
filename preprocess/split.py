@@ -57,8 +57,10 @@ class SplitNonIID(SplitBase):
         
         split_id_dir = os.path.join(data_root, non_iid_split_name, 'split_ids')
         genotype_dir = os.path.join(data_root, non_iid_split_name, 'genotypes')
+        genotype_node_dirs = [os.path.join(genotype_dir, f"node_{node_index}")
+                              for node_index in range(max(list(split_map.values()))+1)]
         
-        for dir_ in [split_id_dir, genotype_dir]:
+        for dir_ in [split_id_dir, genotype_dir] + genotype_node_dirs:
             os.makedirs(dir_, exist_ok=True)
         
         prefix_list = []
