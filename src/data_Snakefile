@@ -1,0 +1,128 @@
+
+FOLD_COUNT = 10
+ETHNICITIES = ['WB', 'SA', 'AC', 'CN', 'Others']
+PARTS = ['train', 'val', 'test']
+
+PLINK_EXT = ['bed', 'bim', 'fam']
+PLINK2_EXT = ['pgen', 'pvar', 'psam']
+
+PHENOTYPE_NAME = 'standing_height'
+PHENOTYPE_CODE = 50
+
+
+rule ALL:
+    input: 
+        gwas=""
+
+
+rule global_qc:
+    input: 
+        expand("{prefix}.{ext}", prefix=config['plink', ext=PLINK_EXT])
+    output: 
+        expand("genotypes/qc.{ext}", ext=PLINK2_EXT)
+    resources:
+        partition = 'cpu',
+        threads = 4,
+        time = '00:30:00',
+        mem_mb = 8000
+    script: 
+        "preprocess/global_qc.py"
+
+
+rule split_samples_by_ethnicity:
+    input: 
+        "genotypes/qc.psam"
+    params: 
+        random_state=config['random_state']
+    resources:
+        partition = 'cpu',
+        threads = 1,
+        time = '00:05:00'
+    output: 
+        "{{ethnicity}}/samples.tsv"
+    script: 
+        "preprocess/split_samples.py"
+
+
+rule split_genotypes_by_ethnicity:
+    input: 
+        rules.global_qc.output
+    resources:
+        partition = 'cpu',
+        threads = 4,
+        time = '00:30:00',
+        mem_mb = 8000
+    output: 
+        expand("{{ethnicity}}/genotypes/main.{ext}", ext=PLINK2_EXT)
+    script: 
+        "preprocess/split_genotypes.py"
+
+
+rule node_qc:
+    input: 
+        rules.split_by_ethnicity.output
+    resources:
+        partition = 'cpu',
+        threads = 4,
+        time = '00:30:00',
+        mem_mb = 8000
+    output: 
+        expand("{{ethnicity}}/genotypes/qc.{ext}", ext=PLINK2_EXT)
+    shell:
+        """
+
+        """
+
+
+rule pca:
+    input: 
+        rules.node_qc.output
+    resources:
+        partition = 'cpu',
+        threads = 4,
+        time = '00:30:00',
+        mem_mb = 16000
+    output: 
+        expand("{{etnicity}}/pca/projections.eigenvec")
+    shell:
+        """
+
+        """
+
+
+rule load_phenotypes:
+    input: 
+        config['phenotypes']
+    output: 
+        expand("phenotypes/{phenotype}.tsv", phenotype=PHENOTYPE_NAME)
+    script: 
+        "preprocess/load_phenotypes.py"
+
+
+rule split_phenotypes_by_ethnicity:
+    input: 
+        rules.load_phenotypes.output
+    output: 
+        expand("{{ethnicity}}/{phenotype}/target.tsv", phenotype=PHENOTYPE_NAME)
+    script: 
+        "preprocess/split_phenotypes.py"
+
+
+rule cv_split_samples_phenotypes:
+    input: 
+        samples="{{ethnicity}}/samples.tsv",
+        phenotypes="{{ethnicity}}/{phenotype}/target.tsv"
+    output: 
+        expand(("{{ethnicity}}/fold_{{fold}}/ids/{part}.tsv", part=PARTS))
+    script: 
+        "preprocess/cv_split.py"
+
+
+rule gwas:
+    input: 
+        genotype=rules.node_qc.output,
+        phenotype="{{ethnicity}}/fold_{{fold}}/ids/train.tsv"
+    output: 
+        expand("{{ethnicity}}/{phenotype}/fold_{{fold}}/gwas/results.tsv")
+    script: 
+        "dimred/gwas.py"
