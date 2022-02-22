@@ -5,13 +5,13 @@ FOLD_COUNT = 2
 # ETHNICITIES = ['WB', 'SA', 'AC', 'CN', 'Others']
 ETHNICITIES = ['WB1', 'WB2']
 PARTS = ['train', 'val', 'test']
-
+UKB_DATASET = '/gpfs/gpfs0/ukb_data/processed_data/fml'
 PLINK_EXT = ['bed', 'bim', 'fam']
 PLINK2_EXT = ['pgen', 'pvar', 'psam']
 
 PHENOTYPE_NAME = 'standing_height'
 PHENOTYPE_CODE = 50
-
+COVARIATES = ['31', '21003'] # sex, age
 SNP_COUNTS = [1000, 2000]
 
 MODELS = ['lassonet', 'lasso', 'mlp']
@@ -20,24 +20,26 @@ MODELS = ['lassonet', 'lasso', 'mlp']
 rule ALL:
     input: 
         results=expand("results/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_lassonet.tsv",
-            phenotype=[PHENOTYPE_NAME],
-            node=range(len(ETHNICITIES)),
-            fold=range(FOLD_COUNT),
-            snp_count=SNP_COUNTS)
-
-
-def load_phenotype:
-    
+                        phenotype=[PHENOTYPE_NAME],
+                        node=range(len(ETHNICITIES)),
+                        fold=range(FOLD_COUNT),
+                        snp_count=SNP_COUNTS)
 
 
 rule prepare_phenotypes_and_covariates:
     input:
-        split_ids="split_ids/node_{node}/fold_{fold}_{part}.tsv",
-        pca="pca/node_{node}/fold_{fold}_{part}.tsv",
-        dataset=UKB_DATASET
+        split_ids   = "split_ids/node_{node}/fold_{fold}_{part}.tsv",
+        pca         = "pca/node_{node}/fold_{fold}_{part}_projections.eigenvec",
+        dataset     = UKB_DATASET
+    params:
+        phenotype_name=PHENOTYPE_NAME,
+        phenotype_code=PHENOTYPE_CODE,
+        covariates=COVARIATES
+    log:
+        "logs/prepare_phenotypes_and_covariates/{phenotype}/node_{node}/fold_{fold}_{part}.log"
     output:
-        phenotypes="phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
-        covariates="covariates/{phenotype}/node_{node}/fold_{fold}_{part}.tsv"
+        phenotypes  = "phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
+        covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_{part}.tsv"
     script:
         "preprocess/phenotypes_covariates.py"
 
@@ -47,17 +49,17 @@ rule normalize_covariates:
     params:
         to_normalize=['age']
     output:
-        train="covariates/{phenotype}/node_{node}/fold_{fold}_train.normalized.tsv"
+        train="covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
     script:
         "preprocess/normalize_covariates.py"
 
 rule gwas:
     input: 
-        genotype="genotypes/node_{node}/fold_{fold}_train.pgen",
-        phenotype="only_phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
-        covariates="covariates/{phenotype}/node_{node}/fold_{fold}_train.normalized.tsv"
+        genotype    = "genotypes/node_{node}/fold_{fold}_train.pgen",
+        phenotype   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
+        covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
     output:
-        results="gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv"
+        results     = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv"
     script:
         "dimred/gwas.py"
 
@@ -77,6 +79,6 @@ rule local_lassonet:
     params:
         pfile = lambda wildcards, input: [Path(inp).with_suffix('') for inp in input.genotype]
     output:
-        results="results/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_lassonet.tsv" 
+        results     = "results/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_lassonet.tsv" 
     script:
         "local/lassonet.py"
