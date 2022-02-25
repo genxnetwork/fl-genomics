@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-FOLD_COUNT = 2
+FOLD_COUNT = 1
 # ETHNICITIES = ['WB', 'SA', 'AC', 'CN', 'Others']
 ETHNICITIES = ['WB1', 'WB2']
 PARTS = ['train', 'val', 'test']
@@ -29,7 +29,7 @@ rule ALL:
 rule prepare_phenotypes_and_covariates:
     input:
         split_ids   = "split_ids/node_{node}/fold_{fold}_{part}.tsv",
-        pca         = "pca/node_{node}/fold_{fold}_{part}_projections.eigenvec",
+        pca         = "pca/node_{node}/fold_{fold}_{part}_projections.sscore",
         dataset     = UKB_DATASET
     params:
         phenotype_name=PHENOTYPE_NAME,

@@ -25,7 +25,8 @@ def load_pheno_cov(split_ids_path: str,
 def load_pcs(pcs_path: str) -> pandas.DataFrame:
     pcs = pandas.read_table(pcs_path)
     pcs.rename({'#FID': 'FID'}, axis='columns', inplace=True)
-    return pcs
+    pc_columns = ['FID', 'IID'] + [col for col in pcs.columns if col.startswith('PC')]
+    return pcs.loc[:, pc_columns]
 
 
 if __name__ == '__main__':
@@ -45,25 +46,24 @@ if __name__ == '__main__':
     logging.basicConfig(filename=snakemake.log[0], level=logging.DEBUG, format='%(levelname)s:%(asctime)s %(message)s')
 
     split_ids_path = snakemake.input['split_ids']
-    pcs_path = snakemake.output['pca']
-    ukb_dataset_path = snakemake.input['ukb_dataset']
+    pcs_path = snakemake.input['pca']
+    ukb_dataset_path = snakemake.input['dataset']
 
     covariate_cols = snakemake.params['covariates']
     phenotype_name = snakemake.params['phenotype_name']
     phenotype_code = snakemake.params['phenotype_code']
 
-    only_pheno_path = snakemake.output['phenotype']
-    pcs_cov_path = snakemake.output['covariates']
-
     pheno_cov = load_pheno_cov(split_ids_path, ukb_dataset_path, covariate_cols, phenotype_name, phenotype_code)
     logging.info(f'loaded {pheno_cov.shape[0]} phenotypes for {phenotype_name} and covariates {covariate_cols}')
     pcs = load_pcs(pcs_path)
     logging.info(f'loaded {pcs.shape[0]} PCs from {pcs_path}')
-    
-    only_pheno = pheno_cov.loc[:, [[phenotype_name]]]
+
+    print(f'pheno_cov has columns {pheno_cov.columns}')
+    only_pheno = pheno_cov.loc[:, ['FID', 'IID', phenotype_name]]
     pheno_cov.drop(phenotype_name, axis='columns', inplace=True)
     
     pcs_cov = pheno_cov.merge(pcs, on=['FID', 'IID'])
+    pcs_cov = pcs_cov[['FID', 'IID'] + list(pcs_cov.columns.difference(['FID', 'IID']))]
     
     phenotypes_path = snakemake.output['phenotypes']
     covariates_path = snakemake.output['covariates']
