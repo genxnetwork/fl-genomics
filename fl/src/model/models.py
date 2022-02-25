@@ -1,5 +1,6 @@
 import torch
 import numpy
+import mlflow
 
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -232,7 +233,7 @@ class EnsembleLASSO(LinearNet):
         min_loss = val_losses.mean(dim=0).min()
         self.log('val_loss', min_loss, prog_bar=True)
         print(f'val loss {min_loss}')
-#         mlflow.log_metric('val_loss', min_loss.item(), self.current_epoch)
+        mlflow.log_metric('val_loss', min_loss.item(), self.current_epoch)
         tensorboard = self.logger.experiment
         tensorboard.add_histogram('input_weight', self.layer.weight.detach(), global_step=self.current_epoch)
 
