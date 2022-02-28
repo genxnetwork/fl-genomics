@@ -12,7 +12,7 @@ from utils.split import Split
 from gwas.train_val_split import CVSplitter, WBSplitter
 
 import logging
-from os.path import join
+from os import path, symlink
 
 
 if __name__ == '__main__':
@@ -41,14 +41,14 @@ if __name__ == '__main__':
         
     logger.info("making k-fold split for ethnic dataset")    
     num_ethnic_nodes = max(list(split_map.values()))+1
-    ethnic_split = Split(join(data_root, non_iid_split_name), 'standing_height', num_ethnic_nodes)
+    ethnic_split = Split(path.join(data_root, non_iid_split_name), 'standing_height', num_ethnic_nodes)
     splitter = CVSplitter(ethnic_split)
     
     for node_index in range(num_ethnic_nodes):
         splitter.split_ids(node_index, random_state=0)
         
     logger.info("Generating white_british uniform split")
-    uniform_split = Split(join(data_root, uniform_split_config['uniform_split_name']),
+    uniform_split = Split(path.join(data_root, uniform_split_config['uniform_split_name']),
                           'standing_height',
                           uniform_split_config['n_nodes'])
     uniform_splitter = WBSplitter(ethnic_split=ethnic_split,
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     
     
     logger.info("Generating white_british uneven split")
-    uneven_split = Split(join(data_root, 'uneven_split'),
+    uneven_split = Split(path.join(data_root, 'uneven_split'),
                           'standing_height',
                          len(uneven_split_shares_list)+1)
     uneven_splitter = WBSplitter(ethnic_split=ethnic_split,
@@ -68,24 +68,44 @@ if __name__ == '__main__':
                                  array_split_arg=uneven_split_shares_list)
     uneven_splitter.split_ids()
         
-    for split, n_nodes in zip([ethnic_split,
-                              uniform_split,
-                                uneven_split],
-                              [5, 5, 8]):
-        logger.info(f"split {split.root_dir}")
-        for node_index in range(n_nodes):
-            logger.info(f"Saving train, val, test genotypes and runnin PCA for node {node_index}")
+    for split in [ethnic_split, uniform_split, uneven_split]:
+        logger.info(f"Processing split {split.root_dir}")
+        for node_index in range(split.node_count):
+            logger.info(f"Saving train, val, test genotypes and running PCA for node {node_index}")
             for fold_index in range(10):
                 for part_name in ['train', 'val', 'test']:
-                    run_plink(args_dict={
-                    '--pfile': ethnic_split.get_source_pfile_path(node_index) \
-                           if split == ethnic_split else ethnic_split.get_source_pfile_path(0),
-                    '--keep': split.get_ids_path(node_index, fold_index, part_name),
-                    '--out':  split.get_pfile_path(node_index, fold_index, part_name)
-                    }, args_list=['--make-pgen'])
-                
-                    if part_name == 'train':
+                    # Symlinks for test set of uneven and uniform splits
+                    if (split in [uniform_split, uneven_split]) and part_name == 'test':
+                        # Symlink test white british genotypes
+                        if not path.exists(split.get_pfile_path(node_index, fold_index, part_name)):
+                            symlink(ethnic_split.get_pfile_path(0, fold_index, part_name),
+                                    split.get_pfile_path(node_index, fold_index, part_name))
+                        
+                        # Symlink test white british PCAs
+                        if not path.exists(split.get_pca_path(node_index, fold_index, part_name, ext='.sscore')):
+                            symlink(ethnic_split.get_pca_path(0, fold_index, part_name, ext='.sscore'),
+                                    split.get_pca_path(node_index, fold_index, part_name, ext='.sscore'))
+                            
+                    else:
+                        # Extract and save genotypes
+                        run_plink(args_dict={
+                        '--pfile': ethnic_split.get_source_pfile_path(node_index) \
+                               if split == ethnic_split else ethnic_split.get_source_pfile_path(0),
+                        '--keep': split.get_ids_path(node_index, fold_index, part_name),
+                        '--out':  split.get_pfile_path(node_index, fold_index, part_name)
+                        }, args_list=['--make-pgen'])
+
+                        # Run PCA on train and save weights for projection
+                        if part_name == 'train':
+                            run_plink(args_list=['--pfile', split.get_pfile_path(node_index, fold_index, part_name),
+                                                 '--freq', 'counts',
+                                                 '--out', split.get_pca_path(node_index, fold_index, part_name, ext=''),
+                                                 '--pca', 'allele-wts', '20', 'approx'],
+                                      )                    
+                        # Use saved PCA weights for all projections
                         run_plink(args_list=['--pfile', split.get_pfile_path(node_index, fold_index, part_name),
-                                             '--out', split.get_pca_path(node_index, fold_index, part_name, ext='')],
-                                  args_dict=pca_config)
+                                             '--read-freq', split.get_pca_path(node_index, fold_index, 'train', ext='.acount'),
+                                             '--score', split.get_pca_path(node_index, fold_index, 'train', ext='.eigenvec.allele'), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
+                                             '--out', split.get_pca_path(node_index, fold_index, part_name, ext='')]
+                                  )
     

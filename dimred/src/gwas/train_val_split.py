@@ -1,7 +1,7 @@
 from typing import List
 import hydra
 from omegaconf import DictConfig
-from os import symlink
+from os import symlink, path
 
 import pandas
 from sklearn.model_selection import KFold, train_test_split
@@ -46,17 +46,18 @@ class WBSplitter:
                 elif isinstance(self.array_split_arg, list):
                     split_ids_list = array_split(ids, (cumsum(array(self.array_split_arg))*len(ids)).astype(int))
                     
+                assert len(ids) == sum([len(split_ids) for split_ids in split_ids_list])
+                    
                 for node_index, split_ids in enumerate(split_ids_list):
                     out_path = self.new_split.get_ids_path(node_index, fold_index, part_name)
                     split_ids.to_csv(out_path, sep='\t', index=False)
-             
+            
+            # Symlink for test ids
             for node_index in range(self.n_nodes):
                 source_path = self.ethnic_split.get_ids_path(0, fold_index, 'test')
                 destination_path = self.new_split.get_ids_path(node_index, fold_index, 'test')
-                try:
+                if not path.exists(destination_path):
                     symlink(source_path, destination_path)
-                except FileExistsError:
-                    pass
 
               
 class CVSplitter:
