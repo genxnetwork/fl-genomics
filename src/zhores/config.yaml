@@ -10,6 +10,7 @@ cluster:
 default-resources:
   - partition=gpu_devel
   - mem_mb=1000
+  - time="00:10:00"
 restart-times: 0
 max-jobs-per-second: 10
 max-status-checks-per-second: 1

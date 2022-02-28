@@ -1,5 +1,5 @@
 from collections import namedtuple
-from typing import List
+from typing import Dict, List
 import logging
 import pandas
 from ukb_loader import UKBDataLoader
@@ -7,13 +7,15 @@ from ukb_loader import UKBDataLoader
 
 def load_pheno_cov(split_ids_path: str, 
                    ukb_dataset_path: str, 
-                   covariates: List[str], 
+                   covariates: Dict[str, str], 
                    phenotype_name: str, 
                    phenotype_code: int) -> pandas.DataFrame:
                    
-    loader = UKBDataLoader(ukb_dataset_path, 'split', str(phenotype_code), covariates)
+    loader = UKBDataLoader(ukb_dataset_path, 'split', str(phenotype_code), list(covariates.keys()))
     pheno_cov = pandas.concat((loader.load_train(), loader.load_val(), loader.load_test()))
     pheno_cov.rename({str(phenotype_code) : phenotype_name}, axis='columns', inplace=True)
+    pheno_cov.rename(covariates, axis='columns', inplace=True)
+    
     pheno_cov.loc[:, 'FID'] = pheno_cov.index
     pheno_cov.loc[:, 'IID'] = pheno_cov.index
     pheno_cov = pheno_cov.loc[~pandas.isna(pheno_cov[phenotype_name]), :]
@@ -64,6 +66,7 @@ if __name__ == '__main__':
     
     pcs_cov = pheno_cov.merge(pcs, on=['FID', 'IID'])
     pcs_cov = pcs_cov[['FID', 'IID'] + list(pcs_cov.columns.difference(['FID', 'IID']))]
+    pcs_cov.fillna(pcs_cov.mean(), inplace=True)
     
     phenotypes_path = snakemake.output['phenotypes']
     covariates_path = snakemake.output['covariates']

@@ -1,9 +1,12 @@
 from pathlib import Path
+from omegaconf import OmegaConf
+import os
+import hashlib
 
 
 FOLD_COUNT = 1
-# ETHNICITIES = ['WB', 'SA', 'AC', 'CN', 'Others']
-ETHNICITIES = ['WB1', 'WB2']
+ETHNICITIES = ['WB', 'SA', 'AC', 'CN', 'Others']
+# ETHNICITIES = ['WB1', 'WB2']
 PARTS = ['train', 'val', 'test']
 UKB_DATASET = '/gpfs/gpfs0/ukb_data/processed_data/fml'
 PLINK_EXT = ['bed', 'bim', 'fam']
@@ -11,74 +14,74 @@ PLINK2_EXT = ['pgen', 'pvar', 'psam']
 
 PHENOTYPE_NAME = 'standing_height'
 PHENOTYPE_CODE = 50
-COVARIATES = ['31', '21003'] # sex, age
-SNP_COUNTS = [1000, 2000]
+COVARIATES = {'31': 'sex', '21003': 'age'} 
+SNP_COUNTS = [5000]
 
 MODELS = ['lassonet', 'lasso', 'mlp']
 
+CONFIG_DIR = os.path.join(workflow.basedir, "fl/configs")
+print(f'CONFIG DIR IS {CONFIG_DIR}')
+config_names, = glob_wildcards(CONFIG_DIR + "/{config}.yaml")
+
+
+def parse_configs(config_dir: str):
+    representations = []
+    for config_file in os.listdir(config_dir):
+        config = OmegaConf.load(os.path.join(config_dir, config_file))
+        yaml_representation = OmegaConf.to_yaml(config)
+        representations.append(yaml_representation)
+    return representations
+
+
+def get_params_hash(config: str):
+    return hashlib.sha224(config.encode()).hexdigest()
+        
+
+def get_params_hashes():
+    configs = parse_configs(CONFIG_DIR)
+    hashes = []
+    for config in configs:
+        hashes.append(get_params_hash(config))
+
+    return hashes
+    
 
 rule ALL:
+    input:
+        server_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/best_model.ckpt",
+            phenotype=PHENOTYPE_NAME,
+            fold=range(FOLD_COUNT),
+            params_hash=get_params_hashes()),
+            
+        node_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model.ckpt",
+            phenotype=PHENOTYPE_NAME,
+            fold=range(FOLD_COUNT),
+            node=range(len(ETHNICITIES)),
+            params_hash=get_params_hashes())
+
+
+rule server:   
     input: 
-        results=expand("results/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_lassonet.tsv",
-                        phenotype=[PHENOTYPE_NAME],
-                        node=range(len(ETHNICITIES)),
-                        fold=range(FOLD_COUNT),
-                        snp_count=SNP_COUNTS)
-
-
-rule prepare_phenotypes_and_covariates:
-    input:
-        split_ids   = "split_ids/node_{node}/fold_{fold}_{part}.tsv",
-        pca         = "pca/node_{node}/fold_{fold}_{part}_projections.sscore",
-        dataset     = UKB_DATASET
-    params:
-        phenotype_name=PHENOTYPE_NAME,
-        phenotype_code=PHENOTYPE_CODE,
-        covariates=COVARIATES
-    log:
-        "logs/prepare_phenotypes_and_covariates/{phenotype}/node_{node}/fold_{fold}_{part}.log"
+        config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
+    resources:
+        time        = "00:05:00",
+        mem_mb      = 4000,
+        partition   = "cpu"
+    threads: 1
     output:
-        phenotypes  = "phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
-        covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_{part}.tsv"
+        "models/{phenotype}/fold_{fold}/{params_hash}/best_model.ckpt"
     script:
-        "preprocess/phenotypes_covariates.py"
+        "fl/server.py"
 
-rule normalize_covariates:
-    input:
-        train="covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv"
-    params:
-        to_normalize=['age']
-    output:
-        train="covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
-    script:
-        "preprocess/normalize_covariates.py"
-
-rule gwas:
+rule node:
     input: 
-        genotype    = "genotypes/node_{node}/fold_{fold}_train.pgen",
-        phenotype   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
-        covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
+        config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
+    resources:
+        time        = "00:05:00",
+        mem_mb      = 4000,
+        partition   = "cpu"
+    threads: 1
     output:
-        results     = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv"
+        "models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model.ckpt"
     script:
-        "dimred/gwas.py"
-
-rule local_datasets:
-    input:
-        results=rules.gwas.output['results']
-    output:
-        dataset="genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.pgen"
-    script:
-        "dimred/topk.py"
-
-rule local_lassonet:
-    input:
-        genotype    = expand("genotypes/{{phenotype}}/node_{{node}}/fold_{{fold}}/top_{{snp_count}}_{part}.pgen", part=PARTS),
-        phenotype   = expand("phenotypes/{{phenotype}}/node_{{node}}/fold_{{fold}}_{part}.tsv", part=PARTS),
-        covariates  = expand("covariates/{{phenotype}}/node_{{node}}/fold_{{fold}}_{part}.tsv", part=PARTS)
-    params:
-        pfile = lambda wildcards, input: [Path(inp).with_suffix('') for inp in input.genotype]
-    output:
-        results     = "results/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_lassonet.tsv" 
-    script:
-        "local/lassonet.py"
+        "fl/node.py"

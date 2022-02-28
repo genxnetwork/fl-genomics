@@ -2,8 +2,6 @@ from collections import namedtuple
 import logging
 import shutil
 import os
-import sys
-# sys.path.append('/beegfs/home/a.medvedev/uk-biobank/src')
 from utils.plink import run_plink, get_gwas_output_path
 
 
@@ -20,27 +18,29 @@ if __name__ == '__main__':
             log=['test.log']
         )
     
-    print('cwd: ', os.getcwd())
-    print('sys.path: ', sys.path)
-    print('env:')
-    print(os.environ['PYTHONPATH'])
+    print('pythonpath is :' , os.environ['PYTHONPATH'])
     logging.basicConfig(filename=snakemake.log[0], level=logging.DEBUG, format='%(levelname)s:%(asctime)s %(message)s')
 
-    genotype = snakemake.input['genotype']
-    phenotype = snakemake.input['phenotype'] 
-    output = snakemake.output[0]
-    threads = snakemake.resources['threads']
-    
+    genotype = snakemake.input['genotype'].replace('.pgen', '')
+    phenotype = snakemake.input['phenotype']
+    covariates = snakemake.input['covariates'] 
+    out_prefix = snakemake.params['out_prefix']
+    phenotype_name = snakemake.params['phenotype_name']
+    threads = str(snakemake.threads)
+    mem_mb = str(snakemake.resources['mem_mb'])
+    output_path = snakemake.output['results']
+
     args = [
             '--pfile', genotype,
             '--pheno', phenotype,
-            '--glm', 'no-x-sex', 'log10', 'allow-no-covars',
-            '--out', output,
-            '--threads', threads
+            '--covar', covariates,
+            '--glm', 'no-x-sex', 'log10', 'hide-covar',
+            '--out', out_prefix,
+            '--threads', threads,
+            '--memory', mem_mb
     ]
-#   run_plink(args)
+    run_plink(args)
     
-#    shutil.move(get_gwas_output_path(output, phenotype, 'real'), 
-#        f'{output}.tsv')
+    shutil.move(get_gwas_output_path(out_prefix, phenotype_name, 'real'), output_path)
 
-#    logging.info(f'GWAS for genotype {genotype} and phenotype {phenotype} finished')
+    logging.info(f'GWAS for genotype {genotype} and phenotype {phenotype_name} finished')

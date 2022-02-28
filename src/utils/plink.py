@@ -11,7 +11,7 @@ def run_plink(args: List[str]):
     Raises:
         RuntimeError: If plink returned a error
     """    
-    plink = subprocess.run(['/usr/bin/plink2'] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    plink = subprocess.run(['plink2'] + args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if plink.returncode != 0:
         raise RuntimeError(plink.stderr.decode('utf-8'))
 
