@@ -10,6 +10,7 @@
 **ethnic split example from preprocessing to GWAS**
 
 ```
+    module load python/mambaforge3
     export PYTHONPATH=`pwd`/src
-    srun mamba run -n fl snakemake --snakefile src/Snakefile --directory /gpfs/gpfs0/ukb_data/test/ethnic_split/ --profile src/zhores --until gwas
+    srun mamba run -n fl snakemake --snakefile src/gwas_Snakefile --directory /gpfs/gpfs0/ukb_data/test/ethnic_split/ --profile src/zhores --configfile `pwd`/src/gwas.yaml
 ```

@@ -168,4 +168,5 @@ fl/src/.mlflow_parent_run_id
 
 .snakemake/
 test_pipeline/
+test_data/
 logs/

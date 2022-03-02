@@ -1,18 +1,18 @@
 from pathlib import Path
 
 
-FOLD_COUNT = 1
-ETHNICITIES = ['WB', 'SA', 'AC', 'CN', 'Others']
-# ETHNICITIES = ['WB1', 'WB2']
+FOLD_COUNT = config['fold_count']
+ETHNICITIES = config['ethnicities']
+UKB_DATASET = config['ukb_dataset']
+
 PARTS = ['train', 'val', 'test']
-UKB_DATASET = '/gpfs/gpfs0/ukb_data/processed_data/fml'
 PLINK_EXT = ['bed', 'bim', 'fam']
 PLINK2_EXT = ['pgen', 'pvar', 'psam']
 
-PHENOTYPE_NAME = 'standing_height'
-PHENOTYPE_CODE = 50
-COVARIATES = {'31': 'sex', '21003': 'age'} 
-SNP_COUNTS = [5000]
+PHENOTYPE_NAME = config['phenotype']['name']
+PHENOTYPE_CODE = config['phenotype']['code']
+COVARIATES = config['covariates'] 
+SNP_COUNTS = config['snp_counts']
 
 MODELS = ['lassonet', 'lasso', 'mlp']
 
