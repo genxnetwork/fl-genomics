@@ -62,7 +62,7 @@ rule gwas:
         covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
     threads: 8
     resources:
-        time        = "01:00:00",
+        time        = "02:00:00",
         mem_mb      = 24000,
         partition   = "cpu"
     params:
@@ -93,6 +93,7 @@ rule local_datasets:
         dataset     = "genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.pgen"
     script:
         "dimred/topk.py"
+
 
 '''
 rule local_lassonet:

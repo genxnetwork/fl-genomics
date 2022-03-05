@@ -72,6 +72,8 @@ if __name__ == '__main__':
     covariates_path = snakemake.output['covariates']
     
     logging.info(f'Writing {only_pheno.shape[0]} phenotypes to {phenotypes_path}')
+    only_pheno.sort_values(by='IID', axis=0, ascending=True, inplace=True)
     only_pheno.to_csv(phenotypes_path, sep='\t', index=False)
     logging.info(f'Writing {pcs_cov.shape[0]} pcs and covariates to {covariates_path}')
+    pcs_cov.sort_values(by='IID', axis=0, ascending=True, inplace=True)
     pcs_cov.to_csv(covariates_path, sep='\t', index=False)

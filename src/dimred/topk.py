@@ -23,6 +23,10 @@ def write_snplist(gwas_path: str, max_snp_count: int):
 
     return snplist_path
 
+def write_temp_fid_iid(phenotype_path: str, fid_iid_path: str):
+    phenotype = pandas.read_table(phenotype_path)
+    phenotype.rename({'FID': '#FID'}, axis='columns', inplace=True)
+    phenotype.loc[:, ['#FID', 'IID']].to_csv(fid_iid_path, index=False, sep='\t')
 
 if __name__ == '__main__':
     try:
@@ -52,11 +56,13 @@ if __name__ == '__main__':
     mem_mb = str(snakemake.resources['mem_mb'])
     out_pfile = snakemake.params['out_prefix']
 
+    write_temp_fid_iid(phenotype_path, out_pfile + '.samples')
+
     snplist_path = write_snplist(gwas_path, max_snp_count)
     args = ['--pfile', in_pfile,
-            '--extract', snplist_path, '--keep', phenotype_path, 
+            '--extract', snplist_path, '--keep', out_pfile + '.samples', 
             '--threads', threads, '--memory', mem_mb,
             '--make-pgen', '--out', out_pfile]
     run_plink(args)
-    
+
     print(f'Extracted {max_snp_count} SNPs from {in_pfile} to {out_pfile}')

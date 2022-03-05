@@ -39,6 +39,9 @@ if __name__ == '__main__':
             '--threads', threads,
             '--memory', mem_mb
     ]
+    print('args:')
+    print(' '.join(args))
+    print()
     run_plink(args)
     
     shutil.move(get_gwas_output_path(out_prefix, phenotype_name, 'real'), output_path)
