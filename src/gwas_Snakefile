@@ -103,6 +103,10 @@ rule local_datasets:
 rule union_snplists:
     input:
         gwases      = [expand("gwas/{{phenotype}}/node_{node}/fold_{{fold}}.gwas.tsv", node=node) for node in range(len(ETHNICITIES))]
+    resources:
+        time        = "00:05:00",
+        mem_mb      = 8000,
+        partition   = "cpu"
     log:
         "logs/union_snplists/{phenotype}/fold_{fold}/top_{snp_count}.log"
     output:
@@ -115,6 +119,10 @@ rule union_datasets:
         phenotype   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
         genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen",
         snplist     = rules.union_snplists.output['snplist']
+    resources:
+        time        = "00:05:00",
+        mem_mb      = 8000,
+        partition   = "cpu"
     params:
         in_prefix   = "genotypes/node_{node}/fold_{fold}_{part}",
         out_prefix  = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_{part}"
