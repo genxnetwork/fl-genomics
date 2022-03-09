@@ -205,15 +205,6 @@ class CVSplitter:
                     covariates
             )
 
-            # standardize phenotype in phenotype-only file
-            '''
-            self.standardize(
-                    self.split.get_phenotype_path(node_index, fold_index, 'train'),
-                    self.split.get_phenotype_path(node_index, fold_index, 'val'),
-                    self.split.get_phenotype_path(node_index, fold_index, 'test'),
-                    None
-            )
-            '''
 
     def standardize(self, train_path: str, val_path: str, test_path: str, columns: List[str]):
         """

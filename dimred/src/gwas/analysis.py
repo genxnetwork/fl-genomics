@@ -64,6 +64,13 @@ def plot_log10p(gwas: pandas.DataFrame, output_path: str):
 
 
 def compare_adjusted_unadjusted_gwas(adjusted_path: str, unadjusted_path: str):
+    """Computes spearman correlation and mean squared error to compare GWAS
+    for phenotype adjusted for covariates before GWAS and GWAS with covariates
+
+    Args:
+        adjusted_path (str): Path to plink 2.0 GWAS results with LOG10_P values for adjusted phenotype
+        unadjusted_path (str): Path to plink 2.0 GWAS results with LOG10_P values for unadjusted phenotype
+    """    
     adjusted = pandas.read_table(adjusted_path)
     unadjusted = pandas.read_table(unadjusted_path)
     
