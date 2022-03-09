@@ -2,7 +2,7 @@ from typing import List, Set, Tuple
 import pandas
 
 
-def _read_all_gwas(gwas_sources: List[str]) -> List[pandas.DataFrame]:
+def read_all_gwas(gwas_sources: List[str]) -> List[pandas.DataFrame]:
     """
     Reads all GWAS results for a particular phenotype and split from {gwas_dir}
 
