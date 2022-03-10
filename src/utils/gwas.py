@@ -2,7 +2,7 @@ from typing import List, Set, Tuple
 import pandas
 
 
-def _read_all_gwas(gwas_sources: List[str]) -> List[pandas.DataFrame]:
+def read_all_gwas(gwas_sources: List[str]) -> List[pandas.DataFrame]:
     """
     Reads all GWAS results for a particular phenotype and split from {gwas_dir}
 
@@ -20,6 +20,15 @@ def _read_all_gwas(gwas_sources: List[str]) -> List[pandas.DataFrame]:
 
 
 def get_topk_snps(gwas: pandas.DataFrame, max_snp_count: int) -> pandas.DataFrame:
+    """Returns top {max_count_snps} SNP IDs from {gwas} GWAS results
+
+    Args:
+        gwas (pandas.DataFrame): plink 2.0 GWAS output with LOG10_P values
+        max_snp_count (int): Number of the most significant SNPs to return
+
+    Returns:
+        pandas.DataFrame: DataFrame with {max_snp_count} most significant SNPs where index is SNP ID 
+    """    
     sorted_gwas = gwas.sort_values(by='LOG10_P', axis='index', ascending=False).iloc[:max_snp_count, :]
     return sorted_gwas.drop('LOG10_P', axis='columns')
 

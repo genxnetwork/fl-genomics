@@ -19,12 +19,18 @@ MODELS = ['lassonet', 'lasso', 'mlp']
 
 rule ALL:
     input: 
-        dataset=expand("genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.pgen",
-                        phenotype=[PHENOTYPE_NAME],
-                        node=range(len(ETHNICITIES)),
-                        fold=range(FOLD_COUNT),
-                        snp_count=SNP_COUNTS,
-                        part=PARTS)
+        local_dataset=expand("genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.pgen",
+                             phenotype=[PHENOTYPE_NAME],
+                             node=range(len(ETHNICITIES)),
+                             fold=range(FOLD_COUNT),
+                             snp_count=SNP_COUNTS,
+                             part=PARTS),
+        union_dataset=expand("genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_{part}.pgen",
+                             phenotype=[PHENOTYPE_NAME],
+                             node=range(len(ETHNICITIES)),
+                             fold=range(FOLD_COUNT),
+                             snp_count=SNP_COUNTS,
+                             part=PARTS)
 
 
 rule prepare_phenotypes_and_covariates:
@@ -94,6 +100,41 @@ rule local_datasets:
     script:
         "dimred/topk.py"
 
+rule union_snplists:
+    input:
+        gwases      = [expand("gwas/{{phenotype}}/node_{node}/fold_{{fold}}.gwas.tsv", node=node) for node in range(len(ETHNICITIES))]
+    resources:
+        time        = "00:05:00",
+        mem_mb      = 8000,
+        partition   = "cpu"
+    log:
+        "logs/union_snplists/{phenotype}/fold_{fold}/top_{snp_count}.log"
+    output:
+        snplist     = "genotypes/{phenotype}/fold_{fold}/union/top_{snp_count}.snplist"      
+    script:
+        "dimred/union.py"
+
+rule union_datasets:
+    input:
+        phenotype   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
+        genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen",
+        snplist     = rules.union_snplists.output['snplist']
+    resources:
+        time        = "00:05:00",
+        mem_mb      = 8000,
+        partition   = "cpu"
+    params:
+        in_prefix   = "genotypes/node_{node}/fold_{fold}_{part}",
+        out_prefix  = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_{part}"
+    output:
+        dataset     = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_{part}.pgen"
+    shell:
+        """
+            plink2 --pfile {params.in_prefix} \
+                   --extract {input.snplist} \
+                   --keep {input.phenotype} \
+                   --make-pgen --out {params.out_prefix}
+        """
 
 '''
 rule local_lassonet:
