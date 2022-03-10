@@ -1,0 +1,110 @@
+from pathlib import Path
+
+
+FOLD_COUNT = config['fold_count']
+ETHNICITIES = config['ethnicities']
+UKB_DATASET = config['ukb_dataset']
+
+PARTS = ['train', 'val', 'test']
+PLINK_EXT = ['bed', 'bim', 'fam']
+PLINK2_EXT = ['pgen', 'pvar', 'psam']
+
+PHENOTYPE_NAME = config['phenotype']['name']
+PHENOTYPE_CODE = config['phenotype']['code']
+COVARIATES = config['covariates'] 
+SNP_COUNTS = config['snp_counts']
+
+MODELS = ['lassonet', 'lasso', 'mlp']
+
+
+rule ALL:
+    input: 
+        dataset=expand("genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.pgen",
+                        phenotype=[PHENOTYPE_NAME],
+                        node=range(len(ETHNICITIES)),
+                        fold=range(FOLD_COUNT),
+                        snp_count=SNP_COUNTS,
+                        part=PARTS)
+
+
+rule prepare_phenotypes_and_covariates:
+    input:
+        split_ids   = "split_ids/node_{node}/fold_{fold}_{part}.tsv",
+        pca         = "pca/node_{node}/fold_{fold}_{part}_projections.sscore",
+        dataset     = UKB_DATASET
+    params:
+        phenotype_name  = PHENOTYPE_NAME,
+        phenotype_code  = PHENOTYPE_CODE,
+        covariates      = COVARIATES
+    log:
+        "logs/prepare_phenotypes_and_covariates/{phenotype}/node_{node}/fold_{fold}_{part}.log"
+    output:
+        phenotypes  = "phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
+        covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_{part}.tsv"
+    script:
+        "preprocess/phenotypes_covariates.py"
+
+rule normalize_covariates:
+    input:
+        train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv"
+    params:
+        to_normalize = ['age']
+    log: "logs/normalize_covariates/{phenotype}/node_{node}/fold_{fold}_train.log"
+    output:
+        train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
+    script:
+        "preprocess/normalize_covariates.py"
+
+rule gwas:
+    input: 
+        genotype    = "genotypes/node_{node}/fold_{fold}_train.pgen",
+        phenotype   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
+        covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
+    threads: 8
+    resources:
+        time        = "02:00:00",
+        mem_mb      = 24000,
+        partition   = "cpu"
+    params:
+        out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
+        phenotype_name  = PHENOTYPE_NAME
+    log: "logs/gwas/{phenotype}/node_{node}/fold_{fold}.log"
+    output:
+        results     = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv"
+    script:
+        "dimred/gwas.py"
+
+rule local_datasets:
+    input:
+        gwas        = rules.gwas.output['results'],
+        phenotype   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
+        genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen"
+    threads: 2
+    resources:
+        time        = "00:20:00",
+        mem_mb      = 8000,
+        partition   = "cpu"
+    params:
+        in_prefix   = "genotypes/node_{node}/fold_{fold}_{part}",
+        out_prefix  = "genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}"
+    log:
+        "logs/local_datasets/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.log"
+    output:
+        dataset     = "genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.pgen"
+    script:
+        "dimred/topk.py"
+
+
+'''
+rule local_lassonet:
+    input:
+        genotype    = expand("genotypes/{{phenotype}}/node_{{node}}/fold_{{fold}}/top_{{snp_count}}_{part}.pgen", part=PARTS),
+        phenotype   = expand("phenotypes/{{phenotype}}/node_{{node}}/fold_{{fold}}_{part}.tsv", part=PARTS),
+        covariates  = expand("covariates/{{phenotype}}/node_{{node}}/fold_{{fold}}_{part}.tsv", part=PARTS)
+    params:
+        pfile = lambda wildcards, input: [Path(inp).with_suffix('') for inp in input.genotype]
+    output:
+        results     = "results/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_lassonet.tsv" 
+    script:
+        "local/lassonet.py"
+'''

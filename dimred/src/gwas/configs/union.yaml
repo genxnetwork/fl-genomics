@@ -1,6 +1,7 @@
-strategy: topk # one of topk, pvalue, mixed
+strategy: topk # one of topk, pvalue, mixed, no_union
 split_dir: /gpfs/gpfs0/ukb_data/fml/british_split
-split_count: 4
+node_count: 4
+fold_index: ${oc.decode:${oc.env:SLURM_ARRAY_TASK_ID}}
 phenotype:
   name: standing_height
   code: 50
@@ -13,4 +14,4 @@ analysis:
    - 2000
    - 5000
    - 10000
-  plot_path: ${split_dir}/gwas/snp_selection.png 
+  plot_path: ${split_dir}/gwas/${phenotype.name}/fold_${fold_index}_snp_selection.png 

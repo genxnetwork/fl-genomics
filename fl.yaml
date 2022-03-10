@@ -11,6 +11,8 @@ dependencies:
     - scikit-learn
     - cython
     - plink2
+    - snakemake
+    - zarr
     - pip
     - pip:
       - pytorch-lightning

@@ -1,10 +1,8 @@
 split_dir: /gpfs/gpfs0/ukb_data/fml/british_split/
-split_count: 4
+node_count: 5
 phenotype:
   name: standing_height
   code: 50
-threads: 4
-memory_mb: 20000
 random_state: 1111
 # only these covariates will be standardized. 
 # change to null if you want standardize every covariate including PCs
