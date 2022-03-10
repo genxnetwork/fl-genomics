@@ -49,8 +49,4 @@ if __name__ == '__main__':
                     strategy=strategy,
                     config={"num_rounds": cfg.rounds}
         )
-
-    for i in range(60):
-        print(f'second: {i}\tnode: server')
-        sleep(1)
         

@@ -4,18 +4,17 @@ import os
 import hashlib
 
 
-FOLD_COUNT = 1
-ETHNICITIES = ['WB', 'SA', 'AC', 'CN', 'Others']
-# ETHNICITIES = ['WB1', 'WB2']
-PARTS = ['train', 'val', 'test']
-UKB_DATASET = '/gpfs/gpfs0/ukb_data/processed_data/fml'
+FOLD_COUNT = config['fold_count']
+ETHNICITIES = config['ethnicities']
+UKB_DATASET = config['ukb_dataset']
+
 PLINK_EXT = ['bed', 'bim', 'fam']
 PLINK2_EXT = ['pgen', 'pvar', 'psam']
 
-PHENOTYPE_NAME = 'standing_height'
-PHENOTYPE_CODE = 50
-COVARIATES = {'31': 'sex', '21003': 'age'} 
-SNP_COUNTS = [5000]
+PHENOTYPE_NAME = config['phenotype']['name']
+PHENOTYPE_CODE = config['phenotype']['code']
+COVARIATES = config['covariates'] 
+SNP_COUNTS = config['snp_counts']
 
 MODELS = ['lassonet', 'lasso', 'mlp']
 
@@ -48,16 +47,18 @@ def get_params_hashes():
 
 rule ALL:
     input:
-        server_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/best_model.ckpt",
+        server_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/best_model_top_{snp_count}.ckpt",
             phenotype=PHENOTYPE_NAME,
             fold=range(FOLD_COUNT),
-            params_hash=get_params_hashes()),
+            params_hash=get_params_hashes(),
+            snp_count=SNP_COUNTS),
             
-        node_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model.ckpt",
+        node_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model_top_{snp_count}.ckpt",
             phenotype=PHENOTYPE_NAME,
             fold=range(FOLD_COUNT),
             node=range(len(ETHNICITIES)),
-            params_hash=get_params_hashes())
+            params_hash=get_params_hashes(),
+            snp_count=SNP_COUNTS)
 
 
 rule server:   
@@ -69,19 +70,25 @@ rule server:
         partition   = "cpu"
     threads: 1
     output:
-        "models/{phenotype}/fold_{fold}/{params_hash}/best_model.ckpt"
+        "models/{phenotype}/fold_{fold}/{params_hash}/best_model_top_{snp_count}.ckpt"
     script:
         "fl/server.py"
 
 rule node:
     input: 
-        config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
+        config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names),
+        gwas        = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
+        pheno_train = "phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
+        pheno_val   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_val.tsv"
     resources:
         time        = "00:05:00",
         mem_mb      = 4000,
         partition   = "cpu"
     threads: 1
+    params:
+        pfile_train = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_train",
+        pfile_val   = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_val"
     output:
-        "models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model.ckpt"
+        "models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model_top_{snp_count}.ckpt"
     script:
         "fl/node.py"
