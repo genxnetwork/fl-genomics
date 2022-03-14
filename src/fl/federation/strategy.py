@@ -45,10 +45,12 @@ class MlflowStrategy(FedAvg):
 
         # Weigh val_loss of each client by number of examples used
         val_loss = self._calculate_agg_metric('val_loss', results)
-        train_loss = self._calculate_agg_metric('train_loss', results)
-        logging.info(f"round {rnd}\ttrain_loss: {train_loss:.4f}\tval_loss: {val_loss:.4f}")
-        mlflow.log_metric('agg_val_loss', val_loss, step=rnd)
-        mlflow.log_metric('agg_train_loss', train_loss, step=rnd)
+        train_r2 = self._calculate_agg_metric('train_r2', results)
+        val_r2 = self._calculate_agg_metric('val_r2', results)
+        logging.info(f"round {rnd}\ttrain_: {train_r2:.4f}\tval_r2: {val_r2:.4f}\tval_loss: {val_loss:.4f}")
+        mlflow.log_metric('val_loss', val_loss, step=rnd)
+        mlflow.log_metric('train_r2', train_r2, step=rnd)
+        mlflow.log_metric('val_r2', val_r2, step=rnd)
 
         # Call aggregate_evaluate from base class (FedAvg)
         return super().aggregate_evaluate(rnd, results, failures)

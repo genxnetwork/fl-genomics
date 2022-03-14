@@ -5,6 +5,7 @@ import logging
 import time
 from grpc import RpcError
 import mlflow
+import numpy
 from mlflow.entities import ViewType, RunInfo
 from mlflow import ActiveRun, list_run_infos
 from mlflow.tracking import MlflowClient
@@ -12,7 +13,7 @@ from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import flwr
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from datasets.memory import load_from_pgen, load_phenotype
+from datasets.memory import load_from_pgen, load_phenotype, load_covariates
 from datasets.lightning import DataModule
 from model.mlp import BaseNet, LinearRegressor, MLPRegressor
 from federation.client import FLClient
@@ -90,7 +91,7 @@ def configure_logging():
     # to disable printing GPU TPU IPU info for each trainer each FL step
     # https://github.com/PyTorchLightning/pytorch-lightning/issues/3431
     logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
-    logging.basicConfig(filename=snakemake.log[0], level=logging.DEBUG, format='%(levelname)s:%(asctime)s %(message)s')
+    logging.basicConfig(filename=snakemake.log[0], level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
 
 
 def create_linear_regressor(input_size: int, params: Any) -> LinearRegressor:
@@ -141,6 +142,9 @@ if __name__ == '__main__':
     pheno_train = snakemake.input['pheno_train']
     pheno_val = snakemake.input['pheno_val']
 
+    cov_train = snakemake.input['cov_train']
+    cov_val = snakemake.input['cov_val']
+
     pfile_train = snakemake.params['pfile_train']
     pfile_val = snakemake.params['pfile_val']
 
@@ -153,15 +157,20 @@ if __name__ == '__main__':
     mlflow_client = MlflowClient()
 
     parent_run_id, hostname, experiment_id = get_parent_run_id_and_host(mlflow_client, cfg.experiment.name, params_hash)
-    print(f'parent_run_id is {parent_run_id}, hostname is {hostname}')
+    logging.info(f'parent_run_id is {parent_run_id}, hostname is {hostname}')
 
     X_train = load_from_pgen(pfile_train, gwas, None, missing=cfg.experiment.missing) # load all snps
     X_val = load_from_pgen(pfile_val, gwas, None, missing=cfg.experiment.missing) # load all snps
-    print('Genotype data loaded')
-    print(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
+    logging.info(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
+    
+    X_cov_train = load_covariates(cov_train)
+    X_cov_val = load_covariates(cov_val)
+    X_train = numpy.hstack([X_train, X_cov_train])
+    X_val = numpy.hstack([X_val, X_cov_val])
+    logging.info(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1]} total features')
 
     y_train, y_val = load_phenotype(pheno_train), load_phenotype(pheno_val)
-    print(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
+    logging.info(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
     data_module = DataModule(X_train, X_val, y_train, y_val, cfg.node.model.batch_size)
 
     net = create_model(X_train.shape[1], cfg.node)

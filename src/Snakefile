@@ -6,6 +6,7 @@ import hashlib
 
 FOLD_COUNT = config['fold_count']
 ETHNICITIES = config['ethnicities']
+NODES = config['nodes']
 UKB_DATASET = config['ukb_dataset']
 
 PLINK_EXT = ['bed', 'bim', 'fam']
@@ -56,7 +57,7 @@ rule ALL:
         node_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model_top_{snp_count}.ckpt",
             phenotype=PHENOTYPE_NAME,
             fold=range(FOLD_COUNT),
-            node=range(len(ETHNICITIES)),
+            node=NODES,
             params_hash=get_params_hashes(),
             snp_count=SNP_COUNTS)
 
@@ -65,7 +66,7 @@ rule server:
     input: 
         config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
     resources:
-        time        = "00:05:00",
+        time        = "00:10:00",
         mem_mb      = 4000,
         partition   = "cpu"
     threads: 1
@@ -80,11 +81,13 @@ rule node:
         config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names),
         gwas        = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
         pheno_train = "phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
-        pheno_val   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_val.tsv"
+        pheno_val   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_val.tsv",
+        cov_train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv",
+        cov_val     = "covariates/{phenotype}/node_{node}/fold_{fold}_val.tsv",
     resources:
-        time        = "00:05:00",
-        mem_mb      = 4000,
-        partition   = "gpu_devel",
+        time        = "00:10:00",
+        mem_mb      = 24000,
+        partition   = "gpu",
         gpus        = 1
     threads: 1
     log: "logs/node/{phenotype}/fold_{fold}/{params_hash}/node_{node}_{snp_count}.log"

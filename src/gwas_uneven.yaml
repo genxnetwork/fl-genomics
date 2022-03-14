@@ -1,5 +1,6 @@
 fold_count: 1
 ethnicities: ['WB0', 'WB1', 'WB2', 'WB3', 'WB4', 'WB5', 'WB6', 'WB7']
+nodes: [0, 1, 2, 3, 4, 5, 6, 7]
 ukb_dataset: '/gpfs/gpfs0/ukb_data/processed_data/fml'
 phenotype: 
   name: 'standing_height'

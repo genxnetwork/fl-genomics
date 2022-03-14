@@ -5,7 +5,7 @@ experiment:
   random_state: 4
 server:
   rounds: 64
-  node_count: 2
+  node_count: 3
 node:
   model:
     name: linear_regressor
@@ -14,7 +14,7 @@ node:
   optimizer:
     name: adamw
     lr: 1e-2
-    weight_decay: 0.0
+    weight_decay: 1e-4
   scheduler:
     name: one_cycle_lr
     rounds: 16

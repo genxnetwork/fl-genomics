@@ -26,7 +26,7 @@ if __name__ == '__main__':
     config_path = snakemake.input['config'][0]
     params_hash = snakemake.wildcards['params_hash']
     
-    logging.basicConfig(filename=snakemake.log[0], level=logging.DEBUG, format='%(levelname)s:%(asctime)s %(message)s')
+    logging.basicConfig(filename=snakemake.log[0], level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
 
     cfg = OmegaConf.load(config_path)
     
@@ -39,9 +39,6 @@ if __name__ == '__main__':
         on_fit_config_fn=fit_round
     )
 
-    logging.info(f'starting to print os environ')
-    for key, value in os.environ.items():
-        logging.info(f'{key}: {value};')
     experiment = mlflow.set_experiment(cfg.experiment.name)
 
     with mlflow.start_run(

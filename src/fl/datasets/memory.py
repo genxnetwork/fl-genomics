@@ -45,6 +45,15 @@ def load_phenotype(phenotype_path: str) -> numpy.ndarray:
     return data.iloc[:, -1].values
 
 
+def load_covariates(covariates_path: str, load_pcs: bool = False) -> numpy.ndarray:
+    data = pandas.read_table(covariates_path)
+    if load_pcs:
+        to_load = [col for col in data.columns if col not in ['FID', 'IID']]        
+    else:
+        to_load = [col for col in data.columns if not col.startswith('PC') and col not in ['FID', 'IID']]
+    return data.loc[:, to_load].values # First two columns are FID, IID
+
+
 def get_snp_list(pfile_path: str, gwas_path: str, snp_count: int) -> numpy.ndarray:
     pvar = pandas.read_table(pfile_path + '.pvar')
     gwas = pandas.read_table(gwas_path)
