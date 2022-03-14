@@ -11,7 +11,8 @@ from datasets.lightning import DataModule
 
 
 class FLClient(NumPyClient):
-    def __init__(self, model: BaseNet, data_module: DataModule, logger: TensorBoardLogger, model_params: Dict, training_params: Dict):
+    def __init__(self, server: str, model: BaseNet, data_module: DataModule, logger: TensorBoardLogger, model_params: Dict, training_params: Dict):
+        self.server = server
         self.model = model
         self.data_module = data_module
         self.best_model_path = None
@@ -28,6 +29,7 @@ class FLClient(NumPyClient):
         self.model.load_state_dict(state_dict, strict=True)
 
     def fit(self, parameters, config):
+        logging.info('setting parameters in round {config["current_round"]}')
         self.set_parameters(parameters)
         self.model.current_round = config['current_round']
         trainer = Trainer(logger=self.logger, **self.training_params)

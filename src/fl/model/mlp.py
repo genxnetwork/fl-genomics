@@ -5,6 +5,7 @@ from torch.nn import Linear, BatchNorm1d
 from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu
 import mlflow
 
+
 class BaseNet(LightningModule):
     def __init__(self, input_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
         super().__init__()
@@ -96,14 +97,10 @@ class BaseNet(LightningModule):
 
 
 class LinearRegressor(BaseNet):
-    def __init__(self, input_size: int, l1: float, lr: float, momentum: float, epochs: float, l2: float) -> None:
-        super().__init__(input_size, l1, lr, momentum, epochs, l2)
+    def __init__(self, input_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
+        super().__init__(input_size, l1, optim_params, scheduler_params)
         self.layer = Linear(input_size, 1)
         self.l1 = l1
-        self.l2 = l2
-        self.lr = lr
-        self.momentum = momentum
-        self.epochs = epochs
 
     def calculate_loss(self, y_hat, y):
         return mse_loss(y_hat.squeeze(1), y)

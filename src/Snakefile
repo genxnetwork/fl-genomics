@@ -69,6 +69,7 @@ rule server:
         mem_mb      = 4000,
         partition   = "cpu"
     threads: 1
+    log: "logs/server/{phenotype}/fold_{fold}/{params_hash}/server_{snp_count}.log"
     output:
         "models/{phenotype}/fold_{fold}/{params_hash}/best_model_top_{snp_count}.ckpt"
     script:
@@ -83,8 +84,10 @@ rule node:
     resources:
         time        = "00:05:00",
         mem_mb      = 4000,
-        partition   = "cpu"
+        partition   = "gpu_devel",
+        gpus        = 1
     threads: 1
+    log: "logs/node/{phenotype}/fold_{fold}/{params_hash}/node_{node}_{snp_count}.log"
     params:
         pfile_train = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_train",
         pfile_val   = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_val"
