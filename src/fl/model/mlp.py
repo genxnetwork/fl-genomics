@@ -79,7 +79,7 @@ class BaseNet(LightningModule):
                                                         max_lr=self.optim_params['lr'],
                                                         div_factor=self.scheduler_params['div_factor'],
                                                         final_div_factor=self.scheduler_params['final_div_factor'],
-                                                        total_steps=self.scheduler_params['rounds']*self.scheduler_params['epochs_in_round']+2,
+                                                        total_steps=int(self.scheduler_params['rounds']*(1.5*self.scheduler_params['epochs_in_round'])+2),
                                                         pct_start=0.1,
                                                         last_epoch=self.current_round*self.scheduler_params['epochs_in_round'],
                                                         #last_epoch=self.curren

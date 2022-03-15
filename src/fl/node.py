@@ -37,7 +37,6 @@ def train_model(client: FLClient):
             continue
         
 
-
 def evaluate_model(data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
     """
     Evaluates a trained model locally
@@ -151,7 +150,13 @@ if __name__ == '__main__':
     params_hash = snakemake.wildcards['params_hash']
     node_index = snakemake.wildcards['node']
 
+
+
     cfg = OmegaConf.load(config_path)
+    if int(snakemake.resources['gpus']) == 0:
+        # we ran some nodes on gpu and some on cpu
+        cfg.node.training.gpus = None 
+
     configure_logging()
 
     mlflow_client = MlflowClient()

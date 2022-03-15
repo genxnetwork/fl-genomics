@@ -66,8 +66,8 @@ rule server:
     input: 
         config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
     resources:
-        time        = "00:10:00",
-        mem_mb      = 4000,
+        time        = "00:20:00",
+        mem_mb      = 6000,
         partition   = "cpu"
     threads: 1
     log: "logs/server/{phenotype}/fold_{fold}/{params_hash}/server_{snp_count}.log"
@@ -75,6 +75,39 @@ rule server:
         "models/{phenotype}/fold_{fold}/{params_hash}/best_model_top_{snp_count}.ckpt"
     script:
         "fl/server.py"
+
+'''
+wc -l node_{0,1,2,3,4,5,6,7}/fold_0_train.tsv
+   6103 node_0/fold_0_train.tsv
+   1199 node_1/fold_0_train.tsv
+ 171578 node_2/fold_0_train.tsv
+  85813 node_3/fold_0_train.tsv
+  42884 node_4/fold_0_train.tsv
+  21444 node_5/fold_0_train.tsv
+  10717 node_6/fold_0_train.tsv
+   3432 node_7/fold_0_train.tsv
+ 343170 total
+'''
+
+NODE_RESOURCES = {
+    '0': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '1': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '2': {'partition': 'gpu', 'mem_mb': 64000, 'gpus': 1},
+    '3': {'partition': 'gpu', 'mem_mb': 36000, 'gpus': 1},
+    '4': {'partition': 'gpu', 'mem_mb': 24000, 'gpus': 1},
+    '5': {'partition': 'cpu', 'mem_mb': 16000, 'gpus': 0},
+    '6': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '7': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+}
+
+def get_partition(wildcards):
+    return NODE_RESOURCES[wildcards.node]['partition']
+
+def get_mem_mb(wildcards):
+    return NODE_RESOURCES[wildcards.node]['mem_mb']
+
+def get_gpus(wildcards):
+    return NODE_RESOURCES[wildcards.node]['gpus']
 
 rule node:
     input: 
@@ -85,11 +118,11 @@ rule node:
         cov_train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv",
         cov_val     = "covariates/{phenotype}/node_{node}/fold_{fold}_val.tsv",
     resources:
-        time        = "00:10:00",
-        mem_mb      = 24000,
-        partition   = "gpu",
-        gpus        = 1
-    threads: 1
+        time        = "00:20:00",
+        mem_mb      = get_mem_mb,
+        partition   = get_partition,
+        gpus        = get_gpus
+    threads: 2
     log: "logs/node/{phenotype}/fold_{fold}/{params_hash}/node_{node}_{snp_count}.log"
     params:
         pfile_train = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_train",

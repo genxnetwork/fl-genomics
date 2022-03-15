@@ -4,8 +4,8 @@ experiment:
   missing: zero
   random_state: 4
 server:
-  rounds: 64
-  node_count: 3
+  rounds: 16
+  node_count: 7
 node:
   model:
     name: linear_regressor
@@ -13,12 +13,12 @@ node:
     l1: 0.0
   optimizer:
     name: adamw
-    lr: 1e-2
-    weight_decay: 1e-4
+    lr: 2e-3
+    weight_decay: 1e-3
   scheduler:
     name: one_cycle_lr
     rounds: 16
-    epochs_in_round: 16
+    epochs_in_round: 4
     div_factor: 25
     final_div_factor: 1e+4
   training:
