@@ -1,10 +1,12 @@
 from typing import List
 import hydra
 from omegaconf import DictConfig
+from os import symlink, path
 
 import pandas
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
+from numpy import array_split, array, cumsum
 
 from utils.split import Split
 from utils.phenotype import adjust_and_write
@@ -12,7 +14,52 @@ from utils.phenotype import adjust_and_write
 
 FOLD_COUNT = 10
 
+class WBSplitter:
+    def __init__(self, ethnic_split: Split, new_split: Split, n_nodes: int, array_split_arg, n_folds: int=FOLD_COUNT):
+        """
+        Splits the white british node of the ethnic split into a number of nodes
+        in a new split using numpy's array_split.
+        
+        Args:
+            ethnic_split: Split object for ethnic split ID paths (dummy phenotypes)
+            new_split: Split object for new split ID paths (dummy phenotypes)
+            n_nodes: Number of nodes in the new split
+            array_split_args: either the number or uniform splits or a list of share sizes
+                              for the new split.
+            n_folds: Number of CV folds
+        """
+        self.ethnic_split = ethnic_split
+        self.new_split = new_split
+        self.n_nodes = n_nodes
+        assert isinstance(array_split_arg, int) or isinstance(array_split_arg, list)
+        self.array_split_arg = array_split_arg
+        self.n_folds = n_folds
+        
+    def split_ids(self):
+        for fold_index in range(self.n_folds):
+            for part_name in ["train", "val"]:
+                path = self.ethnic_split.get_ids_path(0, fold_index, part_name)
+                ids = pandas.read_table(path).loc[:, ['FID', 'IID']]
+                
+                if isinstance(self.array_split_arg, int):
+                    split_ids_list = array_split(ids, self.array_split_arg)
+                elif isinstance(self.array_split_arg, list):
+                    split_ids_list = array_split(ids, (cumsum(array(self.array_split_arg))*len(ids)).astype(int))
+                    
+                assert len(ids) == sum([len(split_ids) for split_ids in split_ids_list])
+                    
+                for node_index, split_ids in enumerate(split_ids_list):
+                    out_path = self.new_split.get_ids_path(node_index, fold_index, part_name)
+                    split_ids.to_csv(out_path, sep='\t', index=False)
+            
+            # Symlink for test ids
+            for node_index in range(self.n_nodes):
+                source_path = self.ethnic_split.get_ids_path(0, fold_index, 'test')
+                destination_path = self.new_split.get_ids_path(node_index, fold_index, 'test')
+                if not path.exists(destination_path):
+                    symlink(source_path, destination_path)
 
+              
 class CVSplitter:
     def __init__(self, split: Split) -> None:
         """Splits PCs, phenotypes and covariates into folds. 
@@ -158,15 +205,6 @@ class CVSplitter:
                     covariates
             )
 
-            # standardize phenotype in phenotype-only file
-            '''
-            self.standardize(
-                    self.split.get_phenotype_path(node_index, fold_index, 'train'),
-                    self.split.get_phenotype_path(node_index, fold_index, 'val'),
-                    self.split.get_phenotype_path(node_index, fold_index, 'test'),
-                    None
-            )
-            '''
 
     def standardize(self, train_path: str, val_path: str, test_path: str, columns: List[str]):
         """
