@@ -150,8 +150,6 @@ if __name__ == '__main__':
     params_hash = snakemake.wildcards['params_hash']
     node_index = snakemake.wildcards['node']
 
-
-
     cfg = OmegaConf.load(config_path)
     if int(snakemake.resources['gpus']) == 0:
         # we ran some nodes on gpu and some on cpu
@@ -190,7 +188,13 @@ if __name__ == '__main__':
         parent_run_id=parent_run_id,
         experiment_id=experiment_id,
         tags={
-            'description': cfg.experiment.description
+            'description': cfg.experiment.description,
+            'node_index': str(node_index),
+            'phenotype': snakemake.wildcards['phenotype'],
+            #TODO: make it a parameter
+            'split': 'uneven_split',
+            'snp_count': str(X_train.shape[1] - X_cov_train.shape[1]),
+            'sample_count': str(X_train.shape[0])
         }
     ):
         mlflow.log_params(OmegaConf.to_container(cfg.node))

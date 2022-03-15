@@ -53,8 +53,6 @@ class BaseNet(LightningModule):
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
-        if avg_loss < 0.5:
-            print(outputs, self.current_epoch)
         mlflow.log_metric('local_val_loss', avg_loss, self._fl_current_epoch())
         self.log('val_loss', avg_loss)
 
