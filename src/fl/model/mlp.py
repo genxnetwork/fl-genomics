@@ -8,6 +8,14 @@ import mlflow
 
 class BaseNet(LightningModule):
     def __init__(self, input_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
+        """Base class for all NN models, should not be used directly
+
+        Args:
+            input_size (int): Size of input data
+            l1 (float): L1 regularization parameter
+            optim_params (Dict): Parameters of optimizer
+            scheduler_params (Dict): Parameters of learning rate scheduler
+        """        
         super().__init__()
         self.layer = Linear(input_size, 1)
         self.l1 = l1
@@ -27,7 +35,12 @@ class BaseNet(LightningModule):
         loss = raw_loss + reg
         return {'loss': loss, 'raw_loss': raw_loss.detach(), 'reg': reg.detach(), 'batch_len': x.shape[0]}
 
-    def regularization(self):
+    def regularization(self) -> torch.Tensor:
+        """Calculates l1 regularization of input layer by default
+
+        Returns:
+            torch.Tensor: Regularization loss
+        """        
         return self.l1 * torch.norm(self.layer.weight, p=1)
 
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:

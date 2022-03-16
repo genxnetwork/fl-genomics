@@ -14,6 +14,16 @@ from datasets.lightning import DataModule
 
 class FLClient(NumPyClient):
     def __init__(self, server: str, model: BaseNet, data_module: DataModule, logger: TensorBoardLogger, model_params: Dict, training_params: Dict):
+        """Trains {model} in federated setting
+
+        Args:
+            server (str): Server address with port
+            model (BaseNet): Model to train
+            data_module (DataModule): Module with train, val and test dataloaders
+            logger (TensorBoardLogger): Local tensorboardlogger
+            model_params (Dict): Model parameters
+            training_params (Dict): pytorch_lightning Trainer parameters
+        """        
         self.server = server
         self.model = model
         self.data_module = data_module
@@ -31,7 +41,6 @@ class FLClient(NumPyClient):
         self.model.load_state_dict(state_dict, strict=True)
 
     def fit(self, parameters, config):
-        logging.info('setting parameters in round {config["current_round"]}')
         self.set_parameters(parameters)
         self.model.current_round = config['current_round']
         trainer = Trainer(logger=self.logger, **self.training_params)
