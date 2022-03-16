@@ -1,3 +1,4 @@
+from typing import List
 import numpy
 from pytorch_lightning import LightningDataModule
 import torch
@@ -21,15 +22,16 @@ class DataModule(LightningDataModule):
         loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2)
         return loader
 
-    def predict_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2)
-        return loader
+    def predict_dataloader(self) -> List[DataLoader]:
+        train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2)
+        val_loader = self.val_dataloader()
+        return [train_loader, val_loader]
 
     def _dataset_len(self, dataset: TensorDataset):
         return len(dataset) // self.batch_size + int(len(dataset) % self.batch_size > 0) 
 
     def train_len(self):
-        return self._dataset_len(self.train_dataset)
+        return len(self.train_dataset)
     
     def val_len(self):
-        return self._dataset_len(self.val_dataset)
+        return len(self.val_dataset)

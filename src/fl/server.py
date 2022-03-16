@@ -1,5 +1,6 @@
 from collections import namedtuple
-from time import sleep
+import logging
+import os
 from omegaconf import OmegaConf
 import mlflow
 from socket import gethostname
@@ -22,9 +23,11 @@ if __name__ == '__main__':
             log=['test.log']
         )
 
-    config_path = snakemake.input['config']
+    config_path = snakemake.input['config'][0]
     params_hash = snakemake.wildcards['params_hash']
     
+    logging.basicConfig(filename=snakemake.log[0], level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
+
     cfg = OmegaConf.load(config_path)
     
     strategy = MlflowStrategy(
@@ -36,7 +39,10 @@ if __name__ == '__main__':
         on_fit_config_fn=fit_round
     )
 
+    experiment = mlflow.set_experiment(cfg.experiment.name)
+
     with mlflow.start_run(
+        experiment_id=experiment.experiment_id,
         tags={
             'description': cfg.experiment.description,
             'params_hash': params_hash,
@@ -47,10 +53,6 @@ if __name__ == '__main__':
         start_server(
                     server_address="[::]:8080",
                     strategy=strategy,
-                    config={"num_rounds": cfg.rounds}
+                    config={"num_rounds": cfg.server.rounds}
         )
-
-    for i in range(60):
-        print(f'second: {i}\tnode: server')
-        sleep(1)
         

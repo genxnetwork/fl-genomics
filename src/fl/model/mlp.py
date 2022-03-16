@@ -5,8 +5,17 @@ from torch.nn import Linear, BatchNorm1d
 from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu
 import mlflow
 
+
 class BaseNet(LightningModule):
     def __init__(self, input_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
+        """Base class for all NN models, should not be used directly
+
+        Args:
+            input_size (int): Size of input data
+            l1 (float): L1 regularization parameter
+            optim_params (Dict): Parameters of optimizer
+            scheduler_params (Dict): Parameters of learning rate scheduler
+        """        
         super().__init__()
         self.layer = Linear(input_size, 1)
         self.l1 = l1
@@ -26,7 +35,12 @@ class BaseNet(LightningModule):
         loss = raw_loss + reg
         return {'loss': loss, 'raw_loss': raw_loss.detach(), 'reg': reg.detach(), 'batch_len': x.shape[0]}
 
-    def regularization(self):
+    def regularization(self) -> torch.Tensor:
+        """Calculates l1 regularization of input layer by default
+
+        Returns:
+            torch.Tensor: Regularization loss
+        """        
         return self.l1 * torch.norm(self.layer.weight, p=1)
 
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
@@ -52,8 +66,6 @@ class BaseNet(LightningModule):
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
-        if avg_loss < 0.5:
-            print(outputs, self.current_epoch)
         mlflow.log_metric('local_val_loss', avg_loss, self._fl_current_epoch())
         self.log('val_loss', avg_loss)
 
@@ -78,7 +90,7 @@ class BaseNet(LightningModule):
                                                         max_lr=self.optim_params['lr'],
                                                         div_factor=self.scheduler_params['div_factor'],
                                                         final_div_factor=self.scheduler_params['final_div_factor'],
-                                                        total_steps=self.scheduler_params['rounds']*self.scheduler_params['epochs_in_round']+2,
+                                                        total_steps=int(self.scheduler_params['rounds']*(1.5*self.scheduler_params['epochs_in_round'])+2),
                                                         pct_start=0.1,
                                                         last_epoch=self.current_round*self.scheduler_params['epochs_in_round'],
                                                         #last_epoch=self.curren
@@ -96,14 +108,10 @@ class BaseNet(LightningModule):
 
 
 class LinearRegressor(BaseNet):
-    def __init__(self, input_size: int, l1: float, lr: float, momentum: float, epochs: float, l2: float) -> None:
-        super().__init__(input_size, l1, lr, momentum, epochs, l2)
+    def __init__(self, input_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
+        super().__init__(input_size, l1, optim_params, scheduler_params)
         self.layer = Linear(input_size, 1)
         self.l1 = l1
-        self.l2 = l2
-        self.lr = lr
-        self.momentum = momentum
-        self.epochs = epochs
 
     def calculate_loss(self, y_hat, y):
         return mse_loss(y_hat.squeeze(1), y)

@@ -7,8 +7,10 @@ cluster:
     --job-name=smk-{rule}-{wildcards}
     --output=logs/{rule}/{rule}-{wildcards}-%j.out
     --time={resources.time}
+    --gpus={resources.gpus}
 default-resources:
   - partition=gpu_devel
+  - gpus=0
   - mem_mb=1000
   - time="00:10:00"
 restart-times: 0

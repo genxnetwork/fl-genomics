@@ -3,7 +3,6 @@ experiment:
   name: snakemake_test
   missing: zero
   random_state: 4
-  description: ${model.name}
 server:
   rounds: 64
   node_count: 5

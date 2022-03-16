@@ -1,17 +1,30 @@
 import torch
-from torch.nn.functional import mse_loss
+import logging
 from typing import Dict, OrderedDict
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.trainer import Trainer
+from torch.utils.data import DataLoader
 from flwr.client import NumPyClient
-import logging
+from sklearn.metrics import r2_score
+import mlflow
 
 from model.mlp import BaseNet
 from datasets.lightning import DataModule
 
 
 class FLClient(NumPyClient):
-    def __init__(self, model: BaseNet, data_module: DataModule, logger: TensorBoardLogger, model_params: Dict, training_params: Dict):
+    def __init__(self, server: str, model: BaseNet, data_module: DataModule, logger: TensorBoardLogger, model_params: Dict, training_params: Dict):
+        """Trains {model} in federated setting
+
+        Args:
+            server (str): Server address with port
+            model (BaseNet): Model to train
+            data_module (DataModule): Module with train, val and test dataloaders
+            logger (TensorBoardLogger): Local tensorboardlogger
+            model_params (Dict): Model parameters
+            training_params (Dict): pytorch_lightning Trainer parameters
+        """        
+        self.server = server
         self.model = model
         self.data_module = data_module
         self.best_model_path = None
@@ -34,14 +47,17 @@ class FLClient(NumPyClient):
         trainer.fit(self.model, datamodule=self.data_module)
         return self.get_parameters(), self.data_module.train_len(), {}
 
-    def calculate_train_loss(self, trainer: Trainer) -> float:
-        loader = self.data_module.predict_dataloader()
-        train_preds = trainer.predict(self.model, loader)
-        y_train = torch.cat([batch[1] for batch in iter(loader)])
-        y_train_pred = torch.cat(train_preds).squeeze(1)
-        # print(f'shapes are: ', y_train.shape, train_preds[0].shape, len(train_preds), y_train_pred.shape)
-        mse = mse_loss(y_train_pred, y_train)
-        return mse.item()
+    def calculate_r2_score(self, trainer: Trainer, loader: DataLoader) -> float:
+        preds = trainer.predict(self.model, loader)
+        preds = torch.cat(preds, dim=0)
+        y_true = torch.cat([batch[1] for batch in iter(loader)])
+        r2 = r2_score(y_true.detach().cpu().numpy(), preds.detach().cpu().numpy())
+        return r2
+
+    def calculate_train_val_r2(self, trainer: Trainer) -> float:
+        train_loader, val_loader = self.data_module.predict_dataloader()
+        
+        return self.calculate_r2_score(trainer, train_loader), self.calculate_r2_score(trainer, val_loader)
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
@@ -51,7 +67,12 @@ class FLClient(NumPyClient):
         
         val_results = trainer.validate(self.model, datamodule=self.data_module, verbose=False)
         val_loss = val_results[0]["val_loss"]
-        train_loss = self.calculate_train_loss(trainer)
+        train_r2, val_r2 = self.calculate_train_val_r2(trainer)
 
-        logging.info(f'train_loss: {train_loss:.4f}\tval_loss: {val_loss:.4f}')
-        return val_loss, self.data_module.val_len(), {"val_loss": val_loss, "train_loss": train_loss}
+        val_len = self.data_module.val_len()
+        round = self.model.current_round
+        logging.info(f'round: {round}\ttrain_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\tval_loss: {val_loss:.3f}\tval_len: {val_len}')
+        mlflow.log_metric('train_r2', train_r2, round)
+        mlflow.log_metric('val_r2', val_r2, round)
+        mlflow.log_metric('val_loss', val_loss, round)
+        return val_loss, val_len, {"val_loss": val_loss, "train_r2": train_r2, "val_r2": val_r2}
