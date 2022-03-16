@@ -6,6 +6,7 @@ from pytorch_lightning.trainer import Trainer
 from torch.utils.data import DataLoader
 from flwr.client import NumPyClient
 from sklearn.metrics import r2_score
+import mlflow
 
 from model.mlp import BaseNet
 from datasets.lightning import DataModule
@@ -60,5 +61,9 @@ class FLClient(NumPyClient):
         train_r2, val_r2 = self.calculate_train_val_r2(trainer)
 
         val_len = self.data_module.val_len()
-        logging.info(f'train_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\tval_loss: {val_loss:.3f}\tval_len: {val_len}')
+        round = self.model.current_round
+        logging.info(f'round: {round}\ttrain_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\tval_loss: {val_loss:.3f}\tval_len: {val_len}')
+        mlflow.log_metric('train_r2', train_r2, round)
+        mlflow.log_metric('val_r2', val_r2, round)
+        mlflow.log_metric('val_loss', val_loss, round)
         return val_loss, val_len, {"val_loss": val_loss, "train_r2": train_r2, "val_r2": val_r2}

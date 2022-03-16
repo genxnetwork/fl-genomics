@@ -10,7 +10,7 @@ node:
   model:
     name: linear_regressor
     batch_size: 256
-    l1: 1e-4
+    l1: 2e-2
   optimizer:
     name: adamw
     lr: 2e-3
