@@ -1,53 +1,64 @@
 import os
 import torch
 from torch.utils.data import TensorDataset
-
+from numpy import hstack
 from omegaconf import DictConfig
 import hydra
 import mlflow
 
 from model.models import EnsembleLASSO
-from datasets.memory import load_from_pgen, load_phenotype
+from datasets.memory import load_from_pgen, load_phenotype, load_covariates
 from datasets.lightning import prepare_trainer
 from sklearn.metrics import r2_score
 
 @hydra.main(config_path='../configs/local', config_name='default')
 def local_experiment(cfg: DictConfig):
-    X_train = load_from_pgen(cfg.data.genotype.train, cfg.data.gwas, snp_count=cfg.experiment.snp_count)
-    X_val = load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, snp_count=cfg.experiment.snp_count)
-    X_test = load_from_pgen(cfg.data.genotype.test, cfg.data.gwas, snp_count=cfg.experiment.snp_count)
-    y_adj_train = load_phenotype(cfg.data.phenotype.adjusted.train)
-    y_adj_val = load_phenotype(cfg.data.phenotype.adjusted.val)
-    y_adj_test = load_phenotype(cfg.data.phenotype.adjusted.test)
-    y_raw_train = load_phenotype(cfg.data.phenotype.train)
-    y_raw_val = load_phenotype(cfg.data.phenotype.val)
-    y_raw_test = load_phenotype(cfg.data.phenotype.test)    
-        
-        
+     X_train = hstack((load_from_pgen(cfg.data.genotype.train, cfg.data.gwas, snp_count=cfg.experiment.snp_count),
+                       load_covariates(cfg.data.covariates.train)))
+     X_val = hstack((load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, snp_count=cfg.experiment.snp_count),
+                     load_covariates(cfg.data.covariates.val)))
+     X_test = hstack((load_from_pgen(cfg.data.genotype.test, cfg.data.gwas, snp_count=cfg.experiment.snp_count),
+                      load_covariates(cfg.data.covariates.test)))
+    
+#     X_train = load_from_pgen(cfg.data.genotype.train, cfg.data.gwas, snp_count=cfg.experiment.snp_count)
+#     X_val = load_from_pgen(cfg.data.genotype.val, cfg.data.gwas, snp_count=cfg.experiment.snp_count)
+#     X_test = load_from_pgen(cfg.data.genotype.test, cfg.data.gwas, snp_count=cfg.experiment.snp_count)
+
+#    X_train = load_covariates(cfg.data.covariates.train)
+#    X_val = load_covariates(cfg.data.covariates.val)
+#    X_test = load_covariates(cfg.data.covariates.test)
+
+    y_train = load_phenotype(cfg.data.phenotype.train)
+    y_val = load_phenotype(cfg.data.phenotype.val)
+    y_test = load_phenotype(cfg.data.phenotype.test)    
+    
     train_dataset = TensorDataset(
                                 torch.tensor(X_train, dtype=torch.float32),
-                                torch.tensor(y_adj_train, dtype=torch.float32).unsqueeze(1)
+                                torch.tensor(y_train, dtype=torch.float32).unsqueeze(1)
     )
 
     val_dataset = TensorDataset(
                                 torch.tensor(X_val, dtype=torch.float32),
-                                torch.tensor(y_adj_val, dtype=torch.float32).unsqueeze(1)
+                                torch.tensor(y_val, dtype=torch.float32).unsqueeze(1)
     )
 
     test_dataset = TensorDataset(
                                 torch.tensor(X_test, dtype=torch.float32),
-                                torch.tensor(y_adj_test, dtype=torch.float32).unsqueeze(1)
+                                torch.tensor(y_test, dtype=torch.float32).unsqueeze(1)
     )
 
     input_size = X_train.shape[1]
     print(f'Input size: {input_size}')
     
+    mlflow.set_experiment('local-models')
     with mlflow.start_run(tags={
                             'name': 'lassonet',
                             'type': 'local',
+                            'split': cfg.split_dir.split('/')[-1],
                             'phenotype': cfg.phenotype.name,
                             'node_index': str(cfg.node_index),
-                            'snp_count': str(cfg.experiment.snp_count)
+                            'snp_count': str(cfg.experiment.snp_count),
+                            'gwas_path': cfg.data.gwas
                             }
                         ) as run:
         model = EnsembleLASSO(train_dataset, val_dataset, test_dataset=test_dataset, alpha_start=cfg.model.alpha_start, alpha_end=cfg.model.alpha_end, input_size=input_size, batch_size=cfg.model.batch_size,
@@ -74,8 +85,8 @@ def local_experiment(cfg: DictConfig):
         ln_train_r2s = []
         ln_val_r2s = []
         for col in range(cfg.model.hidden_size):
-            train_r2 = r2_score(y_adj_train, preds[:, col])
-            val_r2 = r2_score(y_adj_val, val_preds[:, col])
+            train_r2 = r2_score(y_train, preds[:, col])
+            val_r2 = r2_score(y_val, val_preds[:, col])
             ln_train_r2s.append(train_r2)
             ln_val_r2s.append(val_r2)
             if val_r2 > max_val_r2:
@@ -84,19 +95,11 @@ def local_experiment(cfg: DictConfig):
             print(f'for alpha {best_model.alphas[col]:.4f} train_r2 is {train_r2:.4f}, val_r2 is {val_r2:.4f}')
         
         
-        print(f'test r2 for best alpha: {r2_score(y_adj_test, test_preds[:, best_col]):.4f}')
+        print(f'test r2 for best alpha: {r2_score(y_test, test_preds[:, best_col]):.4f}')
         
-        train_r2 = r2_score(y_raw_train, y_raw_train - y_adj_train + preds[:, best_col])
-        val_r2 = r2_score(y_raw_val, y_raw_val - y_adj_val + val_preds[:, best_col])
-        test_r2 = r2_score(y_raw_test, y_raw_test - y_adj_test + test_preds[:, best_col])
-        
-        adj_train_r2 = r2_score(y_adj_train, preds[:, best_col])
-        adj_val_r2 = r2_score(y_adj_val, val_preds[:, best_col])
-        adj_test_r2 = r2_score(y_adj_test, test_preds[:, best_col])
-        
-        mlflow.log_metric('adj_train_r2', adj_train_r2)
-        mlflow.log_metric('adj_val_r2', adj_val_r2)
-        mlflow.log_metric('adj_test_r2', adj_test_r2)
+        train_r2 = r2_score(y_train, preds[:, best_col])
+        val_r2 = r2_score(y_val, val_preds[:, best_col])
+        test_r2 = r2_score(y_test, test_preds[:, best_col])
         
         mlflow.log_metric('train_r2', train_r2)
         mlflow.log_metric('val_r2', val_r2)
