@@ -1,0 +1,29 @@
+experiment:
+  description: Linear elastic-net model
+  name: federated-standing-height
+  missing: zero
+  random_state: 4
+server:
+  rounds: 16
+  node_count: 7
+node:
+  model:
+    name: linear_regressor
+    batch_size: 256
+    l1: 2e-2
+  optimizer:
+    name: adamw
+    lr: 2e-3
+    weight_decay: 1e-3
+  scheduler:
+    name: one_cycle_lr
+    rounds: 16
+    epochs_in_round: 4
+    div_factor: 25
+    final_div_factor: 1e+4
+  training:
+    gpus:
+    - 0
+    max_epochs: ${node.scheduler.epochs_in_round}
+    enable_progress_bar: False
+    enable_model_summary: False

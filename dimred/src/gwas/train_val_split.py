@@ -1,224 +1,277 @@
-from typing import Tuple, List
+from typing import List
 import hydra
 from omegaconf import DictConfig
+from os import symlink, path
+
 import pandas
-from utils.plink import run_plink
-import os
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
+from numpy import array_split, array, cumsum
+
+from utils.split import Split
+from utils.phenotype import adjust_and_write
 
 
-def get_phenotype_path(source_dir: str, name: str, split_index: int, part_name: str = None) -> str:
-    if part_name is None:
-        return os.path.join(source_dir, f'{name}_split_{split_index}.csv')
-    else:
-        return os.path.join(source_dir, f'{name}_split_{split_index}_{part_name}.tsv')
+FOLD_COUNT = 10
+
+class WBSplitter:
+    def __init__(self, ethnic_split: Split, new_split: Split, n_nodes: int, array_split_arg, n_folds: int=FOLD_COUNT):
+        """
+        Splits the white british node of the ethnic split into a number of nodes
+        in a new split using numpy's array_split.
+        
+        Args:
+            ethnic_split: Split object for ethnic split ID paths (dummy phenotypes)
+            new_split: Split object for new split ID paths (dummy phenotypes)
+            n_nodes: Number of nodes in the new split
+            array_split_args: either the number or uniform splits or a list of share sizes
+                              for the new split.
+            n_folds: Number of CV folds
+        """
+        self.ethnic_split = ethnic_split
+        self.new_split = new_split
+        self.n_nodes = n_nodes
+        assert isinstance(array_split_arg, int) or isinstance(array_split_arg, list)
+        self.array_split_arg = array_split_arg
+        self.n_folds = n_folds
+        
+    def split_ids(self):
+        for fold_index in range(self.n_folds):
+            for part_name in ["train", "val"]:
+                path = self.ethnic_split.get_ids_path(0, fold_index, part_name)
+                ids = pandas.read_table(path).loc[:, ['FID', 'IID']]
+                
+                if isinstance(self.array_split_arg, int):
+                    split_ids_list = array_split(ids, self.array_split_arg)
+                elif isinstance(self.array_split_arg, list):
+                    split_ids_list = array_split(ids, (cumsum(array(self.array_split_arg))*len(ids)).astype(int))
+                    
+                assert len(ids) == sum([len(split_ids) for split_ids in split_ids_list])
+                    
+                for node_index, split_ids in enumerate(split_ids_list):
+                    out_path = self.new_split.get_ids_path(node_index, fold_index, part_name)
+                    split_ids.to_csv(out_path, sep='\t', index=False)
+            
+            # Symlink for test ids
+            for node_index in range(self.n_nodes):
+                source_path = self.ethnic_split.get_ids_path(0, fold_index, 'test')
+                destination_path = self.new_split.get_ids_path(node_index, fold_index, 'test')
+                if not path.exists(destination_path):
+                    symlink(source_path, destination_path)
+
+              
+class CVSplitter:
+    def __init__(self, split: Split) -> None:
+        """Splits PCs, phenotypes and covariates into folds. 
+        Merges PCs and covariates for GWAS. 
+        Extracts phenotypes.
+
+        Args:
+            split (Split): Split object for phenotype, PC and covariates file paths manipulation
+        """        
+        self.split = split
+
+    def split_ids(self, node_index: int, random_state: int):
+        """
+        Splits sample ids into 10-fold cv for each node. 80% are train, 10% are val and 10% are test.
+        
+        Args:
+            node_index (int): Index of node
+            random_state (int): Fixed random_state for train_test_split sklearn function
+        """    
+        path = self.split.get_source_ids_path(node_index)
+        # we do not need sex here
+        ids = pandas.read_table(path).loc[:, ['FID', 'IID']]
+        train_size, val_size, test_size = int(ids.shape[0]*0.8), int(ids.shape[0]*0.1), int(ids.shape[0]*0.1)
+        train_size += (ids.shape[0] - train_size - test_size - val_size)
+
+        kfold = KFold(n_splits=10, shuffle=True, random_state=random_state)
+        for fold_index, (train_val_indices, test_indices) in enumerate(kfold.split(ids.loc[:, ['FID', 'IID']])):
+            
+            train_indices, val_indices = train_test_split(train_val_indices, train_size=train_size, random_state=random_state)
+            
+            for indices, part in zip([train_indices, val_indices, test_indices], ['train', 'val', 'test']):
+                out_path = self.split.get_ids_path(node_index, fold_index, part)
+                ids.iloc[indices, :].to_csv(out_path, sep='\t', index=False)
 
 
-def get_pca_cov_path(source_dir: str, name: str, split_index: int, part_name: str) -> str:
-    return os.path.join(source_dir, f'{name}_split_{split_index}_{part_name}.tsv')
+    def split_phenotypes(self, node_index: int) -> str:
+        """
+        Extracts train or val subset of samples from file with phenotypes and covariates
+
+        Args:
+            node_index (int): Index of particular node
+
+        Returns:
+            str: Path to extracted subset of samples with phenotypes and covariates
+        """    
+        phenotype = pandas.read_table(self.split.get_source_phenotype_path(node_index))
+
+        for fold_index in range(FOLD_COUNT):
+            for part in ['train', 'val', 'test']:
+                
+                fold_indices = pandas.read_table(self.split.get_ids_path(node_index, fold_index, part))
+                part_phenotype = phenotype.merge(fold_indices, how='inner', on=['FID', 'IID'])
+
+                out_path = self.split.get_cov_pheno_path(node_index, fold_index, part)
+                part_phenotype.to_csv(out_path, sep='\t', index=False)
+
+        return out_path
 
 
-def split_ids(split_ids_dir: str, split_index: int, random_state: int) -> Tuple[str, str]:
-    """
-    Splits sample ids into train and val subsets
-    
-    Args:
-        split_ids_dir (str): Dir where sample ids files are located
-        split_index (int): Index of split part
-        random_state (int): Fixed random_state for train_test_split sklearn function
+    def split_pca(self, node_index: int) -> str:
+        """
+        Extracts train or val subset of samples from file with principal components
+        Args:
+            node_index (int): Index of particular node
 
-    Returns:
-        Tuple[str, str]: Paths to files with train sample ids and val sample ids
-    """    
-    path = os.path.join(split_ids_dir, f'{split_index}.csv')
-    ids = pandas.read_table(path)
-    fid_train, fid_val, iid_train, iid_val = train_test_split(ids.FID, ids.IID, random_state=random_state)
-    train = pandas.DataFrame()
-    train.loc[:, 'FID'] = fid_train
-    train.loc[:, 'IID'] = iid_train
-    val = pandas.DataFrame()
-    val.loc[:, 'FID'] = fid_val
-    val.loc[:, 'IID'] = iid_val
-    train_out_path = os.path.join(split_ids_dir, f'{split_index}_train.tsv')
-    val_out_path = os.path.join(split_ids_dir, f'{split_index}_val.tsv')
-    train.to_csv(train_out_path, sep='\t', index=False)
-    val.to_csv(val_out_path, sep='\t', index=False)    
-    return train_out_path, val_out_path
+        Returns:
+            str: Path to extracted subset of samples with PCs
+        """    
+        pca = pandas.read_table(self.split.get_source_pca_path(node_index))
+        pca.rename({'#FID': 'FID'}, axis='columns', inplace=True)
+
+        for fold_index in range(FOLD_COUNT):
+            for part in ['train', 'val', 'test']:
+                
+                fold_indices = pandas.read_table(self.split.get_ids_path(node_index, fold_index, part))
+                
+                fold_pca = pca.merge(fold_indices, how='inner', on=['FID', 'IID'])
+                fold_pca.to_csv(self.split.get_pca_path(node_index, fold_index, part), sep='\t', index=False)
 
 
-def split_genotypes(genotype_dir: str, split_index: int, threads: int, memory_mb: int, part_name: str, split_ids_path: str):
-    """
-    Extracts train or val subset of genotypes
+    def prepare_cov_and_phenotypes(self, node_index: int):
+        """Transforms phenotype+covariates and pca files into phenotype and pca+covariates files for each fold.
 
-    Args:
-        genotype_dir (str): Dir where source genotype files are located for each {split_index}
-        split_index (int): Index of particular split part
-        threads (int): Number of threads for plink
-        memory_mb (int): Maximum memory for plink to allocate
-        part_name (str): train or val
-        split_ids_path (str): Path where ids for particular split part and train or val subsets are located
-    """    
-    args = [
-        '--pfile',
-        os.path.join(genotype_dir, f'split{split_index}_filtered'),
-        '--threads', str(threads), '--memory', str(memory_mb),
-        '--keep', split_ids_path,
-        '--make-pgen', '--out', os.path.join(genotype_dir, f'split_{split_index}_filtered_{part_name}')
-    ]
-    run_plink(args)
+        Args:
+            node_index (int): Index of node
+        """        
+        for fold_index in range(FOLD_COUNT):
+            for part in ['train', 'val', 'test']: 
+
+                pca_path = self.split.get_pca_path(node_index, fold_index, part)
+                cov_pheno_path = self.split.get_cov_pheno_path(node_index, fold_index, part)
+                pca_cov_path = self.split.get_pca_cov_path(node_index, fold_index, part)
+                phenotype_path = self.split.get_phenotype_path(node_index, fold_index, part)
+
+                self.prepare_cov_and_phenotype_for_fold(pca_path, cov_pheno_path, pca_cov_path, phenotype_path)
 
 
-def split_phenotypes(phenotype_dir: str, phenotype_name: str, split_index: int, part_name: str, split_ids_path: str) -> str:
-    """
-    Extracts train or val subset of samples from file with phenotypes and covariates
+    def prepare_cov_and_phenotype_for_fold(
+            self,
+            pca_path: str,
+            cov_pheno_path: str,
+            pca_cov_path: str,
+            phenotype_path: str
+        ):
 
-    Args:
-        phenotype_dir (str): Dir where source files are located for each {split_index}
-        phenotype_name (str): Name of phenotype
-        split_index (int): Index of particular split part
-        part_name (str): train or val
-        split_ids_path (str): Path where ids for particular split part and train or val subsets are located
+        """Transforms phenotype+covariates and pca files into phenotype and pca+covariates files.
+        This is required by plink 2.0 --glm command
 
-    Returns:
-        str: Path to extracted subset of samples with phenotypes and covariates
-    """    
-    phenotype = pandas.read_table(get_phenotype_path(phenotype_dir, phenotype_name, split_index, None))
-    split_ids = pandas.read_table(split_ids_path)
+        Args:
+            pca_path (str): Path to PCA eigenvec file computed by plink 2.0
+            cov_pheno_path (str): Path to phenotype and covariates file prepared with ukb_loader
+            pca_cov_path (str): Path where all covariates including PCs will be stored
+            phenotype_path (str): Path with only phenotype data
 
-    part_phenotype = phenotype.merge(split_ids, how='inner', on=['FID', 'IID'])
+        """   
+        pca = pandas.read_table(pca_path)
+        cov_pheno = pandas.read_table(cov_pheno_path)
+        cov_columns = list(cov_pheno.columns)[2:-1]
+        pheno_column = cov_pheno.columns[-1]
+        # print(f'COV_PHENO_COLUMNS are: {cov_columns}')
+        merged = pca.merge(cov_pheno, how='inner', on=['FID', 'IID'])
+        
+        pca_cov = merged.loc[:, ['FID', 'IID'] + [f'PC{i}' for i in range(1, 11)] + cov_columns]
+        pca_cov.fillna(pca_cov.mean(), inplace=True)
+        phenotype = merged.loc[:, ['FID', 'IID'] + [pheno_column]]
 
-    out_path = get_phenotype_path(phenotype_dir, phenotype_name, split_index, part_name)
-    part_phenotype.to_csv(out_path, sep='\t', index=False)
-    return out_path
-
-
-def split_pca(pca_dir: str, split_index: int, part_name: str, split_ids_path: str) -> str:
-    """
-    Extracts train or val subset of samples from file with principal components
-    Args:
-        pca_dir (str): Dir where source PC files are located for each split part
-        split_index (int): Index of particular split part
-        part_name (str): train or val
-        split_ids_path (str): Path where ids for particular split part and train or val subsets are located
-
-    Returns:
-        str: Path to extracted subset of samples with PCs
-    """    
-    pca = pandas.read_table(os.path.join(pca_dir, f'{split_index}_projections.csv.eigenvec'))
-    split_ids = pandas.read_table(split_ids_path)
-    pca.rename({'#FID': 'FID'}, axis='columns', inplace=True)
-
-    part_pca = pca.merge(split_ids, how='inner', on=['FID', 'IID'])
-
-    out_path = os.path.join(pca_dir, f'{split_index}_projections_{part_name}.csv.eigenvec')
-    part_pca.to_csv(out_path, sep='\t', index=False)
-    return out_path
+        phenotype.to_csv(phenotype_path, sep='\t', index=False)
+        pca_cov.to_csv(pca_cov_path, sep='\t', index=False)
 
 
-def prepare_cov_and_phenotypes(pca_dir: str, 
-                               pheno_cov_dir: str, 
-                               pheno_name: str,
-                               part_name: str, 
-                               split_index: int, 
-                               covariates_dir: str, 
-                               phenotypes_dir: str) -> Tuple[str, str]:
-    """Transforms phenotype+covariates and pca files into phenotype and pca+covariates files.
-    This is required by plink 2.0 --glm command
+    def standardize_covariates(self, node_index: int, covariates: List[str] = None):
+        """Z-standardizes {covariates} for each fold and particular node {node_index}
 
-    Args:
-        pca_path (str): Path to PCA eigenvec file computed by plink 2.0
-        phenotype_path (str): Path to phenotype and covariates file prepared with ukb_loader
-
-    Returns:
-        Tuple[str, str]: Paths to phenotype file and to pca+covariates file
-    """   
-    pca = pandas.read_table(os.path.join(pca_dir, f'{split_index}_projections_{part_name}.csv.eigenvec'))
-    cov_pheno = pandas.read_table(get_phenotype_path(pheno_cov_dir, pheno_name, split_index, part_name))
-    cov_columns = list(cov_pheno.columns)[2:-1]
-    pheno_column = cov_pheno.columns[-1]
-    print(f'COV_PHENO_COLUMNS are: {cov_columns}')
-    merged = pca.merge(cov_pheno, how='inner', on=['FID', 'IID'])
-    
-    pca_cov = merged.loc[:, ['FID', 'IID'] + [f'PC{i}' for i in range(1, 11)] + cov_columns]
-    pca_cov.fillna(pca_cov.mean(), inplace=True)
-    phenotype = merged.loc[:, ['FID', 'IID'] + [pheno_column]]
-
-    phenotype_path = get_phenotype_path(phenotypes_dir, pheno_name, split_index, part_name)
-    phenotype.to_csv(phenotype_path, sep='\t', index=False)
-
-    pca_cov_path = get_pca_cov_path(covariates_dir, pheno_name, split_index, part_name)
-    pca_cov.to_csv(pca_cov_path, sep='\t', index=False)
-    
-    return phenotype_path, pca_cov_path
+        Args:
+            node_index (int): Index of node
+            covariates (List[str], optional): Covariates to standardize. If None, every covariate will be standardized. Defaults to None.
+        """        
+        for fold_index in range(FOLD_COUNT):
+            self.standardize(
+                    self.split.get_pca_cov_path(node_index, fold_index, 'train'),
+                    self.split.get_pca_cov_path(node_index, fold_index, 'val'),
+                    self.split.get_pca_cov_path(node_index, fold_index, 'test'),
+                    covariates
+            )
 
 
-def standardize(train_path: str, val_path: str, columns: List[str] = None):
-    """
-    Infers mean and std from columns in {train_path} and standardizes both train and val columns
+    def standardize(self, train_path: str, val_path: str, test_path: str, columns: List[str]):
+        """
+        Infers mean and std from columns in {train_path} and standardizes both train, test and val columns in-place
+        TODO: think about non-iid data!!!
 
-    Args:
-        train_path (str): Path to .tsv file with train data. First two columns should be FID, IID
-        val_path (str): Path to .tsv file with val data. First two columns should be FID, IID
-        columns (List[str], optional): List of columns to standardize. By default all columns except FID and IID will be standardized. Defaults to None. 
-    """    
-    train_data = pandas.read_table(train_path)
-    val_data = pandas.read_table(val_path)
+        Args:
+            train_path (str): Path to .tsv file with train data. First two columns should be FID, IID
+            val_path (str): Path to .tsv file with val data. First two columns should be FID, IID
+            columns (List[str]): List of columns to standardize. By default all columns except FID and IID will be standardized. 
+        """    
+        train_data = pandas.read_table(train_path)
+        val_data = pandas.read_table(val_path)
+        test_data = pandas.read_table(test_path)
 
-    scaler = StandardScaler()
-    if columns is None:
-        train_data.iloc[:, 2:] = scaler.fit_transform(train_data.iloc[:, 2:]) # 0,1 are FID, IID
-        val_data.iloc[:, 2:] = scaler.transform(val_data.iloc[:, 2:])
-    else:
-        train_data.loc[:, columns] = scaler.fit_transform(train_data.loc[:, columns]) 
-        val_data.loc[:, columns] = scaler.transform(val_data.loc[:, columns])
+        scaler = StandardScaler()
+        if columns is None:
+            train_data.iloc[:, 2:] = scaler.fit_transform(train_data.iloc[:, 2:]) # 0,1 are FID, IID
+            val_data.iloc[:, 2:] = scaler.transform(val_data.iloc[:, 2:])
+            test_data.iloc[:, 2:] = scaler.transform(test_data.iloc[:, 2:])
+            print('Means and stds are: ')
+            print({col: f'mean {mean:.4f}\tstd {scale:.4f}' for col, mean, scale in zip(train_data.columns[2:], scaler.mean_, scaler.scale_)})
+        else:
+            train_data.loc[:, columns] = scaler.fit_transform(train_data.loc[:, columns]) 
+            val_data.loc[:, columns] = scaler.transform(val_data.loc[:, columns])
+            test_data.loc[:, columns] = scaler.transform(test_data.loc[:, columns])
+            print('Means and stds are: ')
+            print({col: f'mean {mean:.4f}, std {scale:.4f}' for col, mean, scale in zip(columns, scaler.mean_, scaler.scale_)})
 
-    train_data.to_csv(train_path, sep='\t', index=False)
-    val_data.to_csv(val_path, sep='\t', index=False)
+        train_data.to_csv(train_path, sep='\t', index=False)
+        val_data.to_csv(val_path, sep='\t', index=False)
+        test_data.to_csv(test_path, sep='\t', index=False)
+
+    def adjust_phenotype(self, node_index: int):
+        for fold_index in range(FOLD_COUNT):
+            adjust_and_write(self.split, node_index, fold_index)
 
 
 @hydra.main(config_path='configs', config_name='split')
 def main(cfg: DictConfig):
-    for split_index in range(cfg.split_count):
-        train_ids, val_ids = split_ids(os.path.join(cfg.split_dir, 'split_ids'), split_index, cfg.random_state)
-        cov_dir = os.path.join(cfg.split_dir, 'covariates')
-        cov_pheno_dir = os.path.join(cfg.split_dir, 'phenotypes')
-        pca_dir = os.path.join(cfg.split_dir, 'pca')
-        phenotypes_dir = os.path.join(cfg.split_dir, 'only_phenotypes')
-            
-        for part_name, part_ids in zip(['train', 'val'], [train_ids, val_ids]):
-            
-            os.makedirs(phenotypes_dir, exist_ok=True)
-            os.makedirs(cov_dir, exist_ok=True)
-            
-            # split genotypes into train and test val for split part {part_name}
-            split_genotypes(os.path.join(cfg.split_dir, 'genotypes'), split_index, cfg.threads, cfg.memory_mb, part_name, part_ids)
+    
+    split = Split(cfg.split_dir, cfg.phenotype.name, cfg.node_count, FOLD_COUNT)
+    cv = CVSplitter(split)
 
-            # split phenotypes and covariates into train and val for split part {part_name}
-            split_phenotypes(cov_pheno_dir, cfg.phenotype.name, split_index, part_name, part_ids)
-
-            # split file with PCs into train and val for split part {part_name}
-            split_pca(pca_dir, split_index, part_name, part_ids)
-
-            # extract covariates from cov_pheno file and merge it with PCs.
-            # write phenotype-only files
-            prepare_cov_and_phenotypes(pca_dir, cov_pheno_dir, cfg.phenotype.name, part_name, split_index, cov_dir, phenotypes_dir)  
-
-            print(f'Genotypes, covariates, and phenotypes were prepared for split {split_index} and part {part_name}') 
+    for node_index in range(cfg.node_count):
         
-        # standardize {cfg.zstd_covariates} columns in covariate files
-        standardize(
-            get_pca_cov_path(cov_dir, cfg.phenotype.name, split_index, 'train'),
-            get_pca_cov_path(cov_dir, cfg.phenotype.name, split_index, 'val'),
-            cfg.zstd_covariates
-        )
+        print(f'Node: {node_index}')
+        cv.split_ids(node_index, cfg.random_state)
+        print(f'ids were splitted')
 
-        # standardize phenotype in phenotype-only file
-        standardize(
-            get_phenotype_path(phenotypes_dir, cfg.phenotype.name, split_index, 'train'),
-            get_phenotype_path(phenotypes_dir, cfg.phenotype.name, split_index, 'val')
-        )
+        cv.split_phenotypes(node_index)
+        print(f'phenotypes were splitted')
 
+        cv.split_pca(node_index)
+        print(f'PCs were splitted')
+
+        cv.prepare_cov_and_phenotypes(node_index)
+        print(f'covariates and phenotypes were prepared')
+
+        cv.standardize_covariates(node_index, cfg.zstd_covariates)
+        print(f'covariates {cfg.zstd_covariates} were standardized')
+
+        cv.adjust_phenotype(node_index)
+        print(f'phenotype {cfg.phenotype.name} was adjusted')
+        print(f'splitting into {FOLD_COUNT} folds for node {node_index} completed')
+        print()
+        
 
 if __name__ == '__main__':
     main()

@@ -3,25 +3,26 @@ import hydra
 from omegaconf import DictConfig
 import pandas
 import os
+from gwas.train_val_split import FOLD_COUNT
+from utils.split import Split
 from utils.plink import run_plink
 import matplotlib.pyplot as plt
 
 
-def _read_all_gwas(gwas_dir: str, phenotype_name: str, split_count: int) -> List[pandas.DataFrame]:
+def _read_all_gwas(split: Split, node_count: int, fold_index: int) -> List[pandas.DataFrame]:
     """
     Reads all GWAS results for a particular phenotype and split from {gwas_dir}
 
     Args:
-        gwas_dir (str): Dir with table-delimited files with GWAS results from plink 2.0 
-        phenotype_name (str): Name of the phenotype
-        split_count (int): Number of parts in split
+        split (str): Object for paths manipulation 
+        node_count (int): Number of nodes in split
 
     Returns:
         List[pandas.DataFrame]: List of GWAS results with #CHROM, POS, LOG10_P columns and ID as index 
     """    
     results = []
-    for split_index in range(split_count):
-        gwas_path = os.path.join(gwas_dir, f'split_{split_index}.{phenotype_name}.tsv')
+    for node_index in range(node_count):
+        gwas_path = split.get_gwas_path(node_index, fold_index, adjusted=True)
         gwas = pandas.read_table(gwas_path)
         results.append(gwas.loc[:, ['#CHROM', 'POS', 'ID', 'LOG10_P']].set_index('ID'))
     return results
@@ -30,14 +31,6 @@ def _read_all_gwas(gwas_dir: str, phenotype_name: str, split_count: int) -> List
 def _get_topk_snps(gwas: pandas.DataFrame, max_snp_count: int) -> pandas.DataFrame:
     sorted_gwas = gwas.sort_values(by='LOG10_P', axis='index', ascending=False).iloc[:max_snp_count, :]
     return sorted_gwas.drop('LOG10_P', axis='columns')
-
-
-def _get_snp_list_path(strategy: str, split_dir: str) -> str:
-    return os.path.join(split_dir, 'gwas', f'union_{strategy}.snplist')
-
-
-def _get_pfile_dir(split_dir: str, split_index: int, strategy: str) -> str:
-    return os.path.join(split_dir, 'genotypes', 'union', f'split_{split_index}', strategy)
 
 
 def _get_selection_snp_ids(gwas_data: List[pandas.DataFrame], max_snp_count: int) -> Set:
@@ -59,57 +52,57 @@ def _get_selection_snp_ids(gwas_data: List[pandas.DataFrame], max_snp_count: int
     return selection
 
 
-def topk(cfg: DictConfig):
+def topk(cfg: DictConfig, split: Split):
     """
     Selects {cfg.max_snp_count} most significant SNPs from each node and writes a union into file in {cfg.split_dir}
     
     Args:
         cfg (DictConfig): Main script config
     """    
-    gwas_data = _read_all_gwas(os.path.join(cfg.split_dir, 'gwas'), cfg.phenotype.name, cfg.split_count)
+    gwas_data = _read_all_gwas(split, cfg.node_count, cfg.fold_index)
     
     selection = _get_selection_snp_ids(gwas_data, cfg.max_snp_count)
 
     print(f'topk strategy: final selection of SNPs contains {len(selection)} SNPs')
 
-    snp_list_path = _get_snp_list_path(cfg.strategy, cfg.split_dir)
-    with open(snp_list_path, 'w') as file:
-        file.write('\n'.join(selection))
+    for node_index in range(cfg.node_count):
+        snp_list_path = split.get_snplist_path(cfg.strategy, node_index, cfg.fold_index)
+        print(f'We have {len(selection)} SNPs to write to {snp_list_path}')
+        with open(snp_list_path, 'w') as file:
+            file.write('\n'.join(selection))
 
 
-def generate_pfiles(cfg: DictConfig):
+def generate_pfiles(cfg: DictConfig, split: Split):
     """Generates pfiles with the same set of SNPs for each node
 
     Args:
         cfg (DictConfig): Main script config
     """    
-    snp_list_path = _get_snp_list_path(cfg.strategy, cfg.split_dir)
-    for split_index in range(cfg.split_count):
-        
-        pfile_dir = _get_pfile_dir(cfg.split_dir, split_index, cfg.strategy)
-        os.makedirs(pfile_dir, exist_ok=True)
+    for node_index in range(cfg.node_count):
 
-        for part in ['train', 'val']:
+        for part in ['train', 'val', 'test']:
             
-            phenotype_path = os.path.join(cfg.split_dir, 'only_phenotypes', f'{cfg.phenotype.name}_split_{split_index}_{part}.tsv')
-            output_path = os.path.join(pfile_dir, f'{cfg.phenotype.name}.{part}_top{cfg.max_snp_count}')
-            pfile_path = os.path.join(cfg.split_dir, 'genotypes', f'split_{split_index}_filtered_{part}')
+            phenotype_path = split.get_phenotype_path(node_index, cfg.fold_index, part)
             
+            snplist_path = split.get_snplist_path(cfg.strategy, node_index, cfg.fold_index)
+            output_path = split.get_topk_pfile_path(cfg.strategy, node_index, cfg.fold_index, cfg.max_snp_count, part, None)
+            pfile_path = split.get_source_pfile_path(node_index)
+            print(phenotype_path)
             args = ['--pfile', pfile_path,
-                    '--extract', snp_list_path, '--keep', phenotype_path, 
+                    '--extract', snplist_path, '--keep', phenotype_path, 
                     '--make-pgen', '--out', output_path]
             run_plink(args)
         
-        print(f'Top {cfg.max_snp_count} SNP selection completed for split {split_index} and part {part} with strategy {cfg.strategy}')
+        print(f'Top {cfg.max_snp_count} SNP selection completed for node {node_index}, fold {cfg.fold_index} and part {part} with strategy {cfg.strategy}')
 
 
-def plot_union_thresholds(cfg: DictConfig):
+def plot_union_thresholds(cfg: DictConfig, split: Split):
     """Plots length of SNP union for each snp_count in {cfg.analysis.snp_counts} into {cfg.analysis.plot_path}
 
     Args:
         cfg (DictConfig): Main script config
     """    
-    gwas_data = _read_all_gwas(os.path.join(cfg.split_dir, 'gwas'), cfg.phenotype.name, cfg.split_count)
+    gwas_data = _read_all_gwas(split, cfg.node_count, cfg.fold_index)
 
     sel_lens = []
     for threshold in cfg.analysis.snp_counts:
@@ -123,15 +116,32 @@ def plot_union_thresholds(cfg: DictConfig):
     plt.ylabel('Number of SNPs in resulting dataset', fontsize=20)
     plt.plot(cfg.analysis.snp_counts, sel_lens, linewidth=2, marker='o', markersize=16)
     plt.xticks(cfg.analysis.snp_counts, [str(t) for t in cfg.analysis.snp_counts], fontsize=20, rotation=90, visible=True)
+    print(f'Saving fig into {cfg.analysis.plot_path}')
     plt.savefig(cfg.analysis.plot_path)
 
 
-def pvalue(cfg: DictConfig):
+def pvalue(cfg: DictConfig, split: Split):
     pass
 
 
-def mixed(cfg: DictConfig):
+def mixed(cfg: DictConfig, split: Split):
     pass
+
+
+def no_union(cfg: DictConfig, split: Split):
+    """Selects top k SNPs by p-value from each node independently. 
+    Each node will have DIFFERENT set of SNPs
+
+    Args:
+        cfg (DictConfig): Main script config
+    """    
+    gwas_data = _read_all_gwas(split, cfg.node_count, cfg.fold_index)
+    topk_data = [_get_topk_snps(gwas, cfg.max_snp_count) for gwas in gwas_data]
+
+    for node_index, topk in enumerate(topk_data):
+        snp_list_path = split.get_snplist_path(cfg.strategy, node_index, cfg.fold_index)
+        with open(snp_list_path, 'w') as file:
+            file.write('\n'.join(topk.index.tolist()))
 
 
 @hydra.main(config_path='configs', config_name='union')
@@ -141,12 +151,16 @@ def main(cfg: DictConfig):
         'topk': topk,
         'pvalue': pvalue,
         'mixed': mixed,
+        'no_union': no_union
     }[cfg.strategy]
-    strategy(cfg)
+    split = Split(cfg.split_dir, cfg.phenotype.name, cfg.node_count, FOLD_COUNT)
+    strategy(cfg, split)
     # plot lengths of unions for different thresholds
-    plot_union_thresholds(cfg)
+    if cfg.strategy == 'topk':
+        print(f'Plotting union threshold')
+        plot_union_thresholds(cfg, split)
     # generate pfiles for each node
-    generate_pfiles(cfg)
+    generate_pfiles(cfg, split)
     
 
 if __name__ == '__main__':

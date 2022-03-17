@@ -1,0 +1,133 @@
+from pathlib import Path
+from omegaconf import OmegaConf
+import os
+import hashlib
+
+
+FOLD_COUNT = config['fold_count']
+ETHNICITIES = config['ethnicities']
+NODES = config['nodes']
+UKB_DATASET = config['ukb_dataset']
+
+PLINK_EXT = ['bed', 'bim', 'fam']
+PLINK2_EXT = ['pgen', 'pvar', 'psam']
+
+PHENOTYPE_NAME = config['phenotype']['name']
+PHENOTYPE_CODE = config['phenotype']['code']
+COVARIATES = config['covariates'] 
+SNP_COUNTS = config['snp_counts']
+
+MODELS = ['lassonet', 'lasso', 'mlp']
+
+CONFIG_DIR = os.path.join(workflow.basedir, "fl/configs")
+print(f'CONFIG DIR IS {CONFIG_DIR}')
+config_names, = glob_wildcards(CONFIG_DIR + "/{config}.yaml")
+
+
+def parse_configs(config_dir: str):
+    representations = []
+    for config_file in os.listdir(config_dir):
+        config = OmegaConf.load(os.path.join(config_dir, config_file))
+        yaml_representation = OmegaConf.to_yaml(config)
+        representations.append(yaml_representation)
+    return representations
+
+
+def get_params_hash(config: str):
+    return hashlib.sha224(config.encode()).hexdigest()
+        
+
+def get_params_hashes():
+    configs = parse_configs(CONFIG_DIR)
+    hashes = []
+    for config in configs:
+        hashes.append(get_params_hash(config))
+
+    return hashes
+    
+
+rule ALL:
+    input:
+        server_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/best_model_top_{snp_count}.ckpt",
+            phenotype=PHENOTYPE_NAME,
+            fold=range(FOLD_COUNT),
+            params_hash=get_params_hashes(),
+            snp_count=SNP_COUNTS),
+            
+        node_models=expand("models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model_top_{snp_count}.ckpt",
+            phenotype=PHENOTYPE_NAME,
+            fold=range(FOLD_COUNT),
+            node=NODES,
+            params_hash=get_params_hashes(),
+            snp_count=SNP_COUNTS)
+
+
+rule server:   
+    input: 
+        config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
+    resources:
+        time        = "00:20:00",
+        mem_mb      = 6000,
+        partition   = "cpu"
+    threads: 1
+    log: "logs/server/{phenotype}/fold_{fold}/{params_hash}/server_{snp_count}.log"
+    output:
+        "models/{phenotype}/fold_{fold}/{params_hash}/best_model_top_{snp_count}.ckpt"
+    script:
+        "fl/server.py"
+
+'''
+wc -l node_{0,1,2,3,4,5,6,7}/fold_0_train.tsv
+   6103 node_0/fold_0_train.tsv
+   1199 node_1/fold_0_train.tsv
+ 171578 node_2/fold_0_train.tsv
+  85813 node_3/fold_0_train.tsv
+  42884 node_4/fold_0_train.tsv
+  21444 node_5/fold_0_train.tsv
+  10717 node_6/fold_0_train.tsv
+   3432 node_7/fold_0_train.tsv
+ 343170 total
+'''
+
+NODE_RESOURCES = {
+    '0': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '1': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '2': {'partition': 'gpu', 'mem_mb': 64000, 'gpus': 1},
+    '3': {'partition': 'gpu', 'mem_mb': 36000, 'gpus': 1},
+    '4': {'partition': 'gpu', 'mem_mb': 24000, 'gpus': 1},
+    '5': {'partition': 'cpu', 'mem_mb': 16000, 'gpus': 0},
+    '6': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '7': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+}
+
+def get_partition(wildcards):
+    return NODE_RESOURCES[wildcards.node]['partition']
+
+def get_mem_mb(wildcards):
+    return NODE_RESOURCES[wildcards.node]['mem_mb']
+
+def get_gpus(wildcards):
+    return NODE_RESOURCES[wildcards.node]['gpus']
+
+rule node:
+    input: 
+        config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names),
+        gwas        = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
+        pheno_train = "phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
+        pheno_val   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_val.tsv",
+        cov_train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv",
+        cov_val     = "covariates/{phenotype}/node_{node}/fold_{fold}_val.tsv",
+    resources:
+        time        = "00:20:00",
+        mem_mb      = get_mem_mb,
+        partition   = get_partition,
+        gpus        = get_gpus
+    threads: 2
+    log: "logs/node/{phenotype}/fold_{fold}/{params_hash}/node_{node}_{snp_count}.log"
+    params:
+        pfile_train = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_train",
+        pfile_val   = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_val"
+    output:
+        "models/{phenotype}/fold_{fold}/{params_hash}/node_{node}/best_node_model_top_{snp_count}.ckpt"
+    script:
+        "fl/node.py"

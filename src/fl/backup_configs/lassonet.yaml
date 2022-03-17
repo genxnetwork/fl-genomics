@@ -1,0 +1,31 @@
+experiment:
+  description: test mlflow snakemake server run
+  name: snakemake_test
+  missing: zero
+  random_state: 4
+server:
+  rounds: 64
+  node_count: 5
+node:
+  model:
+    name: lassonet
+    alpha_start: -3
+    alpha_end: -1
+    hidden_size: 128
+    batch_size: 256
+  optimizer:
+    name: adamw
+    lr: 1e-2
+    weight_decay: 0.0
+  scheduler:
+    name: one_cycle_lr
+    rounds: 16
+    epochs_in_round: 16
+    div_factor: 25
+    final_div_factor: 1e+4
+  training:
+    gpus:
+    - 0
+    max_epochs: ${model.scheduler.epochs_in_round}
+    enable_progress_bar: False
+    enable_model_summary: False

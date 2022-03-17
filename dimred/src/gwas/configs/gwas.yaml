@@ -1,14 +1,16 @@
-split_index: 0
+node_index: 0
+fold_index: ${oc.decode:${oc.env:SLURM_ARRAY_TASK_ID}}
 split_dir: /gpfs/gpfs0/ukb_data/fml/british_split
 phenotype:
   code: 50
   name: standing_height
-  path: ${split_dir}/only_phenotypes/${.name}_split_${split_index}_train.tsv
+  path: ${split_dir}/only_phenotypes/${.name}/node_${node_index}/fold_${fold_index}_train.tsv
   type: real
+  adjust: False
 covariates:
-  path: ${split_dir}/covariates/${phenotype.name}_split_${split_index}_train.tsv
-genotype:
-  train: ${split_dir}/genotypes/split${split_index}_filtered_train
+  path: ${split_dir}/covariates/${phenotype.name}/node_${node_index}/fold_${fold_index}_train.tsv
+genotype: ${split_dir}/genotypes/split_${node_index}_filtered
 output:
-  path: ${split_dir}/gwas/split${split_index}
+  root_dir: ${split_dir}/gwas/${phenotype.name}/node_${node_index}
+  path: ${.root_dir}/fold_${fold_index}
 threads: 4
