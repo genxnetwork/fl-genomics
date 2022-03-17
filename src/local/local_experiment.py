@@ -9,11 +9,16 @@ from sklearn.metrics import r2_score
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen
 
 class LocalExperiment():
-    def __init__(self, cfg):
+    """
+    Base class for experiments in a local setting
+    
+    Args:
+        cfg: Configuration for experiments from hydra
+    """
+    def __init__(self, cfg: DictConfig):
         self.cfg = cfg
     
     def start_mlflow_run(self):
-        
         mlflow.set_experiment('local')
         self.run = mlflow.start_run(tags={
                             'name': self.cfg.experiment.model,
@@ -81,7 +86,13 @@ class LocalExperiment():
     def run(self):
         pass
 
-def make_simple_estimator_experiment(model):            
+def make_simple_estimator_experiment(model):
+    """Constructs a SimpleEstimatorExperiment for a given model class, expected
+    to have the same interface as scikit-learn estimators.
+    
+    Args:
+        model: Model class    
+    """
     class SimpleEstimatorExperiment(LocalExperiment):
         def __init__(self, cfg):
             LocalExperiment.__init__(self, cfg)
@@ -115,9 +126,11 @@ def make_simple_estimator_experiment(model):
             self.eval_and_log() 
     return SimpleEstimatorExperiment
 
+# Dict of possible experiment types and their corresponding classes
 experiment_dict = {
     'lasso': make_simple_estimator_experiment(LassoCV)
 }
+
             
 @hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
