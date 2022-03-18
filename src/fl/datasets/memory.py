@@ -3,7 +3,7 @@ import pandas
 from pgenlib import PgenReader
 
 
-def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, missing='zero') -> numpy.ndarray:
+def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, sample_indices: numpy.ndarray=numpy.array([]), missing='zero') -> numpy.ndarray:
     """
     Loads genotypes from .pgen into numpy array and selects top {snp_count} snps
 
@@ -19,9 +19,13 @@ def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, missing='zer
     Returns:
         numpy.ndarray: An int8 sample-major array with {snp_count} genotypes
     """    
-    reader = PgenReader((pfile_path + '.pgen').encode('utf-8'))
+    reader = PgenReader((pfile_path + '.pgen').encode('utf-8'), sample_subset=sample_indices)
     max_snp_count = reader.get_variant_ct()
-    sample_count = reader.get_raw_sample_ct()
+    sample_count = len(sample_indices) if sample_indices.any() else reader.get_raw_sample_ct()
+    
+    if not sample_indices.any():
+        sample_indices = numpy.arange(sample_count).astype(numpy.uint32)
+    
     if snp_count is not None and snp_count > max_snp_count:
         raise ValueError(f'snp_count {snp_count} should be not greater than max_snp_count {max_snp_count}')
     
@@ -53,6 +57,11 @@ def load_covariates(covariates_path: str, load_pcs: bool = False) -> numpy.ndarr
         to_load = [col for col in data.columns if not col.startswith('PC') and col not in ['FID', 'IID']]
     return data.loc[:, to_load].values # First two columns are FID, IID
 
+def get_sample_indices(pfile_path:str, phenotype_path: str) -> numpy.ndarray:
+    psam = pandas.read_table(pfile_path + '.psam')
+    pheno = pandas.read_table(phenotype_path)
+    psam['idx'] = numpy.arange(0, psam.shape[0])
+    return psam.loc[psam.IID.isin(pheno.IID), 'idx'].values.astype('uint32')
 
 def get_snp_list(pfile_path: str, gwas_path: str, snp_count: int) -> numpy.ndarray:
     pvar = pandas.read_table(pfile_path + '.pvar')
