@@ -1,0 +1,12 @@
+# @package _global_
+
+gwas_node_index: 2
+
+data:
+  genotype:
+    root: ${split_dir}/genotypes/node_${node_index}/fold_${fold_index}
+    train: ${.root}_train
+    val: ${.root}_val
+    test: ${.root}_test
+    
+  gwas: ${split_dir}/gwas/${phenotype.name}/node_${gwas_node_index}/fold_${fold_index}.gwas.tsv
