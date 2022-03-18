@@ -87,12 +87,13 @@ class LocalExperiment():
     def run(self):
         pass
 
-def simple_estimator_decorator(model, model_kwargs_dict=dict()): # Todo: pass params as kwargs
-    """Constructs a SimpleEstimatorExperiment for a given model class, expected
+def simple_estimator_decorator(model, model_kwargs_dict: dict=dict()):
+    """Returns a SimpleEstimatorExperiment for a given model class, expected
     to have the same interface as scikit-learn estimators.
     
     Args:
-        model: Model class    
+        model: Model class
+        model_kwargs_dict: Dictionary of parameters passed during model initialization
     """
     class SimpleEstimatorExperiment(LocalExperiment):
         def __init__(self, cfg):
@@ -127,7 +128,13 @@ def simple_estimator_decorator(model, model_kwargs_dict=dict()): # Todo: pass pa
             self.eval_and_log() 
     return SimpleEstimatorExperiment
 
-def xgboost_decorator(xgb_kwargs_dict):
+def xgboost_decorator(xgb_kwargs_dict: dict=dict()):
+    """Returns XGBExperiment class containing a regressor with model parameters specified in
+    a given dictionary
+    
+    Args:
+        xgb_kwargs_dict: Dictionary of parameters passed during model initialization
+    """
     class XGBExperiment(LocalExperiment):
         def __init__(self, cfg):
             LocalExperiment.__init__(self, cfg)
