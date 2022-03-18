@@ -3,6 +3,7 @@ from omegaconf import DictConfig
 import mlflow
 from numpy import hstack
 from sklearn.linear_model import LassoCV
+from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 
 
@@ -86,7 +87,7 @@ class LocalExperiment():
     def run(self):
         pass
 
-def make_simple_estimator_experiment(model):
+def simple_estimator_decorator(model, model_kwargs_dict=dict()): # Todo: pass params as kwargs
     """Constructs a SimpleEstimatorExperiment for a given model class, expected
     to have the same interface as scikit-learn estimators.
     
@@ -96,7 +97,7 @@ def make_simple_estimator_experiment(model):
     class SimpleEstimatorExperiment(LocalExperiment):
         def __init__(self, cfg):
             LocalExperiment.__init__(self, cfg)
-            self.model = model()
+            self.model = model(**model_kwargs_dict)
 
         def train(self):
             print("Training")
@@ -126,9 +127,52 @@ def make_simple_estimator_experiment(model):
             self.eval_and_log() 
     return SimpleEstimatorExperiment
 
+def xgboost_decorator(xgb_kwargs_dict):
+    class XGBExperiment(LocalExperiment):
+        def __init__(self, cfg):
+            LocalExperiment.__init__(self, cfg)
+            self.model = XGBRegressor(**xgb_kwargs_dict)
+
+        def train(self):
+            print("Training")
+            self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=20, verbose=True)
+
+        def eval_and_log(self):
+            print("Eval")
+            preds_train = self.model.predict(self.X_train)
+            preds_val = self.model.predict(self.X_val)
+            preds_test = self.model.predict(self.X_test)
+
+            r2_train = r2_score(self.y_train, preds_train)
+            r2_val = r2_score(self.y_val, preds_val)
+            r2_test = r2_score(self.y_test, preds_test)
+
+            print(f"Train r2: {r2_train}")
+            mlflow.log_metric('train_r2', r2_train)
+            print(f"Val r2: {r2_val}")
+            mlflow.log_metric('val_r2', r2_val)
+            print(f"Test r2: {r2_test}")
+            mlflow.log_metric('test_r2', r2_test)
+
+        def run(self):
+            self.load_data()
+            self.start_mlflow_run()
+            self.train()
+            self.eval_and_log()
+            
+    return XGBExperiment
+
+# todo: model configs from hydra?            
+xgb_kwargs_dict = {
+    'max_depth': 3,
+    'alpha': 0.5,
+    'n_estimators': 1000
+}
+        
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
-    'lasso': make_simple_estimator_experiment(LassoCV)
+    'lasso': simple_estimator_decorator(LassoCV),
+    'xgboost': xgboost_decorator(xgb_kwargs_dict)
 }
 
             
