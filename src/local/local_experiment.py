@@ -1,9 +1,11 @@
 import hydra
 from omegaconf import DictConfig
 import mlflow
+from mlflow.xgboost import autolog
 from numpy import hstack
 from sklearn.linear_model import LassoCV
 from xgboost import XGBRegressor
+# from xgboost.callback import TrainingCallback
 from sklearn.metrics import r2_score
 
 
@@ -164,6 +166,7 @@ def xgboost_decorator(xgb_kwargs_dict: dict=dict()):
         def run(self):
             self.load_data()
             self.start_mlflow_run()
+            autolog()
             self.train()
             self.eval_and_log()
             
