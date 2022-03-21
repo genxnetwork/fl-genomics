@@ -17,19 +17,26 @@ PHENOTYPE_CODE = config['phenotype']['code']
 COVARIATES = config['covariates'] 
 SNP_COUNTS = config['snp_counts']
 
-MODELS = ['lassonet', 'lasso', 'mlp']
+MODEL_CONFIGS = config['model_configs']
 
 CONFIG_DIR = os.path.join(workflow.basedir, "fl/configs")
 print(f'CONFIG DIR IS {CONFIG_DIR}')
 config_names, = glob_wildcards(CONFIG_DIR + "/{config}.yaml")
+config_names = [name for name in config_names if name in MODEL_CONFIGS]
 
 
 def parse_configs(config_dir: str):
     representations = []
     for config_file in os.listdir(config_dir):
+        # strip .yaml
+        if config_file[:-5] not in MODEL_CONFIGS:
+            print(f'we continue, because {config_file} is not in {MODEL_CONFIGS}')
+            continue
         config = OmegaConf.load(os.path.join(config_dir, config_file))
         yaml_representation = OmegaConf.to_yaml(config)
         representations.append(yaml_representation)
+        print(f'we parsed config, because {config_file} is in {MODEL_CONFIGS}')
+        print(f'{config_file} hash is {get_params_hash(yaml_representation)}')
     return representations
 
 
@@ -71,6 +78,8 @@ rule server:
         partition   = "cpu"
     threads: 1
     log: "logs/server/{phenotype}/fold_{fold}/{params_hash}/server_{snp_count}.log"
+    params: 
+        checkpoint_dir  = "models/{phenotype}/fold_{fold}/{params_hash}/checkpoints"
     output:
         "models/{phenotype}/fold_{fold}/{params_hash}/best_model_top_{snp_count}.ckpt"
     script:

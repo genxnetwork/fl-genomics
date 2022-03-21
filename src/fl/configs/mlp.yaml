@@ -1,20 +1,21 @@
 experiment:
-  description: Linear elastic-net model
+  description: MLP model
   name: federated-standing-height
   missing: zero
   random_state: 4
 server:
   rounds: 16
-  node_count: 7
+  node_count: 2
 node:
   model:
-    name: linear_regressor
+    name: mlp_regressor
     batch_size: 256
     l1: 0.0
+    hidden_size: 4096
   optimizer:
     name: adamw
-    lr: 2e-3
-    weight_decay: 1e-2
+    lr: 1e-4
+    weight_decay: 1e-3
   scheduler:
     name: one_cycle_lr
     rounds: 16
