@@ -155,13 +155,11 @@ class MLPRegressor(BaseNet):
         self.scheduler_params = scheduler_params
 
     def forward(self, x):
-        x = relu(self.bn(self.input(x)))
+        x = torch.sigmoid(self.input(x))
         return self.hidden(x)
 
     def regularization(self):
-        reg = 0.0
-        if self.l1 is not None:
-            reg += self.l1 * torch.norm(self.input.weight, p=1)
+        reg = self.l1 * torch.norm(self.input.weight, p=1)
         return reg
 
     def calculate_loss(self, y_hat, y):

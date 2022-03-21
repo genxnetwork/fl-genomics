@@ -1,4 +1,5 @@
 from collections import namedtuple
+from pathlib import Path
 from omegaconf import DictConfig, OmegaConf
 from typing import Any, Dict, Tuple
 import logging
@@ -113,10 +114,10 @@ def create_mlp_regressor(input_size: int, params: Any) -> MLPRegressor:
 def create_model(input_size: int, params: Any) -> BaseNet:
     if params.model.name == 'linear_regressor':
         return create_linear_regressor(input_size, params)
-    elif params.name == 'mlp_regressor':
+    elif params.model.name == 'mlp_regressor':
         return create_mlp_regressor(input_size, params)
     else:
-        raise ValueError(f'model name {params.name} is unknown')
+        raise ValueError(f'model name {params.model.name} is unknown')
 
 
 if __name__ == '__main__':
@@ -202,4 +203,5 @@ if __name__ == '__main__':
         train_model(client)
         metrics = evaluate_model(data_module, net, client)
 
+        Path(snakemake.output[0]).touch(exist_ok=True)
         # mlflow.log_metrics(metrics)

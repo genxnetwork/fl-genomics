@@ -25,12 +25,15 @@ if __name__ == '__main__':
 
     config_path = snakemake.input['config'][0]
     params_hash = snakemake.wildcards['params_hash']
+    checkpoint_dir = snakemake.params['checkpoint_dir']
+    os.makedirs(checkpoint_dir, exist_ok=True)
     
     logging.basicConfig(filename=snakemake.log[0], level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
 
     cfg = OmegaConf.load(config_path)
     
     strategy = MlflowStrategy(
+        checkpoint_dir,
         fraction_fit=0.99,
         fraction_eval=0.99,
         min_fit_clients = cfg.server.node_count,
@@ -49,10 +52,14 @@ if __name__ == '__main__':
             'hostname': gethostname()
         }
     ) as run:
-
+        mlflow.log_params(cfg.server)
+        logging.info(f'starting server with min clients {cfg.server.node_count} and {cfg.server.rounds} max rounds')
         start_server(
                     server_address="[::]:8080",
                     strategy=strategy,
                     config={"num_rounds": cfg.server.rounds}
         )
+    
+    best_model_path = snakemake.output[0]
+    strategy.copy_best_model(best_model_path)
         

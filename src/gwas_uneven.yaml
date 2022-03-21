@@ -12,3 +12,5 @@ snp_counts:
   - 2000
   - 5000
   - 10000
+model_configs:
+  - mlp
