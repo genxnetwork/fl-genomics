@@ -1,4 +1,6 @@
 import hydra
+import logging
+from sys import stdout
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
@@ -20,6 +22,12 @@ class LocalExperiment():
             cfg: Configuration for experiments from hydra
         """
         self.cfg = cfg
+        logging.basicConfig(level=logging.INFO,
+                        stream=stdout,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S'
+                        )
+        self.logger = logging.getLogger()
             
     def start_mlflow_run(self):
         mlflow.set_experiment('local')
@@ -36,7 +44,7 @@ class LocalExperiment():
                             )
 
     def load_data(self):
-        print("Loading data")
+        self.logger.info("Loading data")
         
         self.y_train = load_phenotype(self.cfg.data.phenotype.train)
         self.y_val = load_phenotype(self.cfg.data.phenotype.val)
@@ -50,9 +58,11 @@ class LocalExperiment():
             self.load_genotype_()
         else:
             self.load_covariates()
+            
+        self.logger.info(f"{self.X_train.shape[1]} features loaded")
         
     def load_sample_indices(self):
-        print("Loading sample_indices")
+        self.logger.info("Loading sample indices")
         self.sample_indices_train = get_sample_indices(self.cfg.data.genotype.train,
                                                        self.cfg.data.phenotype.train)
         self.sample_indices_val = get_sample_indices(self.cfg.data.genotype.val,
@@ -61,7 +71,6 @@ class LocalExperiment():
                                                       self.cfg.data.phenotype.test)
         
     def load_genotype_and_covariates_(self):
-        print("Loading genotypes and covariates")
         self.X_train = hstack((load_from_pgen(self.cfg.data.genotype.train,
                                               self.cfg.data.gwas,
                                               snp_count=self.cfg.experiment.snp_count,
@@ -79,7 +88,6 @@ class LocalExperiment():
                                load_covariates(self.cfg.data.covariates.test)))
         
     def load_genotype_(self):
-        print("Loading genotypes")
         self.X_train = load_from_pgen(self.cfg.data.genotype.train,
                                       self.cfg.data.gwas,
                                       snp_count=self.cfg.experiment.snp_count,
@@ -94,7 +102,6 @@ class LocalExperiment():
                                      sample_indices=self.sample_indices_test)
         
     def load_covariates_(self):
-        print("Loading covariates")
         self.X_train = load_covariates(self.cfg.data.covariates.train)
         self.X_val = load_covariates(self.cfg.data.covariates.val)
         self.X_test = load_covariates(self.cfg.data.covariates.test)
@@ -103,7 +110,7 @@ class LocalExperiment():
         pass
         
     def eval_and_log(self):
-        print("Eval")
+        self.logger.info("Evaluating model")
         preds_train = self.model.predict(self.X_train)
         preds_val = self.model.predict(self.X_val)
         preds_test = self.model.predict(self.X_test)
@@ -141,7 +148,7 @@ def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
             self.model = model(**model_kwargs_dict)
 
         def train(self):
-            print("Training")
+            self.logger.info("Training")
             self.model.fit(self.X_train, self.y_train)
        
     return SimpleEstimatorExperiment
@@ -159,7 +166,7 @@ def xgboost_factory(xgb_kwargs_dict: dict=dict()):
             self.model = XGBRegressor(**xgb_kwargs_dict)
 
         def train(self):
-            print("Training")
+            self.logger.info("Training")
             autolog()
             self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=20, verbose=True)
             
