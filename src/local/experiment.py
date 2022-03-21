@@ -13,13 +13,14 @@ from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, 
 class LocalExperiment():
     """
     Base class for experiments in a local setting
-    
-    Args:
-        cfg: Configuration for experiments from hydra
     """
     def __init__(self, cfg: DictConfig):
+        """
+        Args:
+            cfg: Configuration for experiments from hydra
+        """
         self.cfg = cfg
-    
+            
     def start_mlflow_run(self):
         mlflow.set_experiment('local')
         feature_string = f'{self.cfg.experiment.snp_count} SNPs ' if self.cfg.experiment.include_genotype  \
@@ -126,7 +127,7 @@ class LocalExperiment():
         self.eval_and_log()
     
 
-def simple_estimator_decorator(model, model_kwargs_dict: dict=dict()):
+def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
     """Returns a SimpleEstimatorExperiment for a given model class, expected
     to have the same interface as scikit-learn estimators.
     
@@ -145,7 +146,7 @@ def simple_estimator_decorator(model, model_kwargs_dict: dict=dict()):
        
     return SimpleEstimatorExperiment
 
-def xgboost_decorator(xgb_kwargs_dict: dict=dict()):
+def xgboost_factory(xgb_kwargs_dict: dict=dict()):
     """Returns XGBExperiment class containing a regressor with model parameters specified in
     a given dictionary
     
@@ -173,8 +174,8 @@ xgb_kwargs_dict = {
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
-    'lasso': simple_estimator_decorator(LassoCV),
-    'xgboost': xgboost_decorator(xgb_kwargs_dict)
+    'lasso': simple_estimator_factory(LassoCV),
+    'xgboost': xgboost_factory(xgb_kwargs_dict)
 }
 
             
