@@ -6,9 +6,12 @@ from numpy import hstack
 from sklearn.linear_model import LassoCV
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
-
+import torch
 
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
+from nn.lightning import DataModule
+from nn.train import prepare_trainer
+from nn.models import MLPRegressor
 
 class LocalExperiment():
     """
@@ -164,6 +167,51 @@ def xgboost_decorator(xgb_kwargs_dict: dict=dict()):
             
     return XGBExperiment
 
+
+class NNExperiment(LocalExperiment):
+    def __init__(self, cfg):
+        LocalExperiment.__init__(self, cfg)
+
+    def load_data(self):
+        LocalExperiment.load_data(self)
+        self.data_module = DataModule(self.X_train, self.X_val, self.X_test, self.y_train, self.y_val, self.y_test, batch_size=self.cfg.model.batch_size)
+        
+    def train(self):
+        input_size = self.X_train.shape[1]
+        self.model = MLPRegressor(input_size=input_size,
+                                  hidden_size=self.cfg.model.hidden_size,
+                                  l1=self.cfg.model.alpha,
+                                  optim_params=self.cfg.experiment.optimizer,
+                                  scheduler_params=self.cfg.experiment.scheduler
+                                 )
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.experiment.model}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=10, log_every_n_steps=5)
+        
+        print("Fitting")
+        self.trainer.fit(self.model, self.data_module)
+        print("Fitted")
+        
+    def eval_and_log(self):
+        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
+        
+        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
+        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
+        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+        
+        print(test_preds)
+        
+        r2_train = r2_score(self.y_train, train_preds)
+        r2_val = r2_score(self.y_val, val_preds)
+        r2_test = r2_score(self.y_test, test_preds)
+        
+        print(f"Train r2: {r2_train}")
+        mlflow.log_metric('train_r2', r2_train)
+        print(f"Val r2: {r2_val}")
+        mlflow.log_metric('val_r2', r2_val)
+        print(f"Test r2: {r2_test}")
+        mlflow.log_metric('test_r2', r2_test)
+        
+        
 # todo: model configs from hydra?            
 xgb_kwargs_dict = {
     'max_depth': 3,
@@ -174,7 +222,8 @@ xgb_kwargs_dict = {
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
     'lasso': simple_estimator_decorator(LassoCV),
-    'xgboost': xgboost_decorator(xgb_kwargs_dict)
+    'xgboost': xgboost_decorator(xgb_kwargs_dict),
+    'mlp': NNExperiment
 }
 
             
