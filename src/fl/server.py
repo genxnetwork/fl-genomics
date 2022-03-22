@@ -6,7 +6,7 @@ import mlflow
 from socket import gethostname
 from flwr.server import start_server
 
-from federation.strategy import MlflowStrategy, fit_round
+from federation.strategy import MCFedAvg, fit_round
 
 
 if __name__ == '__main__':
@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
     cfg = OmegaConf.load(config_path)
     
-    strategy = MlflowStrategy(
+    strategy = MCFedAvg(
         checkpoint_dir,
         fraction_fit=0.99,
         fraction_eval=0.99,
@@ -61,5 +61,5 @@ if __name__ == '__main__':
         )
     
     best_model_path = snakemake.output[0]
-    strategy.copy_best_model(best_model_path)
+    strategy.checkpointer.copy_best_model(best_model_path)
         

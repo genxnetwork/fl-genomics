@@ -25,6 +25,9 @@ config_names, = glob_wildcards(CONFIG_DIR + "/{config}.yaml")
 config_names = [name for name in config_names if name in MODEL_CONFIGS]
 
 
+envvars:
+    "FL_NODE_COUNT"
+
 def parse_configs(config_dir: str):
     representations = []
     for config_file in os.listdir(config_dir):

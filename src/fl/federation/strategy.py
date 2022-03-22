@@ -9,11 +9,12 @@ from flwr.common import (
     EvaluateRes,
     Scalar,
     Weights,
+    Parameters,
     FitRes,
     parameters_to_weights
 )
 from flwr.server.client_proxy import ClientProxy
-from flwr.server.strategy import FedAvg
+from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
 
 
 def fit_round(rnd: int):
@@ -26,6 +27,106 @@ def on_evaluate_config_fn(rnd: int):
 
 
 RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
+
+
+class MlflowLogger:
+    def __init__(self) -> None:
+        pass
+
+    def _calculate_agg_metric(self, metric_name: str, results: RESULTS) -> float:
+        losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
+        examples = [r.num_examples for _, r in results]
+
+        # Aggregate and print custom metric
+        return sum(losses) / sum(examples)
+
+    def log_losses(self, rnd: int, results: RESULTS) -> float:
+        val_loss = self._calculate_agg_metric('val_loss', results)
+        train_r2 = self._calculate_agg_metric('train_r2', results)
+        val_r2 = self._calculate_agg_metric('val_r2', results)
+        logging.info(f"round {rnd}\ttrain_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\tval_loss: {val_loss:.2f}")
+        mlflow.log_metric('val_loss', val_loss, step=rnd)
+        mlflow.log_metric('train_r2', train_r2, step=rnd)
+        mlflow.log_metric('val_r2', val_r2, step=rnd)
+        return val_loss
+
+
+class Checkpointer:
+    def __init__(self, checkpoint_dir: str) -> None:
+        self.checkpoint_dir = checkpoint_dir
+        self.history = []
+
+    def add_loss_to_history(self, loss: float) -> None:
+        self.history.append(loss)
+
+    def save_checkpoint(self, rnd: int, aggregated_parameters: Parameters) -> None:
+        if aggregated_parameters is not None and len(self.history) > 0 and self.history[-1] == min(self.history):
+            # Save aggregated_weights
+            aggregated_weights = parameters_to_weights(aggregated_parameters)
+            logging.info(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
+            numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
+        else:
+            pass
+    
+    def copy_best_model(self, best_model_path: str):
+        shutil.copy2(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), best_model_path)
+
+
+class MCMixin:
+    def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
+        self.mlflow_logger = mlflow_logger
+        self.checkpointer = checkpointer
+        super().__init__(**kwargs)
+
+    def aggregate_evaluate(
+        self,
+        rnd: int,
+        results: RESULTS,
+        failures: List[BaseException],
+    ) -> Tuple[Optional[float], Dict[str, Scalar]]:
+        if not results:
+            return None
+        val_loss = self.mlflow_logger.log_losses(rnd, results)
+        self.checkpointer.add_loss_to_history(val_loss)
+        return super().aggregate_evaluate(rnd, results, failures)
+    
+    def aggregate_fit(
+        self,
+        rnd: int,
+        results: List[Tuple[ClientProxy, FitRes]],
+        failures: List[BaseException],
+    ) -> Optional[Weights]:
+        aggregated_parameters, aggregated_metrics = super().aggregate_fit(rnd, results, failures)
+        self.checkpointer.save_checkpoint(rnd, aggregated_parameters)
+        return aggregated_parameters, aggregated_metrics
+
+
+class MCFedAvg(MCMixin,FedAvg):
+    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
+        mlflow_logger = MlflowLogger()
+        checkpointer = Checkpointer(checkpoint_dir)
+        super().__init__(mlflow_logger, checkpointer, **kwargs)
+
+
+class MCQFedAvg(MCMixin,QFedAvg):
+    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
+        mlflow_logger = MlflowLogger()
+        checkpointer = Checkpointer(checkpoint_dir)
+        super().__init__(mlflow_logger, checkpointer, **kwargs)
+
+
+class MCFedAdagrad(MCMixin,FedAdagrad):
+    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
+        mlflow_logger = MlflowLogger()
+        checkpointer = Checkpointer(checkpoint_dir)
+        super().__init__(mlflow_logger, checkpointer, **kwargs)
+
+
+class MCFedAdam(MCMixin,FedAdam):
+    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
+        mlflow_logger = MlflowLogger()
+        checkpointer = Checkpointer(checkpoint_dir)
+        super().__init__(mlflow_logger, checkpointer, **kwargs)
 
 
 class MlflowStrategy(FedAvg):
