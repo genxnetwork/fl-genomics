@@ -31,6 +31,8 @@ RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 class MlflowLogger:
     def __init__(self) -> None:
+        """Logs metrics to mlflow
+        """        
         pass
 
     def _calculate_agg_metric(self, metric_name: str, results: RESULTS) -> float:
@@ -41,6 +43,15 @@ class MlflowLogger:
         return sum(losses) / sum(examples)
 
     def log_losses(self, rnd: int, results: RESULTS) -> float:
+        """Logs val_loss, val and train r^2 to mlflow
+
+        Args:
+            rnd (int): current FL round
+            results (RESULTS): Central model evaluation results from server
+
+        Returns:
+            float: Current validation loss
+        """        
         val_loss = self._calculate_agg_metric('val_loss', results)
         train_r2 = self._calculate_agg_metric('train_r2', results)
         val_r2 = self._calculate_agg_metric('val_r2', results)
@@ -53,6 +64,11 @@ class MlflowLogger:
 
 class Checkpointer:
     def __init__(self, checkpoint_dir: str) -> None:
+        """Saves best model checkpoints to {checkpoint_dir}
+
+        Args:
+            checkpoint_dir (str): Dir for saving model checkpoints
+        """        
         self.checkpoint_dir = checkpoint_dir
         self.history = []
 
@@ -60,6 +76,12 @@ class Checkpointer:
         self.history.append(loss)
 
     def save_checkpoint(self, rnd: int, aggregated_parameters: Parameters) -> None:
+        """Checks if current model has minimum loss and if so, saves it to 'best_temp_model.ckpt'
+
+        Args:
+            rnd (int): Current FL round
+            aggregated_parameters (Parameters): Aggregated model parameters
+        """        
         if aggregated_parameters is not None and len(self.history) > 0 and self.history[-1] == min(self.history):
             # Save aggregated_weights
             aggregated_weights = parameters_to_weights(aggregated_parameters)
@@ -74,6 +96,12 @@ class Checkpointer:
 
 class MCMixin:
     def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
+        """Mixin for strategies which can log metrics and save checkpoints
+
+        Args:
+            mlflow_logger (MlflowLogger): Mlflow Logger
+            checkpointer (Checkpointer): Model checkpoint saver
+        """        
         self.mlflow_logger = mlflow_logger
         self.checkpointer = checkpointer
         super().__init__(**kwargs)
@@ -127,61 +155,3 @@ class MCFedAdam(MCMixin,FedAdam):
         mlflow_logger = MlflowLogger()
         checkpointer = Checkpointer(checkpoint_dir)
         super().__init__(mlflow_logger, checkpointer, **kwargs)
-
-
-class MlflowStrategy(FedAvg):
-
-    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
-        self.checkpoint_dir = checkpoint_dir
-        self.history = []
-        super().__init__(**kwargs)
-
-    def _calculate_agg_metric(self, metric_name: str, results: RESULTS) -> float:
-        losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
-        examples = [r.num_examples for _, r in results]
-
-        # Aggregate and print custom metric
-        return sum(losses) / sum(examples)
-
-    def aggregate_evaluate(
-        self,
-        rnd: int,
-        results: RESULTS,
-        failures: List[BaseException],
-    ) -> Tuple[Optional[float], Dict[str, Scalar]]:
-
-        """Aggregate evaluation losses using weighted average."""
-        if not results:
-            return None
-
-        # Weigh val_loss of each client by number of examples used
-        val_loss = self._calculate_agg_metric('val_loss', results)
-        self.history.append(val_loss)
-        train_r2 = self._calculate_agg_metric('train_r2', results)
-        val_r2 = self._calculate_agg_metric('val_r2', results)
-        logging.info(f"round {rnd}\ttrain_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\tval_loss: {val_loss:.2f}")
-        mlflow.log_metric('val_loss', val_loss, step=rnd)
-        mlflow.log_metric('train_r2', train_r2, step=rnd)
-        mlflow.log_metric('val_r2', val_r2, step=rnd)
-
-        # Call aggregate_evaluate from base class (FedAvg)
-        return super().aggregate_evaluate(rnd, results, failures)
-
-    def aggregate_fit(
-        self,
-        rnd: int,
-        results: List[Tuple[ClientProxy, FitRes]],
-        failures: List[BaseException],
-    ) -> Optional[Weights]:
-
-        aggregated_parameters, aggregated_metrics = super().aggregate_fit(rnd, results, failures)
-
-        if aggregated_parameters is not None and len(self.history) > 0 and self.history[-1] == min(self.history):
-            # Save aggregated_weights
-            aggregated_weights = parameters_to_weights(aggregated_parameters)
-            logging.info(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
-            numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
-        return aggregated_parameters, aggregated_metrics
-
-    def copy_best_model(self, best_model_path: str):
-        shutil.copy2(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), best_model_path)

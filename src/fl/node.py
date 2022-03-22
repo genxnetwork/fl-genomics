@@ -20,7 +20,7 @@ from model.mlp import BaseNet, LinearRegressor, MLPRegressor
 from federation.client import FLClient
 
 
-def train_model(client: FLClient):
+def train_model(client: FLClient) -> bool:
     """
     Trains a model using data from {data_module} and using {client} for FL 
 
@@ -32,10 +32,12 @@ def train_model(client: FLClient):
     for i in range(20):
         try:
             flwr.client.start_numpy_client(f'{client.server}:8080', client)
+            return True
         except RpcError as re:
             # probably server slurm job have not started yet
             time.sleep(5)
             continue
+    return False
         
 
 def evaluate_model(data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
@@ -200,8 +202,9 @@ if __name__ == '__main__':
     ):
         mlflow.log_params(OmegaConf.to_container(cfg.node))
 
-        train_model(client)
-        metrics = evaluate_model(data_module, net, client)
-
-        Path(snakemake.output[0]).touch(exist_ok=True)
+        if train_model(client):
+            metrics = evaluate_model(data_module, net, client)
+            Path(snakemake.output[0]).touch(exist_ok=True)
+        else:
+            raise RuntimeError('Can not connect to server')
         # mlflow.log_metrics(metrics)

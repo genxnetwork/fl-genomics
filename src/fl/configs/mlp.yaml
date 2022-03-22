@@ -5,7 +5,35 @@ experiment:
   random_state: 4
 server:
   rounds: 16
-  node_count: ${env:FL_NODE_COUNT,2}
+  strategy:
+    name: fedavg
+    node_count: ${env:FL_NODE_COUNT,2}
+  
+  # strategy:
+  #   name: qfedavg
+  #   node_count: ${env:FL_NODE_COUNT,2}
+  #   args: 
+  #     q_param: 0.2
+  #     qffl_learning_rate: 0.1
+
+  # strategy:
+  #   name: fedadam
+  #   node_count: ${env:FL_NODE_COUNT,2}
+  #   args:
+  #     eta: 1e-1
+  #     eta_l: 1e-1
+  #     beta_1: 0.9
+  #     beta_2: 0.99
+  #     tau: 1e-9 
+
+  # strategy:
+  #   name: fedadagrad
+  #   node_count: ${env:FL_NODE_COUNT,2}
+  #   args:
+  #     eta: 1e-1
+  #     eta_l: 1e-1
+  #     tau: 1e-9  
+
 node:
   model:
     name: mlp_regressor

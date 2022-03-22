@@ -77,7 +77,7 @@ rule server:
         config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
     resources:
         time        = "00:20:00",
-        mem_mb      = 6000,
+        mem_mb      = 12000,
         partition   = "cpu"
     threads: 1
     log: "logs/server/{phenotype}/fold_{fold}/{params_hash}/server_{snp_count}.log"
