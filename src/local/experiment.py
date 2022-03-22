@@ -34,7 +34,7 @@ class LocalExperiment():
         feature_string = f'{self.cfg.experiment.snp_count} SNPs ' if self.cfg.experiment.include_genotype  \
             else '' + 'covariates' if self.cfg.experiment.include_covariates else ''
         self.run = mlflow.start_run(tags={
-                            'name': self.cfg.experiment.model,
+                            'name': self.cfg.model.name,
                             'split': self.cfg.split_dir.split('/')[-1],
                             'phenotype': self.cfg.phenotype.name,
                             'node_index': str(self.cfg.node_index),
@@ -134,7 +134,7 @@ class LocalExperiment():
         self.eval_and_log()
     
 
-def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
+def simple_estimator_factory(model):
     """Returns a SimpleEstimatorExperiment for a given model class, expected
     to have the same interface as scikit-learn estimators.
     
@@ -145,7 +145,7 @@ def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
     class SimpleEstimatorExperiment(LocalExperiment):
         def __init__(self, cfg):
             LocalExperiment.__init__(self, cfg)
-            self.model = model(**model_kwargs_dict)
+            self.model = model(**self.cfg.model.params)
 
         def train(self):
             self.logger.info("Training")
@@ -153,43 +153,28 @@ def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
        
     return SimpleEstimatorExperiment
 
-def xgboost_factory(xgb_kwargs_dict: dict=dict()):
-    """Returns XGBExperiment class containing a regressor with model parameters specified in
-    a given dictionary
-    
-    Args:
-        xgb_kwargs_dict: Dictionary of parameters passed during model initialization
-    """
-    class XGBExperiment(LocalExperiment):
-        def __init__(self, cfg):
-            LocalExperiment.__init__(self, cfg)
-            self.model = XGBRegressor(**xgb_kwargs_dict)
+class XGBExperiment(LocalExperiment):
+    def __init__(self, cfg):
+        LocalExperiment.__init__(self, cfg)
+        self.model = XGBRegressor(**self.cfg.model.params)
 
-        def train(self):
-            self.logger.info("Training")
-            autolog()
-            self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=20, verbose=True)
-            
-    return XGBExperiment
+    def train(self):
+        self.logger.info("Training")
+        autolog()
+        self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=20, verbose=True)
 
-# todo: model configs from hydra?            
-xgb_kwargs_dict = {
-    'max_depth': 3,
-    'alpha': 0.5,
-    'n_estimators': 1000
-}
-        
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
-    'xgboost': xgboost_factory(xgb_kwargs_dict)
+    'xgboost': XGBExperiment
+    
 }
 
             
 @hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
-    assert cfg.experiment.model in experiment_dict.keys()
-    experiment = experiment_dict[cfg.experiment.model](cfg)
+    assert cfg.model.name in experiment_dict.keys()
+    experiment = experiment_dict[cfg.model.name](cfg)
     experiment.run()   
     
 if __name__ == '__main__':

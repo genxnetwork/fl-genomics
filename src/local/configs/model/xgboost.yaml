@@ -1,0 +1,8 @@
+# @package _global_
+
+model:
+  name: xgboost
+  params:
+    max_depth: 3
+    alpha: 0.5
+    n_estimators: 1000

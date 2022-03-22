@@ -29,18 +29,12 @@ data:
   
 
 model:
-    precision: 16
-    batch_size: 1024
-    max_epochs: 500
-    hidden_size: 32
-    alpha_start: -3
-    alpha_end: -1
-    patience: 10
+  name: lasso
+  params: {}
     
 experiment:
-    model: lasso
-    include_genotype: True
-    include_covariates: True
-    snp_count: 1000
-    random_state: 0
-    gpus: 1
+  include_genotype: True
+  include_covariates: True
+  snp_count: 1000
+  random_state: 0
+  gpus: 1
