@@ -1,0 +1,11 @@
+node_index: [2]
+experiment:
+  snp_count: [10000]
+
+model:
+  name: xgboost
+# data:
+#   node_id: [0, 4]
+#   snp_count: [100, 200]
+# model:
+#   name: [lasso, xgboost]
