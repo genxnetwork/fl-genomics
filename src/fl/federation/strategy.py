@@ -31,15 +31,22 @@ RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 class MlflowLogger:
     def __init__(self) -> None:
-        """Logs metrics to mlflow
+        """Logs server-side per-round metrics to mlflow
         """        
         pass
 
     def _calculate_agg_metric(self, metric_name: str, results: RESULTS) -> float:
-        losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
+        """Calculates weighted average {metric_name} from {results}
+
+        Args:
+            metric_name (str): Name of metric in {results}
+            results (RESULTS): List of client's client proxies and current round metrics
+
+        Returns:
+            float: _description_
+        """        losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
         examples = [r.num_examples for _, r in results]
 
-        # Aggregate and print custom metric
         return sum(losses) / sum(examples)
 
     def log_losses(self, rnd: int, results: RESULTS) -> float:
