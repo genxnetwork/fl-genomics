@@ -6,10 +6,10 @@ import mlflow
 from socket import gethostname
 from flwr.server import start_server
 from flwr.server.strategy import FedAvg
-from federation.strategy import MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, fit_round
+from federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, MlflowLogger, fit_round
 
 
-def get_strategy(strategy_params: DictConfig, checkpoint_dir: str) -> FedAvg:
+def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_dir: str) -> FedAvg:
     """Creates flwr Strategy from strategy config entry
 
     Args:
@@ -34,14 +34,16 @@ def get_strategy(strategy_params: DictConfig, checkpoint_dir: str) -> FedAvg:
     else:
         args = default_args
 
+    mlflow_logger = MlflowLogger(epochs_in_round)
+    checkpointer = Checkpointer(checkpoint_dir)
     if strategy_params.name == 'fedavg':
-        return MCFedAvg(checkpoint_dir, on_fit_config_fn=fit_round, **args)
+        return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     elif strategy_params.name == 'qfedavg':
-        return MCQFedAvg(checkpoint_dir, on_fit_config_fn=fit_round, **args)
+        return MCQFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     elif strategy_params.name ==  'fedadam':
-        return MCFedAdam(checkpoint_dir, on_fit_config_fn=fit_round, **args)
+        return MCFedAdam(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     elif strategy_params.name == 'fedadagrad':
-        return MCFedAdagrad(checkpoint_dir, on_fit_config_fn=fit_round, **args)
+        return MCFedAdagrad(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     else:
         raise ValueError(f'Strategy name {strategy_params.name} should be one of the ["fedavg", "qfedavg", "fedadam", "fedadagrad"]')
 
@@ -70,7 +72,7 @@ if __name__ == '__main__':
     cfg = OmegaConf.load(config_path)
     
     experiment = mlflow.set_experiment(cfg.experiment.name)
-    strategy = get_strategy(cfg.server.strategy, checkpoint_dir)
+    strategy = get_strategy(cfg.server.strategy, cfg.node.scheduler.epochs_in_round, checkpoint_dir)
 
     with mlflow.start_run(
         experiment_id=experiment.experiment_id,

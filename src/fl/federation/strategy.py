@@ -30,10 +30,10 @@ RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 
 class MlflowLogger:
-    def __init__(self) -> None:
+    def __init__(self, epochs_in_round: int) -> None:
         """Logs server-side per-round metrics to mlflow
         """        
-        pass
+        self.epochs_in_round = epochs_in_round
 
     def _calculate_agg_metric(self, metric_name: str, results: RESULTS) -> float:
         """Calculates weighted average {metric_name} from {results}
@@ -43,8 +43,9 @@ class MlflowLogger:
             results (RESULTS): List of client's client proxies and current round metrics
 
         Returns:
-            float: _description_
-        """        losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
+            float: averaged metric
+        """        
+        losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
         examples = [r.num_examples for _, r in results]
 
         return sum(losses) / sum(examples)
@@ -59,13 +60,15 @@ class MlflowLogger:
         Returns:
             float: Current validation loss
         """        
+        train_loss = self._calculate_agg_metric('train_loss', results)
         val_loss = self._calculate_agg_metric('val_loss', results)
         train_r2 = self._calculate_agg_metric('train_r2', results)
         val_r2 = self._calculate_agg_metric('val_r2', results)
-        logging.info(f"round {rnd}\ttrain_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\tval_loss: {val_loss:.2f}")
-        mlflow.log_metric('val_loss', val_loss, step=rnd)
-        mlflow.log_metric('train_r2', train_r2, step=rnd)
-        mlflow.log_metric('val_r2', val_r2, step=rnd)
+        logging.info(f"round {rnd}\ttrain_loss: {train_loss:.4f}\ttrain_r2: {train_r2:.4f}\tval_loss: {val_loss:.2f}\tval_r2: {val_r2:.4f}")
+        mlflow.log_metric('train_loss', train_loss, step=rnd*self.epochs_in_round)
+        mlflow.log_metric('val_loss', val_loss, step=rnd*self.epochs_in_round)
+        mlflow.log_metric('train_r2', train_r2, step=rnd*self.epochs_in_round)
+        mlflow.log_metric('val_r2', val_r2, step=rnd*self.epochs_in_round)
         return val_loss
 
 
@@ -137,28 +140,20 @@ class MCMixin:
 
 
 class MCFedAvg(MCMixin,FedAvg):
-    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
-        mlflow_logger = MlflowLogger()
-        checkpointer = Checkpointer(checkpoint_dir)
+    def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
         super().__init__(mlflow_logger, checkpointer, **kwargs)
 
 
 class MCQFedAvg(MCMixin,QFedAvg):
-    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
-        mlflow_logger = MlflowLogger()
-        checkpointer = Checkpointer(checkpoint_dir)
+    def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
         super().__init__(mlflow_logger, checkpointer, **kwargs)
 
 
 class MCFedAdagrad(MCMixin,FedAdagrad):
-    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
-        mlflow_logger = MlflowLogger()
-        checkpointer = Checkpointer(checkpoint_dir)
+    def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
         super().__init__(mlflow_logger, checkpointer, **kwargs)
 
 
 class MCFedAdam(MCMixin,FedAdam):
-    def __init__(self, checkpoint_dir: str, **kwargs) -> None:
-        mlflow_logger = MlflowLogger()
-        checkpointer = Checkpointer(checkpoint_dir)
+    def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
         super().__init__(mlflow_logger, checkpointer, **kwargs)
