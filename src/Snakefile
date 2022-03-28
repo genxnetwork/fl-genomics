@@ -76,7 +76,7 @@ rule server:
     input: 
         config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
     resources:
-        time        = "00:20:00",
+        time        = "00:40:00",
         mem_mb      = 12000,
         partition   = "cpu"
     threads: 1
@@ -107,7 +107,7 @@ NODE_RESOURCES = {
     '2': {'partition': 'gpu', 'mem_mb': 64000, 'gpus': 1},
     '3': {'partition': 'gpu', 'mem_mb': 36000, 'gpus': 1},
     '4': {'partition': 'gpu', 'mem_mb': 24000, 'gpus': 1},
-    '5': {'partition': 'cpu', 'mem_mb': 16000, 'gpus': 0},
+    '5': {'partition': 'gpu', 'mem_mb': 16000, 'gpus': 1},
     '6': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
     '7': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
 }
@@ -130,7 +130,7 @@ rule node:
         cov_train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv",
         cov_val     = "covariates/{phenotype}/node_{node}/fold_{fold}_val.tsv",
     resources:
-        time        = "00:20:00",
+        time        = "00:40:00",
         mem_mb      = get_mem_mb,
         partition   = get_partition,
         gpus        = get_gpus
