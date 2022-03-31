@@ -60,16 +60,16 @@ class BaseNet(LightningModule):
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
-        mlflow.log_metric('local_train_loss', avg_loss, self._fl_current_epoch())
-        mlflow.log_metric('local_raw_loss', avg_raw_loss, self._fl_current_epoch())
-        mlflow.log_metric('local_reg', avg_reg, self._fl_current_epoch())
+        mlflow.log_metric('train_loss', avg_loss, self._fl_current_epoch())
+        mlflow.log_metric('raw_loss', avg_raw_loss, self._fl_current_epoch())
+        mlflow.log_metric('reg', avg_reg, self._fl_current_epoch())
         mlflow.log_metric('lr', self._get_current_lr(), self._fl_current_epoch())
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
-        mlflow.log_metric('local_val_loss', avg_loss, self._fl_current_epoch())
-        self.log('val_loss', avg_loss)    
+        mlflow.log_metric('val_loss', avg_loss, self._fl_current_epoch())
+        self.log('val_loss', avg_loss, prog_bar=True)    
 
     def _fl_current_epoch(self):
         return self.current_round * self.scheduler_params['epochs_in_round'] + self.current_epoch
@@ -92,10 +92,10 @@ class BaseNet(LightningModule):
                                                         max_lr=self.optim_params['lr'],
                                                         div_factor=self.scheduler_params['div_factor'],
                                                         final_div_factor=self.scheduler_params['final_div_factor'],
+                                                        anneal_strategy='linear',
                                                         total_steps=int(self.scheduler_params['rounds']*(1.5*self.scheduler_params['epochs_in_round'])+2),
                                                         pct_start=0.1,
                                                         last_epoch=self.current_round*self.scheduler_params['epochs_in_round'],
-                                                        #last_epoch=self.curren
                                                         cycle_momentum=False)
         return [optimizer], [scheduler]
 
@@ -157,7 +157,7 @@ class MLPRegressor(BaseNet):
         self.scheduler_params = scheduler_params
 
     def forward(self, x):
-        x = torch.sigmoid(self.input(x))
+        x = relu(self.input(x))
         return self.hidden(x)
 
     def regularization(self):

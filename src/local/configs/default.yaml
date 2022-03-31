@@ -30,11 +30,11 @@ data:
   
 
 model:
-  precision: 16
+  precision: 32
   batch_size: 1024
-  max_epochs: 250
-  hidden_size: 100
-  alpha: 0.05
+  max_epochs: 64
+  hidden_size: 256
+  alpha: 1e-6
   patience: 10
     
 experiment:
@@ -48,10 +48,10 @@ experiment:
   optimizer:
     name: adamw
     lr: 1e-3
-    weight_decay: 1e-3
+    weight_decay: 1e-2
   scheduler:
     name: one_cycle_lr
-    rounds: 160
-    epochs_in_round: 4
+    rounds: ${model.max_epochs}
+    epochs_in_round: 1
     div_factor: 25
-    final_div_factor: 1e+4
+    final_div_factor: 1e+5

@@ -6,6 +6,7 @@ import mlflow
 from mlflow.xgboost import autolog
 from numpy import hstack
 from sklearn.linear_model import LassoCV
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
@@ -33,7 +34,7 @@ class LocalExperiment():
         self.logger = logging.getLogger()
             
     def start_mlflow_run(self):
-        mlflow.set_experiment('local')
+        mlflow.set_experiment('local-mlp-standing-height')
         feature_string = f'{self.cfg.experiment.snp_count} SNPs ' if self.cfg.experiment.include_genotype  \
             else '' + 'covariates' if self.cfg.experiment.include_covariates else ''
         self.run = mlflow.start_run(tags={
@@ -52,7 +53,10 @@ class LocalExperiment():
         self.y_train = load_phenotype(self.cfg.data.phenotype.train)
         self.y_val = load_phenotype(self.cfg.data.phenotype.val)
         self.y_test = load_phenotype(self.cfg.data.phenotype.test)
-        
+        scaler = StandardScaler()
+        self.y_train = scaler.fit_transform(self.y_train.reshape(-1, 1)).squeeze()
+        self.y_val = scaler.transform(self.y_val.reshape(-1, 1)).squeeze()
+        self.y_test = scaler.transform(self.y_test.reshape(-1, 1)).squeeze()
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
         
         if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
@@ -185,6 +189,10 @@ class NNExperiment(LocalExperiment):
         self.data_module = DataModule(self.X_train, self.X_val, self.X_test, self.y_train, self.y_val, self.y_test, batch_size=self.cfg.model.batch_size)
         
     def train(self):
+        mlflow.log_params({'model': self.cfg.model})
+        mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
+        mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
+        
         input_size = self.X_train.shape[1]
         self.model = MLPRegressor(input_size=input_size,
                                   hidden_size=self.cfg.model.hidden_size,
@@ -198,8 +206,21 @@ class NNExperiment(LocalExperiment):
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
         print("Fitted")
+        self.load_best_model()
+        print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
+
+    def load_best_model(self):
+        self.model = MLPRegressor.load_from_checkpoint(
+            self.trainer.checkpoint_callback.best_model_path,
+            input_size=self.X_train.shape[1],
+            hidden_size=self.cfg.model.hidden_size,
+            l1=self.cfg.model.alpha,
+            optim_params=self.cfg.experiment.optimizer,
+            scheduler_params=self.cfg.experiment.scheduler
+        )
         
     def eval_and_log(self):
+        self.model.eval()
         train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
         
         train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
@@ -229,8 +250,8 @@ xgb_kwargs_dict = {
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
-    'lasso': simple_estimator_decorator(LassoCV),
-    'xgboost': xgboost_decorator(xgb_kwargs_dict),
+    #'lasso': simple_estimator_decorator(LassoCV),
+    #'xgboost': xgboost_decorator(xgb_kwargs_dict),
     'mlp': NNExperiment
 }
 
