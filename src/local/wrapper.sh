@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --job-name ub_local_experiment # good manners rule 
+#SBATCH --job-name ukb_local_experiment # good manners rule 
 #SBATCH --partition cpu # one of gpu, gpu_devel 
 #SBATCH --nodes 1 # amount of nodes allocated 
-#SBATCH --time 3:00:00 # hh:mm:ss, walltime 
-#SBATCH --mem 64000
+#SBATCH --time 7:00:00 # hh:mm:ss, walltime 
+#SBATCH --mem $MEM 
 #SBATCH --cpus-per-task 1
 #SBATCH --export ALL
 

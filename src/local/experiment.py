@@ -30,7 +30,7 @@ class LocalExperiment():
         self.logger = logging.getLogger()
             
     def start_mlflow_run(self):
-        mlflow.set_experiment('local')
+        mlflow.set_experiment(f'local_{self.cfg.model.name}')
         feature_string = f'{self.cfg.experiment.snp_count} SNPs ' if self.cfg.experiment.include_genotype  \
             else '' + 'covariates' if self.cfg.experiment.include_covariates else ''
         self.run = mlflow.start_run(tags={
@@ -161,7 +161,7 @@ class XGBExperiment(LocalExperiment):
     def train(self):
         self.logger.info("Training")
         autolog()
-        self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=20, verbose=True)
+        self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=5, verbose=True)
 
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {

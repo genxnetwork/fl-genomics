@@ -4,9 +4,11 @@ from omegaconf.listconfig import ListConfig
 from itertools import product
 import subprocess
 from io import StringIO
+import os
 
-def calculate_memory(arg_list):
+def calculate_memory(node_index, split, snp_count):
     node_size_dict = {
+    'uneven_split': {
         0: 6103,
         1: 1199,
         2: 171578,
@@ -15,21 +17,45 @@ def calculate_memory(arg_list):
         5: 21444,
         6: 10717,
         7: 3432
-    }
+    },
+    'ethnic_split': {
+        0: 343858,
+        1: 6139,
+        2: 6086,
+        3: 1201,
+        4: 30317 
+    }}
     
-    for item in args_list:
-        if item.split('=')[0].split('.')[-1] == 'node_index':
-            node_index = item.split('=')[-1]
-        if item.split('=')[0].split('.')[-1] == 'snp_count':
-            snp_count = item.split('=')[-1]
-    
-    return node_size_dict[node_index]*snp_count
+    mem = int(5000+node_size_dict[split][node_index]*snp_count/32000)
+    return mem
 
 def append_args_to_wrapper(arg_list):
-    with open('/trinity/home/s.mishra/uk-biobank/src/local/wrapper.sh', 'r') as f:
+    with open(f"/trinity/home/{os.environ['USER']}/uk-biobank/src/local/wrapper.sh", 'r') as f:
         wrapper=f.read().rstrip()+" "
 
-    wrapper+=" ".join(arg_list)    
+    run_experiment = None 
+    
+    for arg in arg_list:
+        if arg.split('=')[0] == 'model.name':
+            model_name = arg.split('=')[1]
+        if arg.split('=')[0] == 'node_index':
+            node_index = int(arg.split('=')[1])
+        if arg.split('=')[0] == 'experiment.snp_count':
+            snp_count = int(arg.split('=')[1])
+        if arg.split('=')[0] == 'experiment.run':
+            run_experiment = arg.split('=')[1]
+        if arg.split('=')[0] == 'split_dir':
+            split = arg.split('=')[1].split('/')[-1]
+
+    mem = calculate_memory(node_index, split, snp_count)
+    wrapper = wrapper.replace('$MEM', str(mem))
+    wrapper += f"+model={model_name} "
+
+    if run_experiment:
+        arg_list.remove(f'experiment.run={run_experiment}')
+        wrapper += f"+experiment={run_experiment} "
+    
+    wrapper += " ".join(arg_list) 
     return wrapper
 
 @hydra.main(config_path='configs/grid', config_name='default')
@@ -50,7 +76,6 @@ def run_grid(cfg: DictConfig):
     traverse(cfg)
     
     for arg_list in list(product(*to_multiply)):
-        all_args = list(arg_list)+to_add+[f"+model={cfg.model.name}"]
         print(list(arg_list)+to_add)
         wrapper = append_args_to_wrapper(list(arg_list)+to_add)
         print(wrapper)
@@ -58,9 +83,10 @@ def run_grid(cfg: DictConfig):
                                  input=bytes(wrapper, 'utf-8'),
                                  stdout=subprocess.PIPE,
                                  stderr=subprocess.PIPE,
-                                 cwd='/trinity/home/s.mishra/uk-biobank/src')
+                                 cwd=f"/trinity/home/{os.environ['USER']}/uk-biobank/src")
         
         print(process.stderr)
         print(process.stdout)
+
 if __name__ == '__main__':
     run_grid()
