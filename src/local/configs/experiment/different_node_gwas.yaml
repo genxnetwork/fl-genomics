@@ -1,6 +1,6 @@
 # @package _global_
 
-gwas_node_index: 2
+gwas_node_index: 0 
 
 data:
   genotype:

@@ -1,0 +1,16 @@
+# @package _global_
+
+split_dir: /gpfs/gpfs0/ukb_data/test/ethnic_split
+node_index: [1, 2, 3, 4]
+experiment:
+  snp_count: [1000, 5000, 10000]
+  run: different_node_gwas
+model:
+  name: [lasso, xgboost]
+  #params:
+  #  alpha: 0.1
+# data:
+#   node_id: [0, 4]
+#   snp_count: [100, 200]
+# model:
+#   name: [lasso, xgboost]

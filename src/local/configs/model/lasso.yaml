@@ -1,0 +1,6 @@
+# @package _global_
+
+model:
+  name: lasso
+  params:
+    eps: 1e-3
