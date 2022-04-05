@@ -1,0 +1,9 @@
+
+precision: 32
+batch_size: 512
+max_epochs: 64
+hidden_size: 512
+alpha_start: -3
+alpha_end: -1
+init_limit: 0.01
+patience: 10
