@@ -21,6 +21,7 @@ mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 # }
 SELECTED_COLS = ['tags.phenotype', 'tags.model', 'tags.dataset', 'tags.snp_count', 'tags.mlflow.source.name',
                  'tags.different_node_gwas', 'metrics.test_r2']
+GRAPH_ELEMENTS = ['x', 'y', 'color', 'dash_line', 'shape']
 # exp_run_dict = {exp_name: pd.read_csv(f'/home/dkolobok/Downloads/{exp_name}.csv')['Run ID'].tolist() for exp_name in EXP_RUN_DICT.keys()}
 
 
@@ -29,74 +30,50 @@ def mlflow_get_results_table(client):
     df = mlflow.search_runs(experiment_ids=[exp_id])
     return df[SELECTED_COLS]
 
-
 df = mlflow_get_results_table(client=MlflowClient())
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = Dash(__name__, external_stylesheets=external_stylesheets)
+
+
+# create html blocks for columns
+block_list = []
+for col_name in df.columns:
+    block = html.Div([
+        html.Div(html.P(col_name), style={'width': '33%', 'display': 'inline-block'}),
+        html.Div(
+            dcc.Dropdown(GRAPH_ELEMENTS + ['filter'],
+                         'filter',
+                         id=f'dd_{col_name}_element'),
+            style={'width': '33%', 'display': 'inline-block'}
+        ),
+        html.Div(
+            dcc.Dropdown(df[col_name].unique(),
+                         df[col_name].iloc[0],
+                         id=f'dd_{col_name}_value'),
+            style={'width': '33%', 'display': 'inline-block'}
+        )
+    ])
+
+
+    # @app.callback(
+    #     Output(f'dd_{col_name}_value', 'disabled'),
+    #     Input(f'dd_{col_name}_element', 'value')
+    # )
+    # def update_filter_value(filter_by):
+    #     return filter_by != 'filter'
+
+    block_list.append(block)
+
 app.layout = html.Div([
     html.Div([html.Button('Submit', id='submit_button', n_clicks=0)]),
-    html.Div([
-        html.Div([
-            html.P('x'),
-            dcc.Dropdown(
-                df.columns,
-                'num_snps',
-                id='dd_x',
-            )],
-            style={'width': '20%', 'display': 'inline-block'}),
-        html.Div([
-            html.P('y'),
-            dcc.Dropdown(
-                df.columns,
-                'test_r2',
-                id='dd_y',
-            )],
-            style={'width': '20%', 'display': 'inline-block'}),
-        html.Div([
-            html.P('color'),
-            dcc.Dropdown(
-                df.columns,
-                'num_samples',
-                id='dd_color',
-            )],
-            style={'width': '20%', 'display': 'inline-block'}),
-        html.Div([
-            html.P('line_dash'),
-            dcc.Dropdown(
-                df.columns,
-                'gwas_path',
-                id='dd_line_dash',
-            )],
-            style={'width': '20%', 'display': 'inline-block'}),
-        html.Div([
-            html.P('filter by'),
-            dcc.Dropdown(
-                df.columns,
-                'model',
-                id='dd_filter_by',
-            ),
-            html.P('filter value'),
-            dcc.Dropdown(
-                df.model.unique(),
-                'xgboost',
-                id='dd_filter_value',
-            )],
-            style={'width': '20%', 'display': 'inline-block'}),
-        ]),
-
+    html.Div(block_list, style={'display': 'inline-block', 'width': '30%'}),
     html.Div([
         dcc.Graph(id='results_comparison'),
     ], style={'display': 'inline-block', 'width': '100%'})
 ])
 
 
-@app.callback(
-    Output('dd_filter_value', 'options'),
-    Input('dd_filter_by', 'value')
-)
-def update_filter_value(filter_by):
-    return df[filter_by].unique().tolist()
 
 
 @app.callback(
