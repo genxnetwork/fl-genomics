@@ -9,3 +9,4 @@ model:
     gamma: 0
     eta: 0.3
     n_estimators: 1500
+  early_stopping_rounds: 10

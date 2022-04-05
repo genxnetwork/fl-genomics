@@ -171,7 +171,8 @@ class XGBExperiment(LocalExperiment):
     def train(self):
         self.logger.info("Training")
         autolog()
-        self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=5, verbose=True)
+        self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)],
+                       early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
 
 class NNExperiment(LocalExperiment):
     def __init__(self, cfg):
