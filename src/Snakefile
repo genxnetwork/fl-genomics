@@ -25,6 +25,9 @@ config_names, = glob_wildcards(CONFIG_DIR + "/{config}.yaml")
 config_names = [name for name in config_names if name in MODEL_CONFIGS]
 
 
+envvars:
+    "FL_NODE_COUNT"
+
 def parse_configs(config_dir: str):
     representations = []
     for config_file in os.listdir(config_dir):
@@ -73,8 +76,8 @@ rule server:
     input: 
         config      = expand("{config_dir}/{config}.yaml", config_dir=CONFIG_DIR, config=config_names)
     resources:
-        time        = "00:20:00",
-        mem_mb      = 6000,
+        time        = "00:40:00",
+        mem_mb      = 12000,
         partition   = "cpu"
     threads: 1
     log: "logs/server/{phenotype}/fold_{fold}/{params_hash}/server_{snp_count}.log"
@@ -104,7 +107,7 @@ NODE_RESOURCES = {
     '2': {'partition': 'gpu', 'mem_mb': 64000, 'gpus': 1},
     '3': {'partition': 'gpu', 'mem_mb': 36000, 'gpus': 1},
     '4': {'partition': 'gpu', 'mem_mb': 24000, 'gpus': 1},
-    '5': {'partition': 'cpu', 'mem_mb': 16000, 'gpus': 0},
+    '5': {'partition': 'gpu', 'mem_mb': 16000, 'gpus': 1},
     '6': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
     '7': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
 }
@@ -127,7 +130,7 @@ rule node:
         cov_train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv",
         cov_val     = "covariates/{phenotype}/node_{node}/fold_{fold}_val.tsv",
     resources:
-        time        = "00:20:00",
+        time        = "00:40:00",
         mem_mb      = get_mem_mb,
         partition   = get_partition,
         gpus        = get_gpus
