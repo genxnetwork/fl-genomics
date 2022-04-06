@@ -80,7 +80,8 @@ def update_graph(n_clicks, elements, values):
                     dfc = dfc[dfc.iloc[:, i] == value]
             else:
                 line_args[element] = dfc.columns[i]
-        fig = px.line(dfc.sort_values(dfc.columns[elements.index('x')]), **line_args, hover_data=df.columns)
+        fig = px.line(dfc.sort_values(dfc.columns[elements.index('x')]), **line_args, hover_data=df.columns,
+                      markers=True)
         fig.update_xaxes(type='category')
         return fig
     return {}
