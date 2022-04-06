@@ -1,0 +1,12 @@
+# @package _global_
+
+model:
+  name: xgboost
+  params:
+    max_depth: 2 
+    alpha: 0.5
+    subsample: 1
+    gamma: 0
+    eta: 0.3
+    n_estimators: 1500
+  early_stopping_rounds: 10

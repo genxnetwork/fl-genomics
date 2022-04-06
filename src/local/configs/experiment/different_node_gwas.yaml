@@ -1,6 +1,6 @@
 # @package _global_
 
-gwas_node_index: 2
+gwas_node_index: 0 
 
 data:
   genotype:
@@ -10,3 +10,6 @@ data:
     test: ${.root}_test
     
   gwas: ${split_dir}/gwas/${phenotype.name}/node_${gwas_node_index}/fold_${fold_index}.gwas.tsv
+
+experiment:
+  different_node_gwas: True

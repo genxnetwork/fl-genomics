@@ -1,0 +1,8 @@
+# @package _global_
+
+split_dir: /gpfs/gpfs0/ukb_data/test/ethnic_split
+node_index: [0, 1, 2, 3]
+experiment:
+  snp_count: [1000, 2000, 5000, 10000]
+model:
+  name: [mlp, lasso, xgboost]
