@@ -197,7 +197,7 @@ class NNExperiment(LocalExperiment):
         mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
         
         self.create_model()
-        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.experiment.model}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")
@@ -293,14 +293,14 @@ class LassoNetExperiment(NNExperiment):
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
-    'lasso': simple_estimator_decorator(LassoCV),
-    'xgboost': xgboost_decorator(xgb_kwargs_dict),
+    'lasso': simple_estimator_factory(LassoCV),
+    'xgboost': XGBExperiment,
     'mlp': NNExperiment,
     'lassonet': LassoNetExperiment
 }
 
             
-@hydra.main(config_path='configs', config_name='lassonet')
+@hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
     assert cfg.model.name in experiment_dict.keys()
     experiment = experiment_dict[cfg.model.name](cfg)
