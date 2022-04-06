@@ -1,0 +1,11 @@
+# @package _global_
+
+gwas_node_index: 0
+
+split_dir: /gpfs/gpfs0/ukb_data/test/uneven_split
+node_index: [0, 1, 2, 3, 4]
+experiment:
+  snp_count: [1000, 2000, 5000, 10000]
+  run: different_node_gwas
+model:
+  name: [mlp, lasso, xgboost]

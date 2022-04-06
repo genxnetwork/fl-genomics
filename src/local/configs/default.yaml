@@ -1,5 +1,6 @@
 split_dir: /gpfs/gpfs0/ukb_data/test/uneven_split
-node_index: 4
+node_index: 0
+gwas_node_index: node_index
 fold_index: 0
 max_snps: 10000
 
@@ -29,18 +30,12 @@ data:
   
 
 model:
-    precision: 16
-    batch_size: 1024
-    max_epochs: 500
-    hidden_size: 32
-    alpha_start: -3
-    alpha_end: -1
-    patience: 10
+  name: ???
+  params: {}
     
 experiment:
-    model: lasso
-    include_genotype: True
-    include_covariates: True
-    snp_count: 1000
-    random_state: 0
-    gpus: 1
+  include_genotype: True
+  include_covariates: True
+  different_node_gwas: False
+  snp_count: 1000
+  random_state: 0

@@ -1,0 +1,23 @@
+# @package _global_
+
+model:
+  name: mlp
+  precision: 32
+  batch_size: 1024
+  max_epochs: 96
+  hidden_size: 2048
+  alpha: 5e-5
+  patience: 10
+  
+experiment:
+  gpus: 1
+  optimizer:
+    name: adamw
+    lr: 1e-3
+    weight_decay: 1e-2
+  scheduler:
+    name: one_cycle_lr
+    rounds: ${model.max_epochs}
+    epochs_in_round: 1
+    div_factor: 25
+    final_div_factor: 1e+5
