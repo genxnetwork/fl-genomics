@@ -1,6 +1,6 @@
 experiment:
   description: MLP model
-  name: federated-standing-height
+  name: federated_mlp_standing-height
   missing: zero
   random_state: 4
 server:
