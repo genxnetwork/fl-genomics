@@ -6,11 +6,16 @@ import mlflow
 from mlflow.xgboost import autolog
 from numpy import hstack
 from sklearn.linear_model import LassoCV
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
+import torch
 
-
+from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
+from nn.lightning import DataModule
+from nn.train import prepare_trainer
+from nn.models import MLPRegressor
 
 class LocalExperiment():
     """
@@ -30,18 +35,20 @@ class LocalExperiment():
         self.logger = logging.getLogger()
             
     def start_mlflow_run(self):
-        mlflow.set_experiment('local')
-        feature_string = f'{self.cfg.experiment.snp_count} SNPs ' if self.cfg.experiment.include_genotype  \
-            else '' + 'covariates' if self.cfg.experiment.include_covariates else ''
+        split = self.cfg.split_dir.split('/')[-1]
+        num_samples = node_size_dict[split][self.cfg.node_index]
+        mlflow.set_experiment(f'local-models')
         self.run = mlflow.start_run(tags={
-                            'name': self.cfg.experiment.model,
-                            'split': self.cfg.split_dir.split('/')[-1],
-                            'phenotype': self.cfg.phenotype.name,
-                            'node_index': str(self.cfg.node_index),
-                            'features': feature_string,
-                            'snp_count': str(self.cfg.experiment.snp_count),
-                            'gwas_path': self.cfg.data.gwas}
-                            )
+            'model': self.cfg.model.name,
+            'split': split,
+            'phenotype': self.cfg.phenotype.name,
+            'node_index': str(self.cfg.node_index),
+            'snp_count': str(self.cfg.experiment.snp_count),
+            'sample_count': str(round(num_samples, -2)),
+            'sample_count_exact': str(num_samples),
+            'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
+            'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas))}
+        )
 
     def load_data(self):
         self.logger.info("Loading data")
@@ -49,7 +56,10 @@ class LocalExperiment():
         self.y_train = load_phenotype(self.cfg.data.phenotype.train)
         self.y_val = load_phenotype(self.cfg.data.phenotype.val)
         self.y_test = load_phenotype(self.cfg.data.phenotype.test)
-        
+        scaler = StandardScaler()
+        self.y_train = scaler.fit_transform(self.y_train.reshape(-1, 1)).squeeze()
+        self.y_val = scaler.transform(self.y_val.reshape(-1, 1)).squeeze()
+        self.y_test = scaler.transform(self.y_test.reshape(-1, 1)).squeeze()
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
         
         if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
@@ -134,7 +144,7 @@ class LocalExperiment():
         self.eval_and_log()
     
 
-def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
+def simple_estimator_factory(model):
     """Returns a SimpleEstimatorExperiment for a given model class, expected
     to have the same interface as scikit-learn estimators.
     
@@ -145,7 +155,7 @@ def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
     class SimpleEstimatorExperiment(LocalExperiment):
         def __init__(self, cfg):
             LocalExperiment.__init__(self, cfg)
-            self.model = model(**model_kwargs_dict)
+            self.model = model(**self.cfg.model.params)
 
         def train(self):
             self.logger.info("Training")
@@ -153,43 +163,87 @@ def simple_estimator_factory(model, model_kwargs_dict: dict=dict()):
        
     return SimpleEstimatorExperiment
 
-def xgboost_factory(xgb_kwargs_dict: dict=dict()):
-    """Returns XGBExperiment class containing a regressor with model parameters specified in
-    a given dictionary
-    
-    Args:
-        xgb_kwargs_dict: Dictionary of parameters passed during model initialization
-    """
-    class XGBExperiment(LocalExperiment):
-        def __init__(self, cfg):
-            LocalExperiment.__init__(self, cfg)
-            self.model = XGBRegressor(**xgb_kwargs_dict)
+class XGBExperiment(LocalExperiment):
+    def __init__(self, cfg):
+        LocalExperiment.__init__(self, cfg)
+        self.model = XGBRegressor(**self.cfg.model.params)
 
-        def train(self):
-            self.logger.info("Training")
-            autolog()
-            self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)], early_stopping_rounds=20, verbose=True)
-            
-    return XGBExperiment
+    def train(self):
+        self.logger.info("Training")
+        autolog()
+        self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)],
+                       early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
 
-# todo: model configs from hydra?            
-xgb_kwargs_dict = {
-    'max_depth': 3,
-    'alpha': 0.5,
-    'n_estimators': 1000
-}
+class NNExperiment(LocalExperiment):
+    def __init__(self, cfg):
+        LocalExperiment.__init__(self, cfg)
+
+    def load_data(self):
+        LocalExperiment.load_data(self)
+        self.data_module = DataModule(self.X_train, self.X_val, self.X_test, self.y_train, self.y_val, self.y_test, batch_size=self.cfg.model.batch_size)
+        
+    def train(self):
+        mlflow.log_params({'model': self.cfg.model})
+        mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
+        mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
+        
+        input_size = self.X_train.shape[1]
+        self.model = MLPRegressor(input_size=input_size,
+                                  hidden_size=self.cfg.model.hidden_size,
+                                  l1=self.cfg.model.alpha,
+                                  optim_params=self.cfg.experiment.optimizer,
+                                  scheduler_params=self.cfg.experiment.scheduler
+                                 )
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=10, log_every_n_steps=5)
+        
+        print("Fitting")
+        self.trainer.fit(self.model, self.data_module)
+        print("Fitted")
+        self.load_best_model()
+        print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
+
+    def load_best_model(self):
+        self.model = MLPRegressor.load_from_checkpoint(
+            self.trainer.checkpoint_callback.best_model_path,
+            input_size=self.X_train.shape[1],
+            hidden_size=self.cfg.model.hidden_size,
+            l1=self.cfg.model.alpha,
+            optim_params=self.cfg.experiment.optimizer,
+            scheduler_params=self.cfg.experiment.scheduler
+        )
+        
+    def eval_and_log(self):
+        self.model.eval()
+        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
+        
+        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
+        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
+        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+                
+        r2_train = r2_score(self.y_train, train_preds)
+        r2_val = r2_score(self.y_val, val_preds)
+        r2_test = r2_score(self.y_test, test_preds)
+        
+        print(f"Train r2: {r2_train}")
+        mlflow.log_metric('train_r2', r2_train)
+        print(f"Val r2: {r2_val}")
+        mlflow.log_metric('val_r2', r2_val)
+        print(f"Test r2: {r2_test}")
+        mlflow.log_metric('test_r2', r2_test)
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
-    'xgboost': xgboost_factory(xgb_kwargs_dict)
+    'xgboost': XGBExperiment,
+    'mlp': NNExperiment
 }
 
             
 @hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
-    assert cfg.experiment.model in experiment_dict.keys()
-    experiment = experiment_dict[cfg.experiment.model](cfg)
+    assert cfg.model.name in experiment_dict.keys()
+    experiment = experiment_dict[cfg.model.name](cfg)
     experiment.run()   
     
 if __name__ == '__main__':
