@@ -15,6 +15,7 @@ GRAPH_ELEMENTS = ['x', 'y', 'color', 'line_dash', 'symbol']
 
 
 def mlflow_get_results_table(client):
+    """ Retrieve local models from an mlflow client """
     exp_id = client.get_experiment_by_name("local-models").experiment_id
     df = mlflow.search_runs(experiment_ids=[exp_id])
     df[['tags.snp_count', 'tags.sample_count']] = df[['tags.snp_count', 'tags.sample_count']].astype(int)
@@ -55,6 +56,7 @@ for col_name in df.columns:
     ])
     block_list.append(block)
 
+# app layout
 app.layout = html.Div([
     html.Div([html.Button('Submit', id='submit_button', n_clicks=0)]),
     html.Div(block_list, style={'display': 'inline-block', 'width': '30%'}),
@@ -64,6 +66,7 @@ app.layout = html.Div([
 ])
 
 
+# app callbacks
 @app.callback(
     Output('results_comparison', 'figure'),
     Input('submit_button', 'n_clicks'),
@@ -88,4 +91,7 @@ def update_graph(n_clicks, elements, values):
 
 
 if __name__ == '__main__':
+    # run and open the link that appears in console in a browser
+    # there assign filter+value or graph elements (x-axis, y-axis, color, etc.) to columns via dropdowns
+    # then press submit
     app.run_server(debug=True)
