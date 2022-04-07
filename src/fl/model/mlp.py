@@ -58,18 +58,18 @@ class BaseNet(LightningModule):
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
-        mlflow.log_metric('local_train_loss', avg_loss, self._fl_current_epoch())
-        mlflow.log_metric('local_raw_loss', avg_raw_loss, self._fl_current_epoch())
-        mlflow.log_metric('local_reg', avg_reg, self._fl_current_epoch())
-        mlflow.log_metric('lr', self._get_current_lr(), self._fl_current_epoch())
+        mlflow.log_metric('train_loss', avg_loss, self.fl_current_epoch())
+        mlflow.log_metric('raw_loss', avg_raw_loss, self.fl_current_epoch())
+        mlflow.log_metric('reg', avg_reg, self.fl_current_epoch())
+        mlflow.log_metric('lr', self._get_current_lr(), self.fl_current_epoch())
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
-        mlflow.log_metric('local_val_loss', avg_loss, self._fl_current_epoch())
+        mlflow.log_metric('val_loss', avg_loss, self.fl_current_epoch())
         self.log('val_loss', avg_loss)
 
-    def _fl_current_epoch(self):
+    def fl_current_epoch(self):
         return self.current_round * self.scheduler_params['epochs_in_round'] + self.current_epoch
 
     def _get_current_lr(self):
