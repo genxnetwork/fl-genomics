@@ -6,7 +6,6 @@ import mlflow
 from mlflow.xgboost import autolog
 from numpy import hstack
 from sklearn.linear_model import LassoCV
-from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
@@ -57,10 +56,7 @@ class LocalExperiment():
         self.y_train = load_phenotype(self.cfg.data.phenotype.train)
         self.y_val = load_phenotype(self.cfg.data.phenotype.val)
         self.y_test = load_phenotype(self.cfg.data.phenotype.test)
-        scaler = StandardScaler()
-        self.y_train = scaler.fit_transform(self.y_train.reshape(-1, 1)).squeeze()
-        self.y_val = scaler.transform(self.y_val.reshape(-1, 1)).squeeze()
-        self.y_test = scaler.transform(self.y_test.reshape(-1, 1)).squeeze()
+        
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
         
         if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
