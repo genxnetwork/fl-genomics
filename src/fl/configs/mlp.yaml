@@ -3,6 +3,57 @@ experiment:
   name: federated_mlp_standing-height
   missing: zero
   random_state: 4
+  snp_count: 2000
+fold:
+  index: 0
+node:
+  index: ???
+  model:
+    name: mlp_regressor
+    batch_size: 256
+    l1: 0.0
+    hidden_size: 4096
+  optimizer:
+    name: adamw
+    lr: 1e-4
+    weight_decay: 1e-3
+  scheduler:
+    name: one_cycle_lr
+    rounds: 16
+    epochs_in_round: 4
+    div_factor: 25
+    final_div_factor: 1e+4
+  training:
+    gpus:
+    - 0
+    max_epochs: ${node.scheduler.epochs_in_round}
+    enable_progress_bar: False
+    enable_model_summary: False
+dataset:
+  split: 
+    name: 'uneven_split' 
+    path: '/gpfs/gpfs0/ukb_data/test/${.name}'
+  phenotype:
+    name: standing_height
+    root: '${dataset.split.path}/phenotypes/${.name}/node_${node.index}/fold_${fold.index}'
+    train: '${.root}_train.tsv'
+    val: '${.root}_val.tsv'
+    test: '${.root}_test.tsv'
+  covariates:
+    names:
+      - age
+      - sex
+    root: '${dataset.split.path}/covariates/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}'
+    train: '${.root}_train.tsv'
+    val: '${.root}_val.tsv'
+    test: '${.root}_test.tsv'
+  pfile:
+    root: '${dataset.split.path}/genotypes/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}/union/top_${experiment.snp_count}'
+    train: '${.root}_train'
+    val: '${.root}_val'
+    test: '${.root}_test'
+  gwas: '${dataset.split.path}/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
+
 server:
   rounds: 16
   strategy:
@@ -34,25 +85,4 @@ server:
   #     eta_l: 1e-1
   #     tau: 1e-9  
 
-node:
-  model:
-    name: mlp_regressor
-    batch_size: 256
-    l1: 0.0
-    hidden_size: 4096
-  optimizer:
-    name: adamw
-    lr: 1e-4
-    weight_decay: 1e-3
-  scheduler:
-    name: one_cycle_lr
-    rounds: 16
-    epochs_in_round: 4
-    div_factor: 25
-    final_div_factor: 1e+4
-  training:
-    gpus:
-    - 0
-    max_epochs: ${node.scheduler.epochs_in_round}
-    enable_progress_bar: False
-    enable_model_summary: False
+

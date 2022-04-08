@@ -8,12 +8,12 @@ from flwr.client import NumPyClient
 from sklearn.metrics import mean_squared_error, r2_score
 import mlflow
 
-from model.mlp import BaseNet
-from datasets.lightning import DataModule
+from nn.models import BaseNet
+from fl.datasets.lightning import DataModule
 
 
 class FLClient(NumPyClient):
-    def __init__(self, server: str, model: BaseNet, data_module: DataModule, logger: TensorBoardLogger, model_params: Dict, training_params: Dict):
+    def __init__(self, server: str, model: BaseNet, data_module: DataModule, model_params: Dict, training_params: Dict):
         """Trains {model} in federated setting
 
         Args:
@@ -28,7 +28,6 @@ class FLClient(NumPyClient):
         self.model = model
         self.data_module = data_module
         self.best_model_path = None
-        self.logger = logger
         self.model_params = model_params
         self.training_params = training_params
 
@@ -43,7 +42,7 @@ class FLClient(NumPyClient):
     def fit(self, parameters, config):
         self.set_parameters(parameters)
         self.model.current_round = config['current_round']
-        trainer = Trainer(logger=self.logger, **self.training_params)
+        trainer = Trainer(logger=False, **self.training_params)
         trainer.fit(self.model, datamodule=self.data_module)
         return self.get_parameters(), self.data_module.train_len(), {}
 
