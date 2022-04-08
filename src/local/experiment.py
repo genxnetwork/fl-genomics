@@ -4,7 +4,7 @@ from sys import stdout
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
-from numpy import hstack
+from numpy import hstack, argmax, amax
 from sklearn.linear_model import LassoCV
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
@@ -268,18 +268,13 @@ class LassoNetExperiment(NNExperiment):
         test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
         
         print(train_preds.shape, val_preds.shape, test_preds.shape)
-        
-        best_train_r2 = -1e+3
-        best_val_r2 = -1e+3
-        best_test_r2 = -1e+3
-        best_col = None
-        for col in range(val_preds.shape[1]):
-            r2_val = r2_score(self.y_val, val_preds[:, col])
-            if r2_val > best_val_r2:
-                best_col = col
-                best_val_r2 = r2_val
-                best_train_r2 = r2_score(self.y_train, train_preds[:, col])
-                best_test_r2 = r2_score(self.y_test, test_preds[:, col])
+        # each preds column correspond to different alpha l1 reg parameter
+        # we select column which gives the best val_r2 and use this column to make test predictions
+        r2_val_list = [r2_score(self.y_val, val_preds[:, col]) for col in range(val_preds.shape[1])]
+        best_col = argmax(r2_val_list)
+        best_val_r2 = amax(r2_val_list)
+        best_train_r2 = r2_score(self.y_train, train_preds[:, best_col])
+        best_test_r2 = r2_score(self.y_test, test_preds[:, best_col])
 
         print(f'Best alpha: {self.model.alphas[best_col]:.6f}')
         print(f"Train r2: {best_train_r2:.4f}")
