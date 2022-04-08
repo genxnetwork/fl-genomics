@@ -51,25 +51,25 @@ class BaseNet(LightningModule):
     
     def calculate_avg_epoch_metric(self, outputs: List[Dict[str, Any]], metric_name: str) -> float:
         total_len = sum(out['batch_len'] for out in outputs)
-        avg_loss = sum(out[metric_name].item()*out['batch_len'] for out in outputs).item()/total_len
+        avg_loss = sum(out[metric_name].item()*out['batch_len'] for out in outputs)/total_len
         return avg_loss
 
     def training_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
-        mlflow.log_metric('train_loss', avg_loss, self._fl_current_epoch())
-        mlflow.log_metric('raw_loss', avg_raw_loss, self._fl_current_epoch())
-        mlflow.log_metric('reg', avg_reg, self._fl_current_epoch())
-        mlflow.log_metric('lr', self._get_current_lr(), self._fl_current_epoch())
+        mlflow.log_metric('train_loss', avg_loss, self.fl_current_epoch())
+        mlflow.log_metric('raw_loss', avg_raw_loss, self.fl_current_epoch())
+        mlflow.log_metric('reg', avg_reg, self.fl_current_epoch())
+        mlflow.log_metric('lr', self._get_current_lr(), self.fl_current_epoch())
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
-        mlflow.log_metric('val_loss', avg_loss, self._fl_current_epoch())
+        mlflow.log_metric('val_loss', avg_loss, self.fl_current_epoch())
         self.log('val_loss', avg_loss, prog_bar=True)    
 
-    def _fl_current_epoch(self):
+    def fl_current_epoch(self):
         return self.current_round * self.scheduler_params['epochs_in_round'] + self.current_epoch
 
     def _get_current_lr(self):
