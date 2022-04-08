@@ -47,8 +47,10 @@ class LocalExperiment():
             'sample_count': str(round(num_samples, -2)),
             'sample_count_exact': str(num_samples),
             'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
-            'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas))}
-        )
+            'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas)),
+            'covariates': str(int(self.cfg.experiment.include_covariates)),
+            'genotype': str(int(self.cfg.experiment.include_genotype))
+        })
 
     def load_data(self):
         self.logger.info("Loading data")
@@ -64,7 +66,7 @@ class LocalExperiment():
         elif self.cfg.experiment.include_genotype:
             self.load_genotype_()
         else:
-            self.load_covariates()
+            self.load_covariates_()
             
         self.logger.info(f"{self.X_train.shape[1]} features loaded")
         
