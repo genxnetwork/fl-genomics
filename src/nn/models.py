@@ -52,7 +52,7 @@ class BaseNet(LightningModule):
         return {'val_loss': loss, 'batch_len': x.shape[0]}
     
     def calculate_avg_epoch_metric(self, outputs: List[Dict[str, Any]], metric_name: str) -> float:
-        total_len = sum(out['batch_len'] for out in outputs).item()
+        total_len = sum(out['batch_len'] for out in outputs)
         avg_loss = sum(out[metric_name].item()*out['batch_len'] for out in outputs).item()/total_len
         return avg_loss
 
