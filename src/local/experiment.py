@@ -37,7 +37,7 @@ class LocalExperiment():
     def start_mlflow_run(self):
         split = self.cfg.split_dir.split('/')[-1]
         num_samples = node_size_dict[split][self.cfg.node_index]
-        mlflow.set_experiment(f'local-models')
+        mlflow.set_experiment(self.cfg.experiment.name)
         self.run = mlflow.start_run(tags={
             'model': self.cfg.model.name,
             'split': split,
