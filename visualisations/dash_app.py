@@ -45,7 +45,7 @@ for col_name in df.columns:
             style={'width': '33%', 'display': 'inline-block'}
         ),
         html.Div(
-            dcc.Dropdown(df[col_name].unique().tolist() + ['All'],
+            dcc.Dropdown(df[col_name].dropna().unique()[:50].tolist() + ['All'],
                          'All',
                          id={
                              'type': 'dd_value',
