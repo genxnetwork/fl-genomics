@@ -34,6 +34,7 @@ model:
   params: {}
     
 experiment:
+  name: local-models
   include_genotype: True
   include_covariates: True
   different_node_gwas: False
