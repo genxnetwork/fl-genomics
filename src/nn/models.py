@@ -1,25 +1,25 @@
 from typing import Dict, Any, List, Tuple, Optional
+import numpy
 from pytorch_lightning import LightningModule
 import torch
 from torch.nn import Linear, BatchNorm1d
+from torch.nn.init import uniform_ as init_uniform_
 from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu
 from torchmetrics import R2Score
 import mlflow
 
 
 class BaseNet(LightningModule):
-    def __init__(self, input_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
+    def __init__(self, input_size: int, optim_params: Dict, scheduler_params: Dict) -> None:
         """Base class for all NN models, should not be used directly
 
         Args:
             input_size (int): Size of input data
-            l1 (float): L1 regularization parameter
             optim_params (Dict): Parameters of optimizer
             scheduler_params (Dict): Parameters of learning rate scheduler
         """        
         super().__init__()
         self.layer = Linear(input_size, 1)
-        self.l1 = l1
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
         self.current_round = 0
@@ -37,13 +37,11 @@ class BaseNet(LightningModule):
         loss = raw_loss + reg
         return {'loss': loss, 'raw_loss': raw_loss.detach(), 'reg': reg.detach(), 'batch_len': x.shape[0]}
 
-    def regularization(self) -> torch.Tensor:
-        """Calculates l1 regularization of input layer by default
+    def calculate_loss(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError('subclasses of BaseNet should implement loss calculation')
 
-        Returns:
-            torch.Tensor: Regularization loss
-        """        
-        return self.l1 * torch.norm(self.layer.weight, p=1)
+    def regularization(self) -> torch.Tensor:
+        raise NotImplementedError('subclasses of BaseNet should implement regularization')
 
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
@@ -111,9 +109,17 @@ class BaseNet(LightningModule):
 
 class LinearRegressor(BaseNet):
     def __init__(self, input_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
-        super().__init__(input_size, l1, optim_params, scheduler_params)
+        super().__init__(input_size, optim_params, scheduler_params)
         self.layer = Linear(input_size, 1)
         self.l1 = l1
+
+    def regularization(self) -> torch.Tensor:
+        """Calculates l1 regularization of input layer by default
+
+        Returns:
+            torch.Tensor: Regularization loss
+        """        
+        return self.l1 * torch.norm(self.layer.weight, p=1)
 
     def calculate_loss(self, y_hat, y):
         return mse_loss(y_hat.squeeze(1), y)
@@ -148,7 +154,7 @@ class LinearClassifier(BaseNet):
 
 class MLPRegressor(BaseNet):
     def __init__(self, input_size: int, hidden_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
-        super().__init__(input_size, l1, optim_params, scheduler_params)
+        super().__init__(input_size, optim_params, scheduler_params)
         self.input = Linear(input_size, hidden_size)
         self.bn = BatchNorm1d(hidden_size)
         self.hidden = Linear(hidden_size, 1)
@@ -166,3 +172,34 @@ class MLPRegressor(BaseNet):
 
     def calculate_loss(self, y_hat, y):
         return mse_loss(y_hat.squeeze(1), y)
+
+
+class LassoNetRegressor(BaseNet):
+    def __init__(self, input_size: int, hidden_size: int, 
+                 optim_params: Dict, scheduler_params: Dict, 
+                 alpha_start: float = -1, alpha_end: float = -1, init_limit: float = 0.01) -> None:
+        super().__init__(input_size, optim_params, scheduler_params)
+        
+        assert alpha_end > alpha_start
+        self.alphas = numpy.logspace(alpha_start, alpha_end, num=hidden_size, endpoint=True, base=10)
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.layer = Linear(self.input_size, self.hidden_size)
+        self.bn = BatchNorm1d(self.input_size)
+        init_uniform_(self.layer.weight, a=-init_limit, b=init_limit) 
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.layer(self.bn(x))
+        return out 
+
+    def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        # print(f'SHAPES IN LOSS')
+        # print(y.shape)
+        y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
+        # print(y.shape, y_hat.shape)
+        return mse_loss(y_hat, y)
+    
+    def regularization(self) -> torch.Tensor:
+        alphas = torch.tensor(self.alphas, device=self.layer.weight.device, dtype=torch.float32)
+        l1 = torch.dot(alphas, torch.norm(self.layer.weight, p=1, dim=1))/self.hidden_size 
+        return l1

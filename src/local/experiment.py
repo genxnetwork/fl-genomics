@@ -4,7 +4,7 @@ from sys import stdout
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
-from numpy import hstack
+from numpy import hstack, argmax, amax
 from sklearn.linear_model import LassoCV
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
@@ -15,7 +15,8 @@ from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
-from nn.models import MLPRegressor
+from nn.models import MLPRegressor, LassoNetRegressor
+
 
 class LocalExperiment():
     """
@@ -56,10 +57,6 @@ class LocalExperiment():
         self.y_train = load_phenotype(self.cfg.data.phenotype.train)
         self.y_val = load_phenotype(self.cfg.data.phenotype.val)
         self.y_test = load_phenotype(self.cfg.data.phenotype.test)
-        scaler = StandardScaler()
-        self.y_train = scaler.fit_transform(self.y_train.reshape(-1, 1)).squeeze()
-        self.y_val = scaler.transform(self.y_val.reshape(-1, 1)).squeeze()
-        self.y_test = scaler.transform(self.y_test.reshape(-1, 1)).squeeze()
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
         
         if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
@@ -181,21 +178,23 @@ class NNExperiment(LocalExperiment):
     def load_data(self):
         LocalExperiment.load_data(self)
         self.data_module = DataModule(self.X_train, self.X_val, self.X_test, self.y_train, self.y_val, self.y_test, batch_size=self.cfg.model.batch_size)
-        
+    
+    def create_model(self):
+        self.model = MLPRegressor(input_size=self.X_train.shape[1],
+                                  hidden_size=self.cfg.model.hidden_size,
+                                  l1=self.cfg.model.alpha,
+                                  optim_params=self.cfg.experiment.optimizer,
+                                  scheduler_params=self.cfg.experiment.scheduler
+                                  )
+
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
         mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
         mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
         
-        input_size = self.X_train.shape[1]
-        self.model = MLPRegressor(input_size=input_size,
-                                  hidden_size=self.cfg.model.hidden_size,
-                                  l1=self.cfg.model.alpha,
-                                  optim_params=self.cfg.experiment.optimizer,
-                                  scheduler_params=self.cfg.experiment.scheduler
-                                 )
+        self.create_model()
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
-                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=10, log_every_n_steps=5)
+                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
@@ -231,12 +230,64 @@ class NNExperiment(LocalExperiment):
         mlflow.log_metric('val_r2', r2_val)
         print(f"Test r2: {r2_test}")
         mlflow.log_metric('test_r2', r2_test)
+
+
+class LassoNetExperiment(NNExperiment):
+
+    def create_model(self):
+        self.model = LassoNetRegressor(
+            input_size=self.X_train.shape[1],
+            hidden_size=self.cfg.model.hidden_size,
+            optim_params=self.cfg.experiment.optimizer,
+            scheduler_params=self.cfg.experiment.scheduler,
+            alpha_start=self.cfg.model.alpha_start,
+            alpha_end=self.cfg.model.alpha_end,
+            init_limit=self.cfg.model.init_limit
+        )
+
+    def load_best_model(self):
+        self.model = LassoNetRegressor.load_from_checkpoint(
+            self.trainer.checkpoint_callback.best_model_path,
+            input_size=self.X_train.shape[1],
+            hidden_size=self.cfg.model.hidden_size,
+            optim_params=self.cfg.experiment.optimizer,
+            scheduler_params=self.cfg.experiment.scheduler,
+            alpha_start=self.cfg.model.alpha_start,
+            alpha_end=self.cfg.model.alpha_end,
+            init_limit=self.cfg.model.init_limit
+        )
+
+    def eval_and_log(self):
+        self.model.eval()
+        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
+        
+        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
+        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
+        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+        
+        print(train_preds.shape, val_preds.shape, test_preds.shape)
+        # each preds column correspond to different alpha l1 reg parameter
+        # we select column which gives the best val_r2 and use this column to make test predictions
+        r2_val_list = [r2_score(self.y_val, val_preds[:, col]) for col in range(val_preds.shape[1])]
+        best_col = argmax(r2_val_list)
+        best_val_r2 = amax(r2_val_list)
+        best_train_r2 = r2_score(self.y_train, train_preds[:, best_col])
+        best_test_r2 = r2_score(self.y_test, test_preds[:, best_col])
+
+        print(f'Best alpha: {self.model.alphas[best_col]:.6f}')
+        print(f"Train r2: {best_train_r2:.4f}")
+        mlflow.log_metric('train_r2', best_train_r2)
+        print(f"Val r2: {best_val_r2:.4f}")
+        mlflow.log_metric('val_r2', best_val_r2)
+        print(f"Test r2: {best_test_r2:.4f}")
+        mlflow.log_metric('test_r2', best_test_r2)
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
     'xgboost': XGBExperiment,
-    'mlp': NNExperiment
+    'mlp': NNExperiment,
+    'lassonet': LassoNetExperiment
 }
 
             
