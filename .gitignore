@@ -171,3 +171,4 @@ test_pipeline/
 test_data/
 logs/
 tools/
+checkpoints/

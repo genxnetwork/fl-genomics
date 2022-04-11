@@ -24,8 +24,7 @@ node:
     div_factor: 25
     final_div_factor: 1e+4
   training:
-    gpus:
-    - 0
+    gpus: null
     max_epochs: ${node.scheduler.epochs_in_round}
     enable_progress_bar: False
     enable_model_summary: False
@@ -56,6 +55,7 @@ dataset:
 
 server:
   rounds: 16
+  checkpoint_dir: 'models/${dataset.phenotype.name}/fold_${fold.index}'
   strategy:
     name: fedavg
     node_count: ${env:FL_NODE_COUNT,2}

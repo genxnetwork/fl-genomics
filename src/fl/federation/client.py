@@ -59,7 +59,7 @@ class FLClient(NumPyClient):
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
 
-        trainer = Trainer(logger=self.logger, **self.training_params)
+        trainer = Trainer(logger=False, **self.training_params)
         # train_loader = DataLoader(self.model.train_dataset, batch_size=64, num_workers=1, shuffle=False)
         
         train_loader, val_loader = self.data_module.predict_dataloader()

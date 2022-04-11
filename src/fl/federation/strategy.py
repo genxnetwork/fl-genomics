@@ -78,7 +78,8 @@ class Checkpointer:
 
         Args:
             checkpoint_dir (str): Dir for saving model checkpoints
-        """        
+        """    
+        os.makedirs(checkpoint_dir, exist_ok=True)
         self.checkpoint_dir = checkpoint_dir
         self.history = []
 

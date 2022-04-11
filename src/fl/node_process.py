@@ -2,6 +2,8 @@ from dataclasses import dataclass
 import logging
 from multiprocessing import Process, Queue
 from typing import Any, Dict, Tuple
+import time
+from grpc import RpcError
 
 from omegaconf import DictConfig, OmegaConf
 import mlflow
@@ -10,6 +12,7 @@ from mlflow import ActiveRun, list_run_infos
 from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
+import flwr
 
 from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates
 from fl.datasets.lightning import DataModule
@@ -19,17 +22,19 @@ from fl.federation.client import FLClient
 
 @dataclass
 class MlflowInfo:
-    mlflow_experiment_id: str
+    experiment_id: str
     parent_run_id: str
 
 
 class Node(Process):
-    def __init__(self, node_index: int, mlflow_info: MlflowInfo, queue: Queue, cfg_path: str, **kwargs):
+    def __init__(self, node_index: int, server_url: str, mlflow_info: MlflowInfo, queue: Queue, cfg_path: str, gpu_index: int, **kwargs):
         Process.__init__(self, **kwargs)
         self.node_index = node_index
         self.mlflow_info = mlflow_info
+        self.server_url = server_url
         self.queue = queue
-        node_cfg = OmegaConf.from_dotlist([f'node.index={node_index}'])
+        node_cfg = OmegaConf.from_dotlist([f'node.index={node_index}', 
+                                           f'node.training.gpus={"null" if gpu_index < 0 else gpu_index}'])
         self.cfg = OmegaConf.merge(node_cfg, OmegaConf.load(cfg_path))
         print(self.cfg)
 
@@ -40,10 +45,10 @@ class Node(Process):
         tags[MLFLOW_PARENT_RUN_ID] = parent_run_id
         run = client.create_run(
             experiment_id,
-            tags=tags
+            tags=tags,
         )
-        
-        return mlflow.start_run(run.info.run_id)
+        print(f'run info id in _start_client_run is {run.info.run_id}')
+        return mlflow.start_run(run.info.run_id, nested=True)
 
     def _load_data(self):
         X_train = load_from_pgen(self.cfg.dataset.pfile.train, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
@@ -91,13 +96,45 @@ class Node(Process):
         else:
             raise ValueError(f'model name {params.model.name} is unknown')
         
+    def _train_model(self, client: FLClient) -> bool:
+        """
+        Trains a model using {client} for FL 
+
+        Args:
+            client (FLClient): Federation Learning client which should implement weights exchange procedures.
+        """
+        for i in range(20):
+            try:
+                print(f'starting numpy client with server {client.server}')
+                flwr.client.start_numpy_client(f'{client.server}', client)
+                return True
+            except RpcError as re:
+                # probably server slurm job have not started yet
+                time.sleep(5)
+                continue
+        return False
+
+    def evaluate_model(data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
+        """
+        Evaluates a trained model locally
+
+        Args:
+            data_module (DataModule): Local data loaders manager.
+            model (BaseNet): Model to evaluate.
+            client (FLClient): Federation Learning client which should implement weights exchange procedures.
+
+        Returns:
+            Dict[str, float]: Dict with 'val_loss', 'val_accuracy'. 
+        """    
+        return {'dummy_metric': 0.0}
+
     def run(self) -> None:
         
         mlflow_client = MlflowClient()
         data_module = self._load_data()
 
         net = self._create_model(self.feature_count, self.cfg.node)
-        client = FLClient(self.hostname, net, data_module, self.cfg.node.model, self.cfg.node.training)
+        client = FLClient(self.server_url, net, data_module, self.cfg.node.model, self.cfg.node.training)
 
         with self._start_client_run(
             mlflow_client,
@@ -106,19 +143,18 @@ class Node(Process):
             tags={
                 'description': self.cfg.experiment.description,
                 'node_index': str(self.node_index),
-                'phenotype': self.cfg.experiment.phenotype.name,
+                'phenotype': self.cfg.dataset.phenotype.name,
                 #TODO: make it a parameter
-                'split': self.cfg.dataset.split,
+                'split': self.cfg.dataset.split.name,
                 'snp_count': str(self.snp_count),
                 'sample_count': str(self.sample_count)
             }
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node))
             logging.info(f'Started run for node {self.node_index}')
-            '''
-            if train_model(client):
-                metrics = evaluate_model(data_module, net, client)
-                Path(snakemake.output[0]).touch(exist_ok=True)
+            
+            if self._train_model(client):
+                metrics = self._evaluate_model(data_module, net, client)
             else:
                 raise RuntimeError('Can not connect to server')
-            '''
+            
