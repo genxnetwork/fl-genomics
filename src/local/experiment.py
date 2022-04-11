@@ -49,7 +49,7 @@ class LocalExperiment():
             'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
             'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas)),
             'covariates': str(int(self.cfg.experiment.include_covariates)),
-            'genotype': str(int(self.cfg.experiment.include_genotype))
+            'snps': str(int(self.cfg.experiment.include_genotype))
         })
 
     def load_data(self):
