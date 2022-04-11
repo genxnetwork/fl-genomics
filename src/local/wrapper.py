@@ -10,7 +10,7 @@ from local.config import node_size_dict
 
 def calculate_memory(node_index, split, snp_count):
     # Heuristic for dependence of memory requirement on number of samples*features
-    mem = int(5000+node_size_dict[split][node_index]*snp_count/32000)
+    mem = int(8000+node_size_dict[split][node_index]*snp_count/32000)
     return mem
 
 def append_args_to_wrapper(arg_list: list):
