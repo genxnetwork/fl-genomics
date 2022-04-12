@@ -7,14 +7,17 @@ import os
 
 from flwr.common import (
     EvaluateRes,
+    EvaluateIns,
     Scalar,
     Weights,
     Parameters,
     FitRes,
-    parameters_to_weights
+    parameters_to_weights,
+    weights_to_parameters
 )
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
+from flwr.server.client_manager import ClientManager
 
 
 def fit_round(rnd: int):
@@ -111,6 +114,10 @@ class Checkpointer:
         else:
             pass
     
+    def load_best_parameters(self) -> Parameters:
+        weights = list(numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz')).values())
+        return weights_to_parameters(weights)
+    
     def copy_best_model(self, best_model_path: str):
         shutil.copy2(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz'), best_model_path)
 
@@ -148,6 +155,15 @@ class MCMixin:
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(rnd, results, failures)
         self.checkpointer.save_checkpoint(rnd, aggregated_parameters)
         return aggregated_parameters, aggregated_metrics
+
+    def configure_evaluate(
+        self, rnd: int, parameters: Parameters, client_manager: ClientManager
+    ) -> List[Tuple[ClientProxy, EvaluateIns]]:
+        if rnd == -1:
+            print(f'loading best parameters for final evaluation')
+            parameters = self.checkpointer.load_best_parameters()
+        return super().configure_evaluate(rnd, parameters, client_manager)
+
 
 
 class MCFedAvg(MCMixin,FedAvg):
