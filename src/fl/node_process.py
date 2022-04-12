@@ -42,6 +42,7 @@ class Node(Process):
                  queue: Queue, cfg_path: str, trainer_info: TrainerInfo, **kwargs):
 
         Process.__init__(self, **kwargs)
+        os.environ['MASTER_PORT'] = str(47000+trainer_info.node_index) 
         self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
         self.trainer_info = trainer_info
@@ -50,7 +51,7 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(node_cfg, OmegaConf.load(cfg_path))
-        print(node_cfg)
+        logging.info('node cfg is {node_cfg}')
     
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step
@@ -63,11 +64,12 @@ class Node(Process):
                         experiment_id: str, 
                         tags: Dict[str, Any]) -> ActiveRun:
         tags[MLFLOW_PARENT_RUN_ID] = parent_run_id
+        # logging.info(f'starting to create mlflow run with parent {parent_run_id}')
         run = client.create_run(
             experiment_id,
             tags=tags,
         )
-        print(f'run info id in _start_client_run is {run.info.run_id}')
+        # logging.info(f'run info id in _start_client_run is {run.info.run_id}')
         return mlflow.start_run(run.info.run_id, nested=True)
 
     def _load_data(self):
@@ -138,7 +140,7 @@ class Node(Process):
                 continue
         return False
 
-    def evaluate_model(data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
+    def _evaluate_model(self, data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
         """
         Evaluates a trained model locally
 
@@ -154,7 +156,7 @@ class Node(Process):
 
     def run(self) -> None:
         self._configure_logging()
-
+        # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
         data_module = self._load_data()
 

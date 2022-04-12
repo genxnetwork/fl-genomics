@@ -35,8 +35,8 @@ def get_cfg_hash(cfg: DictConfig):
 
 
 NODE_RESOURCES = {
-    '0': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
-    '1': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '0': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 1},
+    '1': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 1},
     '2': {'partition': 'gpu', 'mem_mb': 64000, 'gpus': 1},
     '3': {'partition': 'gpu', 'mem_mb': 36000, 'gpus': 1},
     '4': {'partition': 'gpu', 'mem_mb': 24000, 'gpus': 1},

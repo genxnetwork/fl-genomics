@@ -35,18 +35,22 @@ class MlflowLogger:
         """        
         self.epochs_in_round = epochs_in_round
 
-    def _calculate_agg_metric(self, metric_name: str, results: RESULTS) -> float:
+    def _calculate_agg_metric(self, metric_name: str, results: RESULTS, custom_len_name: str = None) -> float:
         """Calculates weighted average {metric_name} from {results}
 
         Args:
             metric_name (str): Name of metric in {results}
             results (RESULTS): List of client's client proxies and current round metrics
-
+            custom_len_name (str): Needed if we are calculating test metrics using test_len value returned from each client
         Returns:
             float: averaged metric
         """        
-        losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
-        examples = [r.num_examples for _, r in results]
+        if custom_len_name is None:
+            losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
+            examples = [r.num_examples for _, r in results]
+        else:
+            losses = [r.metrics[metric_name] * r.metrics[custom_len_name] for _, r in results]
+            examples = [r.metrics[custom_len_name] for _, r in results]
 
         return sum(losses) / sum(examples)
 
@@ -69,6 +73,12 @@ class MlflowLogger:
         mlflow.log_metric('val_loss', val_loss, step=rnd*self.epochs_in_round)
         mlflow.log_metric('train_r2', train_r2, step=rnd*self.epochs_in_round)
         mlflow.log_metric('val_r2', val_r2, step=rnd*self.epochs_in_round)
+
+        if rnd == -1:
+            logging.info(f'logging final centralized evaluation results')
+            test_r2 = self._calculate_agg_metric('test_r2', results, 'test_len')
+            mlflow.log_metric('test_r2', test_r2, 0)
+
         return val_loss
 
 
@@ -102,7 +112,7 @@ class Checkpointer:
             pass
     
     def copy_best_model(self, best_model_path: str):
-        shutil.copy2(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), best_model_path)
+        shutil.copy2(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz'), best_model_path)
 
 
 class MCMixin:

@@ -54,7 +54,7 @@ dataset:
   gwas: '${dataset.split.path}/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
 
 server:
-  rounds: 1
+  rounds: 3
   checkpoint_dir: 'models/${dataset.phenotype.name}/fold_${fold.index}'
   strategy:
     name: fedavg

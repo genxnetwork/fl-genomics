@@ -67,10 +67,10 @@ class FLClient(NumPyClient):
         trainer = Trainer(logger=False, **self.training_params)
         # train_loader = DataLoader(self.model.train_dataset, batch_size=64, num_workers=1, shuffle=False)
         
-        train_loader, val_loader = self.data_module.predict_dataloader()
+        train_loader, val_loader, test_loader = self.data_module.predict_dataloader()
         train_loss, train_r2 = self.calculate_loader_metrics(trainer, train_loader)
         val_loss, val_r2 = self.calculate_loader_metrics(trainer, val_loader)
-
+        
         val_len = self.data_module.val_len()
         epoch = self.model.fl_current_epoch()
         logging.info(f'round: {self.model.current_round}\ttrain_loss: {train_loss:.4f}\ttrain_r2: {train_r2:.4f}\tval_loss: {val_loss:.3f}\tval_r2: {val_r2:.4f}\tval_len: {val_len}')
@@ -78,5 +78,14 @@ class FLClient(NumPyClient):
         mlflow.log_metric('train_r2', train_r2, epoch)
         mlflow.log_metric('val_r2', val_r2, epoch)
         mlflow.log_metric('val_loss', val_loss, epoch)
+        
+        results = {"val_loss": val_loss, "train_loss": train_loss, "train_r2": train_r2, "val_r2": val_r2}
+        if 'current_round' in config and config['current_round'] == -1:
+            print(f'Final evaluation started')
+            test_loss, test_r2 = self.calculate_loader_metrics(trainer, test_loader)
+            mlflow.log_metric('test_r2', test_r2)
+            results['test_r2'] = test_r2
+            results['test_len'] = self.data_module.test_len()
+
         logging.info(f'val_loss type: {type(val_loss)}, val_len type: {type(val_len)}')
-        return val_loss, val_len, {"val_loss": val_loss, "train_loss": train_loss, "train_r2": train_r2, "val_r2": val_r2}
+        return val_loss, val_len, results

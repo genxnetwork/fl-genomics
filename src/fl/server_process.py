@@ -7,7 +7,7 @@ import numpy
 from flwr.server import start_server
 from flwr.server.strategy import FedAvg
 
-from fl.federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, MlflowLogger, fit_round
+from fl.federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, MlflowLogger, fit_round, on_evaluate_config_fn
 
 
 def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_dir: str) -> FedAvg:
@@ -38,13 +38,13 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_d
     mlflow_logger = MlflowLogger(epochs_in_round)
     checkpointer = Checkpointer(checkpoint_dir)
     if strategy_params.name == 'fedavg':
-        return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
+        return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
     elif strategy_params.name == 'qfedavg':
-        return MCQFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
+        return MCQFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
     elif strategy_params.name ==  'fedadam':
-        return MCFedAdam(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
+        return MCFedAdam(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
     elif strategy_params.name == 'fedadagrad':
-        return MCFedAdagrad(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
+        return MCFedAdagrad(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
     else:
         raise ValueError(f'Strategy name {strategy_params.name} should be one of the ["fedavg", "qfedavg", "fedadam", "fedadagrad"]')
 
@@ -69,7 +69,8 @@ class Server(Process):
         start_server(
                     server_address="[::]:8080",
                     strategy=strategy,
-                    config={"num_rounds": self.cfg.server.rounds}
+                    config={"num_rounds": self.cfg.server.rounds},
+                    force_final_distributed_eval=True
         )
     
         strategy.checkpointer.copy_best_model(os.path.join(self.cfg.server.checkpoint_dir, self.params_hash, 'best_model.ckpt'))
