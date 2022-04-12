@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --gpus=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=3
+#SBATCH --cpus-per-task=4
 #SBATCH --mem 26000
 
 import multiprocessing
@@ -55,6 +55,8 @@ if __name__ == '__main__':
     queue = multiprocessing.Queue()
     cfg_path = 'src/fl/configs/mlp.yaml'
     server_url = f'{gethostname()}:8080'
+    log_dir = f'logs/job-{os.environ["SLURM_JOB_ID"]}'
+    os.makedirs(log_dir, exist_ok=True)
 
     cfg = OmegaConf.load(cfg_path)
     experiment = mlflow.set_experiment(cfg.experiment.name)
@@ -67,18 +69,20 @@ if __name__ == '__main__':
         }
     ) as run:
         mlflow.log_params(cfg.server)
-
         info = MlflowInfo(experiment.experiment_id, run.info.run_id)
-        server = Server(queue, params_hash, cfg_path)
-        node1 = Node(0, server_url, info, queue, cfg_path, -1)
-        node2 = Node(1, server_url, info, queue, cfg_path, -1)
+
+        gpu_index = -1
+        for node_index in cfg.server.strategy.nodes:
+            need_gpu = NODE_RESOURCES[str(node_index)]['gpus']
+            if need_gpu:
+                gpu_index += 1
+            node = Node(node_index, server_url, log_dir, info, queue, cfg_path, gpu_index if need_gpu else -1)
+            node.start()
+            print(f'starting node {node_index}')
+        
+        server = Server(log_dir, queue, params_hash, cfg_path)
         server.start()
-        # create pool of ncpus workers
-        print(f'starting node1')
-        node1.start()
-        print(f'starting node 2')
-        node2.start()
         server.join()
-        node1.join()
-        node2.join()
+        for node_index in cfg.server.strategy.nodes:
+            node.join()
         print(f'Nodes are finished')

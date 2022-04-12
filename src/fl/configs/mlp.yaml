@@ -58,7 +58,10 @@ server:
   checkpoint_dir: 'models/${dataset.phenotype.name}/fold_${fold.index}'
   strategy:
     name: fedavg
-    node_count: ${env:FL_NODE_COUNT,2}
+    nodes: 
+      - 0
+      - 5
+      - 6
   
   # strategy:
   #   name: qfedavg

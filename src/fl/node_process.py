@@ -4,6 +4,7 @@ from multiprocessing import Process, Queue
 from typing import Any, Dict, Tuple
 import time
 from grpc import RpcError
+import os
 
 from omegaconf import DictConfig, OmegaConf
 import mlflow
@@ -27,16 +28,23 @@ class MlflowInfo:
 
 
 class Node(Process):
-    def __init__(self, node_index: int, server_url: str, mlflow_info: MlflowInfo, queue: Queue, cfg_path: str, gpu_index: int, **kwargs):
+    def __init__(self, node_index: int, server_url: str, log_dir: str, mlflow_info: MlflowInfo, queue: Queue, cfg_path: str, gpu_index: int, **kwargs):
         Process.__init__(self, **kwargs)
         self.node_index = node_index
         self.mlflow_info = mlflow_info
         self.server_url = server_url
         self.queue = queue
+        self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist([f'node.index={node_index}', 
-                                           f'node.training.gpus={"null" if gpu_index < 0 else gpu_index}'])
+                                           f'node.training.gpus={"null" if gpu_index < 0 else [str(gpu_index)]}'])
         self.cfg = OmegaConf.merge(node_cfg, OmegaConf.load(cfg_path))
-        print(self.cfg)
+        print(node_cfg)
+    
+    def _configure_logging(self):
+        # to disable printing GPU TPU IPU info for each trainer each FL step
+        # https://github.com/PyTorchLightning/pytorch-lightning/issues/3431
+        logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
+        logging.basicConfig(filename=os.path.join(self.log_dir, f'node-{self.node_index}.log'), level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
 
     def _start_client_run(self, client: MlflowClient, 
                         parent_run_id: str, 
@@ -129,7 +137,8 @@ class Node(Process):
         return {'dummy_metric': 0.0}
 
     def run(self) -> None:
-        
+        self._configure_logging()
+
         mlflow_client = MlflowClient()
         data_module = self._load_data()
 
