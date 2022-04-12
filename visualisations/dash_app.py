@@ -9,6 +9,8 @@ from mlflow.tracking import MlflowClient
 
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 
+CURRENT_EXPERIMENT_NAME = "local"
+
 SELECTED_TAGS = ['tags.phenotype', 'tags.model', 'tags.dataset', 'tags.snp_count',
                  'tags.full_WB_gwas', 'tags.sample_count', 'tags.ethnicity']
 SELECTED_METRICS = ['metrics.test_r2', 'metrics.val_r2', 'metrics.train_r2']
@@ -17,7 +19,7 @@ GRAPH_ELEMENTS = ['x', 'y', 'color', 'line_dash', 'symbol']
 
 def mlflow_get_results_table(client):
     """ Retrieve local models from an mlflow client """
-    exp_id = client.get_experiment_by_name("local-models").experiment_id
+    exp_id = client.get_experiment_by_name(CURRENT_EXPERIMENT_NAME).experiment_id
     df = mlflow.search_runs(experiment_ids=[exp_id])
     df[['tags.snp_count', 'tags.sample_count']] = df[['tags.snp_count', 'tags.sample_count']].astype(int)
     df['tags.ethnicity'] = df['tags.dataset'].str.split('_').str[0]
