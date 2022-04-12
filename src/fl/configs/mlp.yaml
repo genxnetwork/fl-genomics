@@ -11,8 +11,8 @@ node:
   model:
     name: mlp_regressor
     batch_size: 256
-    l1: 0.0
-    hidden_size: 4096
+    l1: 1e-4
+    hidden_size: 256
   optimizer:
     name: adamw
     lr: 1e-4
@@ -24,10 +24,10 @@ node:
     div_factor: 25
     final_div_factor: 1e+4
   training:
-    gpus: null
     max_epochs: ${node.scheduler.epochs_in_round}
     enable_progress_bar: False
     enable_model_summary: False
+    strategy: ddp
 dataset:
   split: 
     name: 'uneven_split' 
@@ -54,14 +54,13 @@ dataset:
   gwas: '${dataset.split.path}/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
 
 server:
-  rounds: 16
+  rounds: 1
   checkpoint_dir: 'models/${dataset.phenotype.name}/fold_${fold.index}'
   strategy:
     name: fedavg
     nodes: 
-      - 0
-      - 5
-      - 6
+      - 1
+      - 7
   
   # strategy:
   #   name: qfedavg

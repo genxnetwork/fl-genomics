@@ -40,10 +40,15 @@ class FLClient(NumPyClient):
         self.model.load_state_dict(state_dict, strict=True)
 
     def fit(self, parameters, config):
-        self.set_parameters(parameters)
-        self.model.current_round = config['current_round']
-        trainer = Trainer(logger=False, **self.training_params)
-        trainer.fit(self.model, datamodule=self.data_module)
+        try:
+            self.set_parameters(parameters)
+            self.model.current_round = config['current_round']
+            trainer = Trainer(logger=False, **self.training_params)
+            trainer.fit(self.model, datamodule=self.data_module)
+        except Exception as e:
+            logging.error(self.training_params)
+            logging.error(e.with_traceback())
+            raise e
         return self.get_parameters(), self.data_module.train_len(), {}
 
     def calculate_loader_metrics(self, trainer: Trainer, loader: DataLoader) -> Tuple[float, float]:

@@ -2,6 +2,7 @@
 
 #SBATCH --job-name=multiprocess
 #SBATCH --output=logs/multiprocess_%j.out
+#SBATCH --error=logs/multiprocess_%j.err
 #SBATCH --time=00:20:00
 #SBATCH --partition=gpu_devel
 #SBATCH --nodes=1
@@ -18,7 +19,7 @@ from omegaconf import DictConfig, OmegaConf
 import mlflow
 import hashlib
 
-from fl.node_process import MlflowInfo, Node
+from fl.node_process import MlflowInfo, Node, TrainerInfo
 from fl.server_process import Server
 
 
@@ -76,7 +77,10 @@ if __name__ == '__main__':
             need_gpu = NODE_RESOURCES[str(node_index)]['gpus']
             if need_gpu:
                 gpu_index += 1
-            node = Node(node_index, server_url, log_dir, info, queue, cfg_path, gpu_index if need_gpu else -1)
+                trainer_info = TrainerInfo([gpu_index], 'gpu', node_index)
+            else:
+                trainer_info = TrainerInfo(1, 'cpu', node_index)
+            node = Node(server_url, log_dir, info, queue, cfg_path, trainer_info)
             node.start()
             print(f'starting node {node_index}')
         

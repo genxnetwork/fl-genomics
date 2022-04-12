@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 import logging
 from multiprocessing import Process, Queue
-from typing import Any, Dict, Tuple
+import subprocess
+from typing import Any, Dict, Tuple, List, Union
 import time
 from grpc import RpcError
 import os
@@ -26,17 +27,28 @@ class MlflowInfo:
     experiment_id: str
     parent_run_id: str
 
+@dataclass
+class TrainerInfo:
+    devices: Union[List[int], int]
+    accelerator: str
+    node_index: int
+
+    def to_dotlist(self) -> List[str]:
+        return [f'node.index={self.node_index}', f'node.training.devices={self.devices}', f'node.training.accelerator={self.accelerator}']
+
 
 class Node(Process):
-    def __init__(self, node_index: int, server_url: str, log_dir: str, mlflow_info: MlflowInfo, queue: Queue, cfg_path: str, gpu_index: int, **kwargs):
+    def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo, 
+                 queue: Queue, cfg_path: str, trainer_info: TrainerInfo, **kwargs):
+
         Process.__init__(self, **kwargs)
-        self.node_index = node_index
+        self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
+        self.trainer_info = trainer_info
         self.server_url = server_url
         self.queue = queue
         self.log_dir = log_dir
-        node_cfg = OmegaConf.from_dotlist([f'node.index={node_index}', 
-                                           f'node.training.gpus={"null" if gpu_index < 0 else [str(gpu_index)]}'])
+        node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(node_cfg, OmegaConf.load(cfg_path))
         print(node_cfg)
     
@@ -61,22 +73,26 @@ class Node(Process):
     def _load_data(self):
         X_train = load_from_pgen(self.cfg.dataset.pfile.train, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
         X_val = load_from_pgen(self.cfg.dataset.pfile.val, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
+        X_test = load_from_pgen(self.cfg.dataset.pfile.test, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
+
         logging.info(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
         
         X_cov_train = load_covariates(self.cfg.dataset.covariates.train)
         X_cov_val = load_covariates(self.cfg.dataset.covariates.val)
+        X_cov_test =load_covariates(self.cfg.dataset.covariates.test)
         X_train = numpy.hstack([X_train, X_cov_train])
         X_val = numpy.hstack([X_val, X_cov_val])
+        X_test = numpy.hstack([X_test, X_cov_test])
         logging.info(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1]} total features')
 
-        y_train, y_val = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val)
+        y_train, y_val, y_test = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val), load_phenotype(self.cfg.dataset.phenotype.test)
         logging.info(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
         self.feature_count = X_train.shape[1]
         self.covariate_count = X_cov_train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count
         self.sample_count = X_train.shape[0]
 
-        data_module = DataModule(X_train, X_val, y_train, y_val, self.cfg.node.model.batch_size)
+        data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size)
         return data_module
 
     def _create_linear_regressor(self, input_size: int, params: Any) -> LinearRegressor:
