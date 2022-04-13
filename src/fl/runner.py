@@ -35,8 +35,8 @@ def get_cfg_hash(cfg: DictConfig):
 
 
 NODE_RESOURCES = {
-    '0': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 1},
-    '1': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 1},
+    '0': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
+    '1': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
     '2': {'partition': 'gpu', 'mem_mb': 64000, 'gpus': 1},
     '3': {'partition': 'gpu', 'mem_mb': 36000, 'gpus': 1},
     '4': {'partition': 'gpu', 'mem_mb': 24000, 'gpus': 1},
@@ -47,19 +47,15 @@ NODE_RESOURCES = {
 
 
 if __name__ == '__main__':
-    print(f'I am in main')
-    try:
-        ncpus = int(os.environ["SLURM_JOB_CPUS_PER_NODE"])
-    except KeyError:
-        ncpus = multiprocessing.cpu_count()
-
+    
+    args = OmegaConf.from_cli(sys.argv)
     queue = multiprocessing.Queue()
     cfg_path = 'src/fl/configs/mlp.yaml'
     server_url = f'{gethostname()}:8080'
     log_dir = f'logs/job-{os.environ["SLURM_JOB_ID"]}'
     os.makedirs(log_dir, exist_ok=True)
 
-    cfg = OmegaConf.load(cfg_path)
+    cfg = OmegaConf.merge(OmegaConf.load(cfg_path), args)
     experiment = mlflow.set_experiment(cfg.experiment.name)
     params_hash = get_cfg_hash(cfg)
     with mlflow.start_run(

@@ -47,3 +47,6 @@ class DataModule(LightningDataModule):
 
     def test_len(self):
         return len(self.test_dataset)
+
+    def feature_count(self):
+        return self._X_train.shape[1]

@@ -50,7 +50,7 @@ class Node(Process):
         self.queue = queue
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
-        self.cfg = OmegaConf.merge(node_cfg, OmegaConf.load(cfg_path))
+        self.cfg = OmegaConf.merge(OmegaConf.load(cfg_path), node_cfg)
         logging.info('node cfg is {node_cfg}')
     
     def _configure_logging(self):
@@ -97,30 +97,6 @@ class Node(Process):
         data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size)
         return data_module
 
-    def _create_linear_regressor(self, input_size: int, params: Any) -> LinearRegressor:
-        return LinearRegressor(
-            input_size=input_size,
-            l1=params.model.l1,
-            optim_params=params['optimizer'],
-            scheduler_params=params['scheduler']
-        )
-
-    def _create_mlp_regressor(self, input_size: int, params: Any) -> MLPRegressor:
-        return MLPRegressor(
-            input_size=input_size,
-            hidden_size=params.model.hidden_size,
-            l1=params.model.l1,
-            optim_params=params['optimizer'],
-            scheduler_params=params['scheduler']
-        )
-
-    def _create_model(self, input_size: int, params: Any) -> BaseNet:
-        if params.model.name == 'linear_regressor':
-            return self._create_linear_regressor(input_size, params)
-        elif params.model.name == 'mlp_regressor':
-            return self._create_mlp_regressor(input_size, params)
-        else:
-            raise ValueError(f'model name {params.model.name} is unknown')
         
     def _train_model(self, client: FLClient) -> bool:
         """
@@ -160,8 +136,7 @@ class Node(Process):
         mlflow_client = MlflowClient()
         data_module = self._load_data()
 
-        net = self._create_model(self.feature_count, self.cfg.node)
-        client = FLClient(self.server_url, net, data_module, self.cfg.node.model, self.cfg.node.training)
+        client = FLClient(self.server_url, data_module, self.cfg.node)
 
         with self._start_client_run(
             mlflow_client,
@@ -180,8 +155,5 @@ class Node(Process):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node))
             logging.info(f'Started run for node {self.node_index}')
             
-            if self._train_model(client):
-                metrics = self._evaluate_model(data_module, net, client)
-            else:
-                raise RuntimeError('Can not connect to server')
+            self._train_model(client)
             
