@@ -23,6 +23,14 @@
     sbatch src/fl/runner.py
 ```
 
+**Customize both cluster node options and training options**
+```
+    sbatch --time 00:40:00 --partition gpu --gpus 4 --cpus-per-task 24 --mem 240000 src/fl/runner.py node.model.hidden_size=1024
+```
+
+
+### [Deprecated] Old way
+
 **training of all models in src/fl/configs folder on two nodes from uneven split using snakemake**
 
 ```
