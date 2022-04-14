@@ -109,7 +109,7 @@ class Checkpointer:
         if aggregated_parameters is not None and len(self.history) > 0 and self.history[-1] == min(self.history):
             # Save aggregated_weights
             aggregated_weights = parameters_to_weights(aggregated_parameters)
-            logging.info(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
+            print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
             numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
         else:
             pass

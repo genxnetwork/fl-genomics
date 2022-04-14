@@ -17,7 +17,7 @@ import numpy
 import flwr
 
 from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates
-from fl.datasets.lightning import DataModule
+from nn.lightning import DataModule
 from nn.models import BaseNet, LinearRegressor, MLPRegressor
 from fl.federation.client import FLClient
 
