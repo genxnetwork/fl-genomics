@@ -78,6 +78,7 @@ class BaseNet(LightningModule):
         return lr
     
     def _configure_adamw(self):
+        last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
         optimizer = torch.optim.AdamW([
             {
                 'params': self.parameters(), 
@@ -85,21 +86,38 @@ class BaseNet(LightningModule):
                 'max_lr': self.optim_params['lr'],
                 'min_lr': self.optim_params['lr']/self.scheduler_params['final_div_factor']}
             ], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
-
+        
         scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
                                                         max_lr=self.optim_params['lr'],
                                                         div_factor=self.scheduler_params['div_factor'],
                                                         final_div_factor=self.scheduler_params['final_div_factor'],
                                                         anneal_strategy='linear',
-                                                        total_steps=int(self.scheduler_params['rounds']*(1.5*self.scheduler_params['epochs_in_round'])+2),
+                                                        epochs=int(self.scheduler_params['rounds']*(1.5*self.scheduler_params['epochs_in_round'])+2),
                                                         pct_start=0.1,
-                                                        last_epoch=self.current_round*self.scheduler_params['epochs_in_round'],
+                                                        steps_per_epoch=1,
+                                                        last_epoch=last_epoch,
                                                         cycle_momentum=False)
+        
+        
+        return [optimizer], [scheduler]
+
+    def _configure_sgd(self):
+        last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
+        optimizer = torch.optim.SGD([
+            {
+                'params': self.parameters(), 
+                'lr': self.optim_params['lr']*0.97**last_epoch,
+            }], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
+
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=self.current_round*self.scheduler_params['epochs_in_round']
+        )
         return [optimizer], [scheduler]
 
     def configure_optimizers(self):
         optim_init = {
-            'adamw': self._configure_adamw 
+            'adamw': self._configure_adamw,
+            'sgd': self._configure_sgd
         }[self.optim_params['name']]
         return optim_init()
 

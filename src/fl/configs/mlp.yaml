@@ -11,18 +11,19 @@ node:
   model:
     name: mlp_regressor
     batch_size: 256
-    l1: 1e-6
+    l1: 1e-3
     hidden_size: 2048
   optimizer:
-    name: adamw
-    lr: 1e-3
+    name: sgd
+    lr: 1e-4
     weight_decay: 1e-2
+  #scheduler:
+  #  name: ExponentialLR
   scheduler:
-    name: one_cycle_lr
-    rounds: 16
+    name: exponential_lr
+    rounds: 32
     epochs_in_round: 4
-    div_factor: 25
-    final_div_factor: 1e+5
+    gamma: 0.95
   training:
     max_epochs: ${node.scheduler.epochs_in_round}
     enable_progress_bar: False
@@ -54,7 +55,7 @@ dataset:
   gwas: '${dataset.split.path}/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
 
 server:
-  rounds: 16
+  rounds: 32
   checkpoint_dir: 'models/${dataset.phenotype.name}/fold_${fold.index}'
   strategy:
     name: fedavg
