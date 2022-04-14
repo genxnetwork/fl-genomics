@@ -9,19 +9,31 @@ from mlflow.tracking import MlflowClient
 
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 
-SELECTED_COLS = ['tags.phenotype', 'tags.model', 'tags.dataset', 'tags.snp_count',
-                 'tags.not_full_WB_gwas', 'tags.sample_count', 'tags.ethnicity', 'metrics.test_r2']
+CURRENT_EXPERIMENT_NAME = "local"
+
+SELECTED_TAGS = ['tags.phenotype', 'tags.model', 'tags.dataset', 'tags.snp_count',
+                 'tags.full_WB_gwas', 'tags.sample_count', 'tags.ethnicity']
+SELECTED_METRICS = ['metrics.test_r2', 'metrics.val_r2', 'metrics.train_r2']
 GRAPH_ELEMENTS = ['x', 'y', 'color', 'line_dash', 'symbol']
 
 
 def mlflow_get_results_table(client):
     """ Retrieve local models from an mlflow client """
-    exp_id = client.get_experiment_by_name("local-models").experiment_id
+    exp_id = client.get_experiment_by_name(CURRENT_EXPERIMENT_NAME).experiment_id
     df = mlflow.search_runs(experiment_ids=[exp_id])
     df[['tags.snp_count', 'tags.sample_count']] = df[['tags.snp_count', 'tags.sample_count']].astype(int)
     df['tags.ethnicity'] = df['tags.dataset'].str.split('_').str[0]
-    df['tags.not_full_WB_gwas'] = 1 - df['tags.different_node_gwas'].astype(int)  # boolean NOT
-    return df[SELECTED_COLS]
+    df['tags.full_WB_gwas'] = df['tags.different_node_gwas'].astype(int)  # boolean NOT
+
+    # melting dataframe to move from (metric1, metric2, ...) columns to (metric_name, metric_value) columns
+    # for easier visualisation
+    df = df.set_index(SELECTED_TAGS)[SELECTED_METRICS]
+    if not df.index.is_unique:
+        print('Warning! Runs with duplicated tags are found!')
+    ser = df.stack()
+    ser.index.names = ser.index.names[:-1] + ['metric_name']
+    ser.name = 'metric_value'
+    return ser.reset_index()
 
 
 df = mlflow_get_results_table(client=MlflowClient())
