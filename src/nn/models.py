@@ -107,6 +107,7 @@ class BaseNet(LightningModule):
             {
                 'params': self.parameters(), 
                 'lr': self.optim_params['lr']*0.97**last_epoch,
+                'initial_lr': self.optim_params['lr'], 
             }], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
 
         scheduler = torch.optim.lr_scheduler.ExponentialLR(
