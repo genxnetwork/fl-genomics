@@ -40,7 +40,16 @@ class TrainerInfo:
 class Node(Process):
     def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo, 
                  queue: Queue, cfg_path: str, trainer_info: TrainerInfo, **kwargs):
+        """Process for training on one dataset node
 
+        Args:
+            server_url (str): Full url to flower server
+            log_dir (str): Logging directory, where node-{node_index}.log file will be created
+            mlflow_info (MlflowInfo): Mlflow parent run and experiment IDs
+            queue (Queue): Queue for communication between processes
+            cfg_path (str): Path to full yaml config
+            trainer_info (TrainerInfo): Where to train node
+        """        
         Process.__init__(self, **kwargs)
         os.environ['MASTER_PORT'] = str(47000+trainer_info.node_index) 
         self.node_index = trainer_info.node_index
@@ -72,7 +81,12 @@ class Node(Process):
         # logging.info(f'run info id in _start_client_run is {run.info.run_id}')
         return mlflow.start_run(run.info.run_id, nested=True)
 
-    def _load_data(self):
+    def _load_data(self) -> DataModule:
+        """Loads genotypes, covariates and phenotypes into DataModule
+
+        Returns:
+            DataModule: Subclass of LightningDataModule for loading data during training
+        """        
         X_train = load_from_pgen(self.cfg.dataset.pfile.train, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
         X_val = load_from_pgen(self.cfg.dataset.pfile.val, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
         X_test = load_from_pgen(self.cfg.dataset.pfile.test, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
@@ -116,21 +130,10 @@ class Node(Process):
                 continue
         return False
 
-    def _evaluate_model(self, data_module: DataModule, model: BaseNet, client: FLClient) -> Dict[str, float]:
-        """
-        Evaluates a trained model locally
-
-        Args:
-            data_module (DataModule): Local data loaders manager.
-            model (BaseNet): Model to evaluate.
-            client (FLClient): Federation Learning client which should implement weights exchange procedures.
-
-        Returns:
-            Dict[str, float]: Dict with 'val_loss', 'val_accuracy'. 
-        """    
-        return {'dummy_metric': 0.0}
 
     def run(self) -> None:
+        """Runs data loading and training of node
+        """        
         self._configure_logging()
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()

@@ -51,6 +51,14 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_d
 
 class Server(Process):
     def __init__(self, log_dir: str, queue: Queue, params_hash: str, cfg_path: str, **kwargs):
+        """Process for running flower server
+
+        Args:
+            log_dir (str): Directory where server.log will be created
+            queue (Queue): Queue for communication between processes
+            params_hash (str): Parameters hash for choosing the directory for saving model checkpoints
+            cfg_path (str): Path to full yaml config file
+        """        
         Process.__init__(self, **kwargs)
         self.log_dir = log_dir
         self.queue = queue
@@ -62,6 +70,8 @@ class Server(Process):
         logging.basicConfig(filename=os.path.join(self.log_dir, f'server.log'), level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
 
     def run(self) -> None:
+        """Runs flower server federated learning training
+        """        
         self._configure_logging()
         strategy = get_strategy(self.cfg.server.strategy, 
                                 self.cfg.node.scheduler.epochs_in_round, 

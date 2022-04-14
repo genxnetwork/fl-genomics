@@ -48,6 +48,7 @@ NODE_RESOURCES = {
 
 if __name__ == '__main__':
     
+    # parse command-line runner.py arguments
     args = OmegaConf.from_cli(sys.argv)
     queue = multiprocessing.Queue()
     cfg_path = 'src/fl/configs/mlp.yaml'
@@ -55,8 +56,10 @@ if __name__ == '__main__':
     log_dir = f'logs/job-{os.environ["SLURM_JOB_ID"]}'
     os.makedirs(log_dir, exist_ok=True)
 
+    # command-line arguments take precedents over config parameters
     cfg = OmegaConf.merge(OmegaConf.load(cfg_path), args)
     experiment = mlflow.set_experiment(cfg.experiment.name)
+
     params_hash = get_cfg_hash(cfg)
     with mlflow.start_run(
         experiment_id=experiment.experiment_id,
@@ -68,6 +71,7 @@ if __name__ == '__main__':
         mlflow.log_params(cfg.server)
         info = MlflowInfo(experiment.experiment_id, run.info.run_id)
 
+        # assigning gpus to nodes and creating process objects
         gpu_index = -1
         for node_index in cfg.server.strategy.nodes:
             need_gpu = NODE_RESOURCES[str(node_index)]['gpus']
@@ -80,9 +84,12 @@ if __name__ == '__main__':
             node.start()
             print(f'starting node {node_index}')
         
+        # create, start and wait for server to finish 
         server = Server(log_dir, queue, params_hash, cfg_path)
         server.start()
         server.join()
+        
+        # wait for all nodes to finish
         for node_index in cfg.server.strategy.nodes:
             node.join()
         print(f'Nodes are finished')
