@@ -173,3 +173,4 @@ logs/
 tools/
 checkpoints/
 models/
+snp_sample_dependence.png

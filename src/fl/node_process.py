@@ -60,13 +60,19 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(OmegaConf.load(cfg_path), node_cfg)
-        logging.info('node cfg is {node_cfg}')
     
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step
         # https://github.com/PyTorchLightning/pytorch-lightning/issues/3431
-        logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
-        logging.basicConfig(filename=os.path.join(self.log_dir, f'node-{self.node_index}.log'), level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
+        # logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
+        self.logger = logging.getLogger(f'node-{self.node_index}.log')
+        self.logger.setLevel(logging.INFO)
+        self.logger.addHandler(logging.FileHandler(os.path.join(self.log_dir, f'node-{self.node_index}.log')))
+
+        # logging.basicConfig(filename=os.path.join(self.log_dir, f'node-{self.node_index}.log'), level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
+
+    def log(self, msg):
+        self.logger.info(msg)
 
     def _start_client_run(self, client: MlflowClient, 
                         parent_run_id: str, 
@@ -91,7 +97,7 @@ class Node(Process):
         X_val = load_from_pgen(self.cfg.dataset.pfile.val, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
         X_test = load_from_pgen(self.cfg.dataset.pfile.test, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
 
-        logging.info(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
+        self.log(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
         
         X_cov_train = load_covariates(self.cfg.dataset.covariates.train)
         X_cov_val = load_covariates(self.cfg.dataset.covariates.val)
@@ -99,10 +105,10 @@ class Node(Process):
         X_train = numpy.hstack([X_train, X_cov_train])
         X_val = numpy.hstack([X_val, X_cov_val])
         X_test = numpy.hstack([X_test, X_cov_test])
-        logging.info(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1]} total features')
+        self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1]} total features')
 
         y_train, y_val, y_test = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val), load_phenotype(self.cfg.dataset.phenotype.test)
-        logging.info(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
+        self.log(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
         self.feature_count = X_train.shape[1]
         self.covariate_count = X_cov_train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count
@@ -141,6 +147,7 @@ class Node(Process):
 
         client = FLClient(self.server_url, data_module, self.cfg.node)
 
+        self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
             mlflow_client,
             parent_run_id=self.mlflow_info.parent_run_id,
@@ -156,7 +163,7 @@ class Node(Process):
             }
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node))
-            logging.info(f'Started run for node {self.node_index}')
+            self.log(f'Started run for node {self.node_index}')
             
             self._train_model(client)
             

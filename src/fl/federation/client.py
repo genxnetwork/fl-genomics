@@ -9,10 +9,16 @@ from sklearn.metrics import mean_squared_error, r2_score
 import mlflow
 
 from nn.models import BaseNet, LinearRegressor, MLPRegressor
-from fl.datasets.lightning import DataModule
+from nn.lightning import DataModule
 
 
 class ModelFactory:
+    """Class for creating models based on model name from config
+
+    Raises:
+        ValueError: If model is not one of the linear_regressor, mlp_regressor
+
+    """    
     @staticmethod
     def _create_linear_regressor(input_size: int, params: Any) -> LinearRegressor:
         return LinearRegressor(
@@ -48,11 +54,8 @@ class FLClient(NumPyClient):
 
         Args:
             server (str): Server address with port
-            model (BaseNet): Model to train
             data_module (DataModule): Module with train, val and test dataloaders
-            logger (TensorBoardLogger): Local tensorboardlogger
-            model_params (Dict): Model parameters
-            training_params (Dict): pytorch_lightning Trainer parameters
+            node_params (Dict): Node config with model, dataset, and training parameters
         """        
         self.server = server
         self.model = ModelFactory.create_model(data_module.feature_count(), node_params)
@@ -70,11 +73,16 @@ class FLClient(NumPyClient):
 
     def fit(self, parameters, config):
         try:
+            # to catch spurious error "weakly-referenced object no longer exists"
+            # probably ref to some model parameter tensor get lost
             self.set_parameters(parameters)
         except ReferenceError as re:
             print(re)
+            # we recreate a model and set parameters again
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.node_params)
-
+            self.set_parameters(parameters)
+            
+        self.model.train()
         self.model.current_round = config['current_round']
         trainer = Trainer(logger=False, **self.node_params.training)
         trainer.fit(self.model, datamodule=self.data_module)
@@ -92,7 +100,7 @@ class FLClient(NumPyClient):
 
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
-
+        self.model.eval()
         trainer = Trainer(logger=False, **self.node_params.training)
         # train_loader = DataLoader(self.model.train_dataset, batch_size=64, num_workers=1, shuffle=False)
         

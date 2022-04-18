@@ -115,6 +115,10 @@ class Checkpointer:
             pass
     
     def load_best_parameters(self) -> Parameters:
+        dct = numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz'))
+        print(f'loading best parameters')
+        for key, value in dct.items():
+            print(key, value.shape)
         weights = list(numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz')).values())
         return weights_to_parameters(weights)
     

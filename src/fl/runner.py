@@ -57,6 +57,9 @@ if __name__ == '__main__':
     os.makedirs(log_dir, exist_ok=True)
 
     # command-line arguments take precedents over config parameters
+    mlflow_url = os.environ.get('MLFLOW_TRACKING_URI', './mlruns')
+    print(f'logging mlflow data to server {mlflow_url}')
+    
     cfg = OmegaConf.merge(OmegaConf.load(cfg_path), args)
     experiment = mlflow.set_experiment(cfg.experiment.name)
 
