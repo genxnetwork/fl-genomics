@@ -39,7 +39,7 @@ class TrainerInfo:
 
 class Node(Process):
     def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo, 
-                 queue: Queue, cfg_path: str, trainer_info: TrainerInfo, **kwargs):
+                 queue: Queue, cfg: DictConfig, trainer_info: TrainerInfo, **kwargs):
         """Process for training on one dataset node
 
         Args:
@@ -59,7 +59,7 @@ class Node(Process):
         self.queue = queue
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
-        self.cfg = OmegaConf.merge(OmegaConf.load(cfg_path), node_cfg)
+        self.cfg = OmegaConf.merge(cfg, node_cfg)
     
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step

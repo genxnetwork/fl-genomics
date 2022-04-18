@@ -18,6 +18,7 @@ from socket import gethostname
 from omegaconf import DictConfig, OmegaConf
 import mlflow
 import hashlib
+import logging
 
 from fl.node_process import MlflowInfo, Node, TrainerInfo
 from fl.server_process import Server
@@ -46,8 +47,20 @@ NODE_RESOURCES = {
 }
 
 
+def configure_logging():
+    # loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
+    all_names = [name for name in logging.root.manager.loggerDict]
+    print('logger names:')
+    print(all_names)
+    names = ['flower', 'pytorch_lightning']
+    for name in names:
+        logger = logging.getLogger(name)
+        logger.handlers = []
+
+
 if __name__ == '__main__':
     
+    configure_logging()
     # parse command-line runner.py arguments
     args = OmegaConf.from_cli(sys.argv)
     queue = multiprocessing.Queue()
@@ -83,12 +96,12 @@ if __name__ == '__main__':
                 trainer_info = TrainerInfo([gpu_index], 'gpu', node_index)
             else:
                 trainer_info = TrainerInfo(1, 'cpu', node_index)
-            node = Node(server_url, log_dir, info, queue, cfg_path, trainer_info)
+            node = Node(server_url, log_dir, info, queue, cfg, trainer_info)
             node.start()
             print(f'starting node {node_index}')
         
         # create, start and wait for server to finish 
-        server = Server(log_dir, queue, params_hash, cfg_path)
+        server = Server(log_dir, queue, params_hash, cfg)
         server.start()
         server.join()
         

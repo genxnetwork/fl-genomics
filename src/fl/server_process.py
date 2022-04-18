@@ -35,6 +35,8 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_d
     else:
         args = default_args
 
+    logging.info(f'strategy args: {args}')
+
     mlflow_logger = MlflowLogger(epochs_in_round)
     checkpointer = Checkpointer(checkpoint_dir)
     if strategy_params.name == 'fedavg':
@@ -50,7 +52,7 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_d
 
 
 class Server(Process):
-    def __init__(self, log_dir: str, queue: Queue, params_hash: str, cfg_path: str, **kwargs):
+    def __init__(self, log_dir: str, queue: Queue, params_hash: str, cfg: DictConfig, **kwargs):
         """Process for running flower server
 
         Args:
@@ -64,7 +66,7 @@ class Server(Process):
         self.queue = queue
         self.params_hash = params_hash
         null_node = OmegaConf.from_dotlist([f'node.index=null'])
-        self.cfg = OmegaConf.merge(null_node, OmegaConf.load(cfg_path))
+        self.cfg = OmegaConf.merge(null_node, cfg)
 
     def _configure_logging(self):
         logging.basicConfig(filename=os.path.join(self.log_dir, f'server.log'), level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
