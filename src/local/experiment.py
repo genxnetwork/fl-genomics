@@ -58,7 +58,7 @@ class LocalExperiment():
         self.y_train = load_phenotype(self.cfg.data.phenotype.train)
         self.y_val = load_phenotype(self.cfg.data.phenotype.val)
         self.y_test = load_phenotype(self.cfg.data.phenotype.test)
-        
+
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
         
         if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:

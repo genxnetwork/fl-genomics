@@ -50,26 +50,26 @@ class BaseNet(LightningModule):
         return {'val_loss': loss, 'batch_len': x.shape[0]}
     
     def calculate_avg_epoch_metric(self, outputs: List[Dict[str, Any]], metric_name: str) -> float:
-        total_len = sum(out['batch_len'] for out in outputs).item()
-        avg_loss = sum(out[metric_name].item()*out['batch_len'] for out in outputs).item()/total_len
+        total_len = sum(out['batch_len'] for out in outputs)
+        avg_loss = sum(out[metric_name].item()*out['batch_len'] for out in outputs)/total_len
         return avg_loss
 
     def training_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
-        mlflow.log_metric('train_loss', avg_loss, self._fl_current_epoch())
-        mlflow.log_metric('raw_loss', avg_raw_loss, self._fl_current_epoch())
-        mlflow.log_metric('reg', avg_reg, self._fl_current_epoch())
-        mlflow.log_metric('lr', self._get_current_lr(), self._fl_current_epoch())
+        mlflow.log_metric('train_loss', avg_loss, self.fl_current_epoch())
+        mlflow.log_metric('raw_loss', avg_raw_loss, self.fl_current_epoch())
+        mlflow.log_metric('reg', avg_reg, self.fl_current_epoch())
+        mlflow.log_metric('lr', self._get_current_lr(), self.fl_current_epoch())
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
-        mlflow.log_metric('val_loss', avg_loss, self._fl_current_epoch())
+        mlflow.log_metric('val_loss', avg_loss, self.fl_current_epoch())
         self.log('val_loss', avg_loss, prog_bar=True)    
 
-    def _fl_current_epoch(self):
+    def fl_current_epoch(self):
         return self.current_round * self.scheduler_params['epochs_in_round'] + self.current_epoch
 
     def _get_current_lr(self):
@@ -78,6 +78,7 @@ class BaseNet(LightningModule):
         return lr
     
     def _configure_adamw(self):
+        last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
         optimizer = torch.optim.AdamW([
             {
                 'params': self.parameters(), 
@@ -85,21 +86,39 @@ class BaseNet(LightningModule):
                 'max_lr': self.optim_params['lr'],
                 'min_lr': self.optim_params['lr']/self.scheduler_params['final_div_factor']}
             ], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
-
+        
         scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer,
                                                         max_lr=self.optim_params['lr'],
                                                         div_factor=self.scheduler_params['div_factor'],
                                                         final_div_factor=self.scheduler_params['final_div_factor'],
                                                         anneal_strategy='linear',
-                                                        total_steps=int(self.scheduler_params['rounds']*(1.5*self.scheduler_params['epochs_in_round'])+2),
+                                                        epochs=int(self.scheduler_params['rounds']*(1.5*self.scheduler_params['epochs_in_round'])+2),
                                                         pct_start=0.1,
-                                                        last_epoch=self.current_round*self.scheduler_params['epochs_in_round'],
+                                                        steps_per_epoch=1,
+                                                        last_epoch=last_epoch,
                                                         cycle_momentum=False)
+        
+        
+        return [optimizer], [scheduler]
+
+    def _configure_sgd(self):
+        last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
+        optimizer = torch.optim.SGD([
+            {
+                'params': self.parameters(), 
+                'lr': self.optim_params['lr']*0.97**last_epoch,
+                'initial_lr': self.optim_params['lr'], 
+            }], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
+
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=self.current_round*self.scheduler_params['epochs_in_round']
+        )
         return [optimizer], [scheduler]
 
     def configure_optimizers(self):
         optim_init = {
-            'adamw': self._configure_adamw 
+            'adamw': self._configure_adamw,
+            'sgd': self._configure_sgd
         }[self.optim_params['name']]
         return optim_init()
 

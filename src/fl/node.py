@@ -16,7 +16,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from datasets.memory import load_from_pgen, load_phenotype, load_covariates
 from datasets.lightning import DataModule
-from model.mlp import BaseNet, LinearRegressor, MLPRegressor
+from nn.models import BaseNet, LinearRegressor, MLPRegressor
 from federation.client import FLClient
 
 
