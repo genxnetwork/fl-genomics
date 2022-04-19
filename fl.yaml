@@ -23,3 +23,6 @@ dependencies:
       - qmplot
       # for https://github.com/pytorch/pytorch/pull/69904
       - setuptools==59.5.0
+      - plotly==5.7.0
+      - dash==2.3.1
+

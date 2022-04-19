@@ -1,13 +1,7 @@
 node_index: 2
+split_dir: /gpfs/gpfs0/ukb_data/test/uneven_split
 experiment:
   snp_count: 10000
 
 model:
-  name: xgboost
-  #params:
-  #  alpha: 0.1
-# data:
-#   node_id: [0, 4]
-#   snp_count: [100, 200]
-# model:
-#   name: [lasso, xgboost]
+  name: lassonet

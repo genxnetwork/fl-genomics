@@ -6,7 +6,6 @@ import mlflow
 from mlflow.xgboost import autolog
 from numpy import hstack, argmax, amax
 from sklearn.linear_model import LassoCV
-from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
@@ -38,7 +37,7 @@ class LocalExperiment():
     def start_mlflow_run(self):
         split = self.cfg.split_dir.split('/')[-1]
         num_samples = node_size_dict[split][self.cfg.node_index]
-        mlflow.set_experiment(f'local-models')
+        mlflow.set_experiment(self.cfg.experiment.name)
         self.run = mlflow.start_run(tags={
             'model': self.cfg.model.name,
             'split': split,
@@ -48,8 +47,10 @@ class LocalExperiment():
             'sample_count': str(round(num_samples, -2)),
             'sample_count_exact': str(num_samples),
             'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
-            'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas))}
-        )
+            'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas)),
+            'covariates': str(int(self.cfg.experiment.include_covariates)),
+            'snps': str(int(self.cfg.experiment.include_genotype))
+        })
 
     def load_data(self):
         self.logger.info("Loading data")
@@ -57,6 +58,7 @@ class LocalExperiment():
         self.y_train = load_phenotype(self.cfg.data.phenotype.train)
         self.y_val = load_phenotype(self.cfg.data.phenotype.val)
         self.y_test = load_phenotype(self.cfg.data.phenotype.test)
+
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
         
         if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
@@ -64,7 +66,7 @@ class LocalExperiment():
         elif self.cfg.experiment.include_genotype:
             self.load_genotype_()
         else:
-            self.load_covariates()
+            self.load_covariates_()
             
         self.logger.info(f"{self.X_train.shape[1]} features loaded")
         
