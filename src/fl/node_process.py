@@ -109,6 +109,9 @@ class Node(Process):
 
         y_train, y_val, y_test = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val), load_phenotype(self.cfg.dataset.phenotype.test)
         self.log(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
+        y_train -= 160
+        y_val -= 160
+        y_test -= 160
         self.feature_count = X_train.shape[1]
         self.covariate_count = X_cov_train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count
