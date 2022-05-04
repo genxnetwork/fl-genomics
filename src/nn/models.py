@@ -52,7 +52,7 @@ class BaseNet(LightningModule):
     def calculate_avg_epoch_metric(self, outputs: List[Dict[str, Any]], metric_name: str) -> float:
         total_len = sum(out['batch_len'] for out in outputs)
         avg_loss = sum(out[metric_name].item()*out['batch_len'] for out in outputs)/total_len
-        return avg_loss
+        return avg_loss if isinstance(avg_loss, float) else avg_loss.item()
 
     def training_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
@@ -106,7 +106,7 @@ class BaseNet(LightningModule):
         optimizer = torch.optim.SGD([
             {
                 'params': self.parameters(), 
-                'lr': self.optim_params['lr']*0.97**last_epoch,
+                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**last_epoch,
                 'initial_lr': self.optim_params['lr'], 
             }], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
 
@@ -195,7 +195,8 @@ class MLPRegressor(BaseNet):
 
 class LassoNetRegressor(BaseNet):
     def __init__(self, input_size: int, hidden_size: int, 
-                 optim_params: Dict, scheduler_params: Dict, 
+                 optim_params: Dict, scheduler_params: Dict,
+                 cov_count: int = 0, 
                  alpha_start: float = -1, alpha_end: float = -1, init_limit: float = 0.01) -> None:
         super().__init__(input_size, optim_params, scheduler_params)
         
@@ -203,6 +204,7 @@ class LassoNetRegressor(BaseNet):
         self.alphas = numpy.logspace(alpha_start, alpha_end, num=hidden_size, endpoint=True, base=10)
         self.hidden_size = hidden_size
         self.input_size = input_size
+        self.cov_count = cov_count
         self.layer = Linear(self.input_size, self.hidden_size)
         self.bn = BatchNorm1d(self.input_size)
         init_uniform_(self.layer.weight, a=-init_limit, b=init_limit) 
@@ -219,6 +221,10 @@ class LassoNetRegressor(BaseNet):
         return mse_loss(y_hat, y)
     
     def regularization(self) -> torch.Tensor:
+
         alphas = torch.tensor(self.alphas, device=self.layer.weight.device, dtype=torch.float32)
-        l1 = torch.dot(alphas, torch.norm(self.layer.weight, p=1, dim=1))/self.hidden_size 
-        return l1
+        if self.cov_count == 0:
+            return torch.dot(alphas, torch.norm(self.layer.weight, p=1, dim=1))/self.hidden_size 
+        else:
+            w = self.layer.weight[:, :self.layer.weight.shape[1] - self.cov_count]
+            return torch.dot(alphas, torch.norm(w, p=1, dim=1))/self.hidden_size 

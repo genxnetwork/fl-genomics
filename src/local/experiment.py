@@ -5,7 +5,7 @@ from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
 from numpy import hstack, argmax, amax
-from sklearn.linear_model import LassoCV
+from sklearn.linear_model import LassoCV, LinearRegression
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
@@ -55,9 +55,11 @@ class LocalExperiment():
     def load_data(self):
         self.logger.info("Loading data")
         
-        self.y_train = load_phenotype(self.cfg.data.phenotype.train)
-        self.y_val = load_phenotype(self.cfg.data.phenotype.val)
-        self.y_test = load_phenotype(self.cfg.data.phenotype.test)
+        self.y_train = load_phenotype(self.cfg.data.phenotype.train) - 160
+        self.y_val = load_phenotype(self.cfg.data.phenotype.val) - 160
+        self.y_test = load_phenotype(self.cfg.data.phenotype.test) - 160
+        test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
+        self.y_test = self.y_test[:test_samples_limit]
 
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
         
@@ -72,14 +74,17 @@ class LocalExperiment():
         
     def load_sample_indices(self):
         self.logger.info("Loading sample indices")
+        test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         self.sample_indices_train = get_sample_indices(self.cfg.data.genotype.train,
                                                        self.cfg.data.phenotype.train)
         self.sample_indices_val = get_sample_indices(self.cfg.data.genotype.val,
                                                      self.cfg.data.phenotype.val)
         self.sample_indices_test = get_sample_indices(self.cfg.data.genotype.test,
-                                                      self.cfg.data.phenotype.test)
+                                                      self.cfg.data.phenotype.test,
+                                                      indices_limit=test_samples_limit)
         
     def load_genotype_and_covariates_(self):
+        test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         self.X_train = hstack((load_from_pgen(self.cfg.data.genotype.train,
                                               self.cfg.data.gwas,
                                               snp_count=self.cfg.experiment.snp_count,
@@ -94,7 +99,7 @@ class LocalExperiment():
                                               self.cfg.data.gwas,
                                               snp_count=self.cfg.experiment.snp_count,
                                               sample_indices=self.sample_indices_test),
-                               load_covariates(self.cfg.data.covariates.test)))
+                               load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :]))
         
     def load_genotype_(self):
         self.X_train = load_from_pgen(self.cfg.data.genotype.train,
@@ -111,9 +116,10 @@ class LocalExperiment():
                                      sample_indices=self.sample_indices_test)
         
     def load_covariates_(self):
+        test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         self.X_train = load_covariates(self.cfg.data.covariates.train)
         self.X_val = load_covariates(self.cfg.data.covariates.val)
-        self.X_test = load_covariates(self.cfg.data.covariates.test)
+        self.X_test = load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :]
     
     def train(self):
         pass
@@ -242,6 +248,7 @@ class LassoNetExperiment(NNExperiment):
             hidden_size=self.cfg.model.hidden_size,
             optim_params=self.cfg.experiment.optimizer,
             scheduler_params=self.cfg.experiment.scheduler,
+            cov_count=2,
             alpha_start=self.cfg.model.alpha_start,
             alpha_end=self.cfg.model.alpha_end,
             init_limit=self.cfg.model.init_limit
@@ -254,11 +261,48 @@ class LassoNetExperiment(NNExperiment):
             hidden_size=self.cfg.model.hidden_size,
             optim_params=self.cfg.experiment.optimizer,
             scheduler_params=self.cfg.experiment.scheduler,
+            cov_count=2,
             alpha_start=self.cfg.model.alpha_start,
             alpha_end=self.cfg.model.alpha_end,
             init_limit=self.cfg.model.init_limit
         )
 
+    def train(self):
+        lr = LinearRegression()
+        cov_train = load_covariates(self.cfg.data.covariates.train)
+        cov_val = load_covariates(self.cfg.data.covariates.val)
+        lr.fit(cov_train, self.y_train)
+        val_r2 = lr.score(cov_val, self.y_val)
+        train_r2 = lr.score(cov_train, self.y_train)
+        cov_count = cov_train.shape[1]
+        snp_count = self.X_train.shape[1] - cov_count
+        self.logger.info(f"cov only train_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f} for {cov_count} covariates")
+
+
+        mlflow.log_params({'model': self.cfg.model})
+        mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
+        mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
+        
+        self.create_model()
+        cov_weights = torch.tensor(lr.coef_, dtype=self.model.layer.weight.dtype).unsqueeze(0).tile((self.cfg.model.hidden_size, 1))
+        self.logger.info(f"covariates weights are {cov_weights}")
+        self.logger.info(f"cov-only model intercept is {lr.intercept_}")
+
+        weight = self.model.layer.weight.data
+        weight[:, snp_count:] = cov_weights
+        self.model.layer.weight = torch.nn.Parameter(weight)
+        # self.model.layer.weight[:, snp_count:] = cov_weights
+        # self.model.layer.bias[:] = lr.intercept_
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
+        
+        print("Fitting")
+        self.trainer.fit(self.model, self.data_module)
+        print("Fitted")
+        self.load_best_model()
+        print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
+
+    
     def eval_and_log(self):
         self.model.eval()
         train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
@@ -295,6 +339,7 @@ experiment_dict = {
             
 @hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
+    print(cfg)
     assert cfg.model.name in experiment_dict.keys()
     experiment = experiment_dict[cfg.model.name](cfg)
     experiment.run()   

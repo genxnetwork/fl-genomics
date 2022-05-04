@@ -1,0 +1,7 @@
+name: local-models-all-snps
+include_genotype: True
+include_covariates: True
+different_node_gwas: False
+snp_count: 596409
+random_state: 0
+test_samples_limit: 1000
