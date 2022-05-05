@@ -1,6 +1,7 @@
 import hydra
 import logging
 from sys import stdout
+import numpy
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
@@ -89,17 +90,17 @@ class LocalExperiment():
                                               self.cfg.data.gwas,
                                               snp_count=self.cfg.experiment.snp_count,
                                               sample_indices=self.sample_indices_train),
-                               load_covariates(self.cfg.data.covariates.train)))
+                               load_covariates(self.cfg.data.covariates.train).astype(numpy.float16)))
         self.X_val = hstack((load_from_pgen(self.cfg.data.genotype.val,
                                               self.cfg.data.gwas,
                                               snp_count=self.cfg.experiment.snp_count,
                                               sample_indices=self.sample_indices_val),
-                               load_covariates(self.cfg.data.covariates.val)))
+                               load_covariates(self.cfg.data.covariates.val).astype(numpy.float16)))
         self.X_test = hstack((load_from_pgen(self.cfg.data.genotype.test,
                                               self.cfg.data.gwas,
                                               snp_count=self.cfg.experiment.snp_count,
                                               sample_indices=self.sample_indices_test),
-                               load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :]))
+                               load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :].astype(numpy.float16)))
         
     def load_genotype_(self):
         self.X_train = load_from_pgen(self.cfg.data.genotype.train,
@@ -185,7 +186,7 @@ class NNExperiment(LocalExperiment):
 
     def load_data(self):
         LocalExperiment.load_data(self)
-        self.data_module = DataModule(self.X_train, self.X_val, self.X_test, self.y_train, self.y_val, self.y_test, batch_size=self.cfg.model.batch_size)
+        self.data_module = DataModule(self.X_train, self.X_val, self.X_test, self.y_train.astype(numpy.float32), self.y_val.astype(numpy.float32), self.y_test.astype(numpy.float32), batch_size=self.cfg.model.batch_size)
     
     def create_model(self):
         self.model = MLPRegressor(input_size=self.X_train.shape[1],

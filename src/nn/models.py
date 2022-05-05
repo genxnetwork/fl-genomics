@@ -214,8 +214,6 @@ class LassoNetRegressor(BaseNet):
         return out 
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        # print(f'SHAPES IN LOSS')
-        # print(y.shape)
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
         # print(y.shape, y_hat.shape)
         return mse_loss(y_hat, y)
