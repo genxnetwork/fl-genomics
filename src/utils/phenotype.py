@@ -1,0 +1,1 @@
+MEAN_PHENO_DICT = {'standing_height': 160}

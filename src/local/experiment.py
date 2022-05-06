@@ -16,6 +16,7 @@ from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, 
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
 from nn.models import MLPRegressor, LassoNetRegressor
+from utils.phenotype import MEAN_PHENO_DICT
 
 
 class LocalExperiment():
@@ -56,9 +57,9 @@ class LocalExperiment():
     def load_data(self):
         self.logger.info("Loading data")
         
-        self.y_train = load_phenotype(self.cfg.data.phenotype.train) - 160
-        self.y_val = load_phenotype(self.cfg.data.phenotype.val) - 160
-        self.y_test = load_phenotype(self.cfg.data.phenotype.test) - 160
+        self.y_train = load_phenotype(self.cfg.data.phenotype.train) - MEAN_PHENO_DICT[self.cfg.phenotype.name]
+        self.y_val = load_phenotype(self.cfg.data.phenotype.val) - MEAN_PHENO_DICT[self.cfg.phenotype.name]
+        self.y_test = load_phenotype(self.cfg.data.phenotype.test) - MEAN_PHENO_DICT[self.cfg.phenotype.name]
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         self.y_test = self.y_test[:test_samples_limit]
 
