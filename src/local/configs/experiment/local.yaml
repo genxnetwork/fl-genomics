@@ -1,0 +1,6 @@
+name: local-models
+include_genotype: True
+include_covariates: True
+different_node_gwas: False
+snp_count: 1000
+random_state: 0

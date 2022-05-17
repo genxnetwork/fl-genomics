@@ -1,3 +1,4 @@
+from typing import Optional
 import numpy
 import pandas
 from pgenlib import PgenReader
@@ -60,7 +61,7 @@ def load_covariates(covariates_path: str, load_pcs: bool = False) -> numpy.ndarr
         to_load = [col for col in data.columns if not col.startswith('PC') and col not in ['FID', 'IID']]
     return data.loc[:, to_load].values # First two columns are FID, IID
 
-def get_sample_indices(pfile_path:str, phenotype_path: str) -> numpy.ndarray:
+def get_sample_indices(pfile_path: str, phenotype_path: str, indices_limit: Optional[int] = None) -> numpy.ndarray:
     """Given the prefix to a genotype file and a phenotype file, returns an array 
     indicating which indices of the genotype are present in the phenotype. Used to
     select samples within a genotype file with PgenReader.
@@ -68,6 +69,7 @@ def get_sample_indices(pfile_path:str, phenotype_path: str) -> numpy.ndarray:
     Args:
         pfile_path (str): Genotye prefix path
         phenotype_path (str): Path to phenotype (or other) file with IID column.
+        indices_limit (Optional[int]): Maximum number of samples to return. Useful for limiting memory usage for the test dataset
     
     Returns:
         numpy.ndarray: Array with list of indices required to load samples present in
@@ -76,7 +78,12 @@ def get_sample_indices(pfile_path:str, phenotype_path: str) -> numpy.ndarray:
     psam = pandas.read_table(pfile_path + '.psam')
     pheno = pandas.read_table(phenotype_path)
     psam['idx'] = numpy.arange(0, psam.shape[0])
-    return psam.loc[psam.IID.isin(pheno.IID), 'idx'].values.astype('uint32')
+    indices = psam.loc[psam.IID.isin(pheno.IID), 'idx'].values.astype('uint32')
+    if indices_limit is not None and indices_limit < indices.shape[0]:
+        # we do not care about random subsample for now
+        return indices[:indices_limit]
+    else:
+        return indices 
 
 def get_snp_list(pfile_path: str, gwas_path: str, snp_count: int) -> numpy.ndarray:
     pvar = pandas.read_table(pfile_path + '.pvar')
