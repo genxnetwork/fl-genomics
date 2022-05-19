@@ -174,3 +174,6 @@ tools/
 checkpoints/
 models/
 snp_sample_dependence.png
+
+# mlflow local storage for test runs
+mlruns/

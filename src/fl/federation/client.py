@@ -1,3 +1,4 @@
+from matplotlib.pyplot import get
 from omegaconf import DictConfig
 import torch
 import logging
@@ -8,7 +9,7 @@ from flwr.client import NumPyClient
 from sklearn.metrics import mean_squared_error, r2_score
 import mlflow
 
-from nn.models import BaseNet, LinearRegressor, MLPRegressor
+from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
 from nn.lightning import DataModule
 
 
@@ -39,13 +40,30 @@ class ModelFactory:
         )
 
     @staticmethod
+    def _create_lassonet_regressor(input_size: int, params: Any) -> LassoNetRegressor:
+        return LassoNetRegressor(
+            input_size=input_size,
+            hidden_size=params.model.hidden_size,
+            optim_params=params.optimizer,
+            scheduler_params=params.scheduler,
+            cov_count=2, #TODO: make configurable or computable
+            alpha_start=params.model.alpha_start,
+            alpha_end=params.model.alpha_end,
+            init_limit=params.model.init_limit
+        )
+
+    @staticmethod
     def create_model(input_size: int, params: Any) -> BaseNet:
-        if params.model.name == 'linear_regressor':
-            return ModelFactory._create_linear_regressor(input_size, params)
-        elif params.model.name == 'mlp_regressor':
-            return ModelFactory._create_mlp_regressor(input_size, params)
-        else:
-            raise ValueError(f'model name {params.model.name} is unknown')
+        model_dict = {
+            'linear_regressor': ModelFactory._create_linear_regressor,
+            'mlp_regressor': ModelFactory._create_mlp_regressor,
+            'lassonet_regressor': ModelFactory._create_lassonet_regressor
+        }
+
+        create_func = model_dict.get(params.model.name, None)
+        if create_func is None:
+            raise ValueError(f'model name {params.model.name} is unknown, it should be one of the {list(model_dict.keys())}')
+        return create_func(input_size, params)
 
 
 class FLClient(NumPyClient):
@@ -101,29 +119,16 @@ class FLClient(NumPyClient):
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         self.model.eval()
-        trainer = Trainer(logger=False, **self.node_params.training)
-        # train_loader = DataLoader(self.model.train_dataset, batch_size=64, num_workers=1, shuffle=False)
-        
-        train_loader, val_loader, test_loader = self.data_module.predict_dataloader()
-        train_loss, train_r2 = self.calculate_loader_metrics(trainer, train_loader)
-        val_loss, val_r2 = self.calculate_loader_metrics(trainer, val_loader)
-        
+                
+        need_test_eval = 'current_round' in config and config['current_round'] == -1
+        unreduced_metrics = self.model.predict_and_eval(self.data_module, 
+                                                        test=need_test_eval, 
+                                                        best_col=config['best_col'])
+        unreduced_metrics.log_to_mlflow()
         val_len = self.data_module.val_len()
-        epoch = self.model.fl_current_epoch()
-        logging.info(f'round: {self.model.current_round}\ttrain_loss: {train_loss:.4f}\ttrain_r2: {train_r2:.4f}\tval_loss: {val_loss:.3f}\tval_r2: {val_r2:.4f}\tval_len: {val_len}')
-        mlflow.log_metric('train_loss', train_loss, epoch)
-        mlflow.log_metric('train_r2', train_r2, epoch)
-        mlflow.log_metric('val_r2', val_r2, epoch)
-        mlflow.log_metric('val_loss', val_loss, epoch)
-        
-        results = {"val_loss": val_loss, "train_loss": train_loss, "train_r2": train_r2, "val_r2": val_r2}
-        if 'current_round' in config and config['current_round'] == -1:
-            print(f'Final evaluation started')
-            test_loss, test_r2 = self.calculate_loader_metrics(trainer, test_loader)
-            mlflow.log_metric('test_r2', test_r2)
-            results['test_r2'] = test_r2
-            print(f'test_r2 is {test_r2:.4f} for {self.data_module.test_len()} samples')
-            results['test_len'] = self.data_module.test_len()
 
-        logging.info(f'val_loss type: {type(val_loss)}, val_len type: {type(val_len)}')
-        return val_loss, val_len, results
+        logging.info(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
+        
+        results = unreduced_metrics.to_result_dict()
+        
+        return unreduced_metrics.val_loss, val_len, results

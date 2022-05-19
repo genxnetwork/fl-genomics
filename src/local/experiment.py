@@ -280,7 +280,6 @@ class LassoNetExperiment(NNExperiment):
         snp_count = self.X_train.shape[1] - cov_count
         self.logger.info(f"cov only train_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f} for {cov_count} covariates")
 
-
         mlflow.log_params({'model': self.cfg.model})
         mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
         mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})

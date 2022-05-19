@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # parse command-line runner.py arguments
     args = OmegaConf.from_cli(sys.argv)
     queue = multiprocessing.Queue()
-    cfg_path = 'src/fl/configs/mlp.yaml'
+    cfg_path = 'src/fl/configs/lassonet.yaml'
     server_url = f'{gethostname()}:8080'
     log_dir = f'logs/job-{os.environ["SLURM_JOB_ID"]}'
     os.makedirs(log_dir, exist_ok=True)

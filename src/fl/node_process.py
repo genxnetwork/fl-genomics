@@ -20,6 +20,7 @@ from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates
 from nn.lightning import DataModule
 from nn.models import BaseNet, LinearRegressor, MLPRegressor
 from fl.federation.client import FLClient
+from utils.phenotype import MEAN_PHENO_DICT
 
 
 @dataclass
@@ -93,25 +94,46 @@ class Node(Process):
         Returns:
             DataModule: Subclass of LightningDataModule for loading data during training
         """        
-        X_train = load_from_pgen(self.cfg.dataset.pfile.train, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
-        X_val = load_from_pgen(self.cfg.dataset.pfile.val, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
-        X_test = load_from_pgen(self.cfg.dataset.pfile.test, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
+        test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
+        test_sample_indices = numpy.arange(test_samples_limit).astype(numpy.uint32) if test_samples_limit is not None else None
+        X_train = load_from_pgen(self.cfg.dataset.pfile.train, 
+            self.cfg.dataset.gwas, 
+            snp_count=None,
+            sample_indices=None, 
+            missing=self.cfg.experiment.missing) 
+        X_val = load_from_pgen(
+            self.cfg.dataset.pfile.val, 
+            self.cfg.dataset.gwas, 
+            snp_count=None, 
+            sample_indices=None,
+            missing=self.cfg.experiment.missing) 
+        X_test = load_from_pgen(
+            self.cfg.dataset.pfile.test, 
+            self.cfg.dataset.gwas,
+            snp_count=None, 
+            sample_indices=test_sample_indices, 
+            missing=self.cfg.experiment.missing) 
 
         self.log(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
         
-        X_cov_train = load_covariates(self.cfg.dataset.covariates.train)
-        X_cov_val = load_covariates(self.cfg.dataset.covariates.val)
-        X_cov_test =load_covariates(self.cfg.dataset.covariates.test)
+        X_cov_train = load_covariates(self.cfg.dataset.covariates.train).astype(numpy.float16)
+        X_cov_val = load_covariates(self.cfg.dataset.covariates.val).astype(numpy.float16)
+        X_cov_test = load_covariates(self.cfg.dataset.covariates.test)[:test_samples_limit, :].astype(numpy.float16)
+
+        self.log(f'dtypes are : {X_train.dtype}, {X_val.dtype}, {X_test.dtype}, {X_cov_train.dtype}, {X_cov_val.dtype}, {X_cov_test.dtype}')
         X_train = numpy.hstack([X_train, X_cov_train])
         X_val = numpy.hstack([X_val, X_cov_val])
         X_test = numpy.hstack([X_test, X_cov_test])
         self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1]} total features')
+        self.log(f'dtypes are : {X_train.dtype}, {X_val.dtype}, {X_test.dtype}')
 
         y_train, y_val, y_test = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val), load_phenotype(self.cfg.dataset.phenotype.test)
+        self.log(f'phenotypes dtypes are : {y_train.dtype}, {y_val.dtype}, {y_test.dtype}')
+
         self.log(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
-        y_train -= 160
-        y_val -= 160
-        y_test -= 160
+        y_train -= MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        y_val -= MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        y_test -= MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
         self.feature_count = X_train.shape[1]
         self.covariate_count = X_cov_train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count

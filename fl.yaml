@@ -4,6 +4,7 @@ channels:
     - conda-forge
     - bioconda
 dependencies:
+    - python==3.9.9
     - pandas
     - matplotlib
     - numpy
@@ -13,6 +14,7 @@ dependencies:
     - plink2
     - snakemake
     - zarr
+    - omegaconf
     - pip
     - pip:
       - pytorch-lightning
