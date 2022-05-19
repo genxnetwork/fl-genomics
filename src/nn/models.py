@@ -136,7 +136,7 @@ class BaseNet(LightningModule):
             y_true.append(y.cpu())
         return torch.cat(y_pred, dim=0), torch.cat(y_true, dim=0)
 
-    def predict_and_eval(self, datamodule: DataModule) -> Metrics:
+    def predict_and_eval(self, datamodule: DataModule, **kwargs: Any) -> Metrics:
         raise NotImplementedError('subclasses of BaseNet should implement predict_end_eval')
 
 
@@ -243,17 +243,17 @@ class LassoNetRegressor(BaseNet):
             return torch.dot(alphas, torch.norm(w, p=1, dim=1))/self.hidden_size
 
     def _unreduced_mse_loss(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> List[float]:
-        return [mse_loss(y_pred[:, i], y_true) for i in range(self.hidden_size)]
+        return [mse_loss(y_pred[:, i], y_true).item() for i in range(self.hidden_size)]
 
     def _unreduced_r2_score(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> List[float]:
         y = y_true.unsqueeze(1).tile(dims=(1, self.hidden_size))
-        r2 = [r for r in self.r2_score(y_pred, y)]
+        r2 = [r.item() for r in self.r2_score(y_pred, y)]
         return r2
 
     def _unreduced_pred_metrics(self, prefix: str, y_pred: torch.Tensor, y_true: torch.Tensor) -> List[RegLoaderMetrics]:
         losses = self._unreduced_mse_loss(y_pred, y_true)
         r2s = self._unreduced_r2_score(y_pred, y_true)
-        return [RegLoaderMetrics(prefix, loss, r2, self.fl_current_epoch()) for loss, r2 in zip(losses, r2s)]
+        return [RegLoaderMetrics(prefix, loss, r2, self.fl_current_epoch(), samples=y_true.shape[0]) for loss, r2 in zip(losses, r2s)]
 
     def predict_and_eval(self, datamodule: DataModule, test=False, best_col : Optional[int] = None) -> Metrics:
         train_loader, val_loader, test_loader = datamodule.predict_dataloader()

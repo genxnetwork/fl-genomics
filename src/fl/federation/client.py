@@ -123,12 +123,12 @@ class FLClient(NumPyClient):
         need_test_eval = 'current_round' in config and config['current_round'] == -1
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
                                                         test=need_test_eval, 
-                                                        best_col=config['best_col'])
+                                                        best_col=config.get('best_col', None))
         unreduced_metrics.log_to_mlflow()
         val_len = self.data_module.val_len()
 
         logging.info(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
         
         results = unreduced_metrics.to_result_dict()
-        
+        print('results dtype are: ', type(unreduced_metrics.val_loss), type(val_len), type(results))
         return unreduced_metrics.val_loss, val_len, results
