@@ -15,11 +15,11 @@ class DataModule(LightningDataModule):
         self.batch_size = batch_size
 
     def train_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=1, prefetch_factor=1)
+        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=4, prefetch_factor=4)
         return loader
     
     def val_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=1, prefetch_factor=1)
+        loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=2)
         return loader
     
     def test_dataloader(self) -> DataLoader:
