@@ -36,29 +36,20 @@ RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 
 class MlflowLogger:
-    def __init__(self, epochs_in_round: int) -> None:
+    def __init__(self, epochs_in_round: int, model_type: str) -> None:
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
+        if model_type not in ['lassonet_regressor', 'mlp_regressor']:
+            raise ValueError(f'model_type should be one of the lassonet_regressor, mlp_regressor and not {model_type}')
 
-    def _calculate_agg_metric(self, metric_name: str, results: RESULTS, custom_len_name: str = None) -> float:
-        """Calculates weighted average {metric_name} from {results}
+        self.model_type = model_type
 
-        Args:
-            metric_name (str): Name of metric in {results}
-            results (RESULTS): List of client's client proxies and current round metrics
-            custom_len_name (str): Needed if we are calculating test metrics using test_len value returned from each client
-        Returns:
-            float: averaged metric
-        """        
-        if custom_len_name is None:
-            losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
-            examples = [r.num_examples for _, r in results]
+    def _get_reduction_type(self, rnd: int) -> str:
+        if self.model_type == 'lassonet_regressor':
+            return 'mean' if rnd == -1 else 'lassonet_best'
         else:
-            losses = [r.metrics[metric_name] * r.metrics[custom_len_name] for _, r in results]
-            examples = [r.metrics[custom_len_name] for _, r in results]
-
-        return sum(losses) / sum(examples)
+            return 'mean' 
 
     def log_losses(self, rnd: int, results: RESULTS) -> Metrics:
         """Logs val_loss, val and train r^2 to mlflow
@@ -69,17 +60,20 @@ class MlflowLogger:
 
         Returns:
             Metrics: Metrics reduced over clients
-        """        
-        metric_list = [pickle.loads(r.metrics['metrics']) for r in results]
+        """       
+        metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
         fed_metrics = RegFederatedMetrics(metric_list, rnd*self.epochs_in_round)
         # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
-        avg_metrics = fed_metrics.reduce(reduction='lassonet_best')
-        
+        # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
+        avg_metrics = fed_metrics.reduce(reduction=self._get_reduction_type(rnd))
+        # logging.info(avg_metrics)
         logging.info(f'round {rnd}\t' + str(avg_metrics))
         avg_metrics.log_to_mlflow()
 
-        if rnd == -1:
+        if rnd != -1:
+            lassonet_best_metrics = avg_metrics.reduce('mean')
             logging.info(f'logging final centralized evaluation results')
+            logging.info(f'round: {rnd}\t' + str(lassonet_best_metrics))
 
         return avg_metrics
 
@@ -147,9 +141,9 @@ class MCMixin:
         if not results:
             return None
         metrics = self.mlflow_logger.log_losses(rnd, results)
-        reduced_metrics = metrics.reduce('lassonet_best')
+        reduced_metrics = metrics.reduce(self.mlflow_logger._get_reduction_type(rnd)) 
         self.checkpointer.add_loss_to_history(reduced_metrics.val_loss)
-        self.checkpointer.last_metrics = reduced_metrics
+        self.checkpointer.last_metrics = metrics
         return super().aggregate_evaluate(rnd, results, failures)
     
     def aggregate_fit(

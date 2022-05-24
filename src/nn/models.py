@@ -104,6 +104,10 @@ class BaseNet(LightningModule):
         
         return [optimizer], [scheduler]
 
+    def set_covariate_weights(self, weights: numpy.ndarray):
+        raise NotImplementedError('for this model setting covariate weights is not implemented')
+
+
     def _configure_sgd(self):
         last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
         optimizer = torch.optim.SGD([
@@ -277,4 +281,13 @@ class LassoNetRegressor(BaseNet):
     def get_best_predictions(self, train_preds: torch.Tensor, val_preds: torch.Tensor, test_preds: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         best_col = torch.amax(self.r2_score(val_preds))
         return train_preds[:, best_col], val_preds[:, best_col], test_preds[:, best_col]
+
+    def set_covariate_weights(self, weights: numpy.ndarray):
+        cov_weights = torch.tensor(weights, dtype=self.layer.weight.dtype).unsqueeze(0).tile((self.hidden_size, 1))
+
+        weight = self.layer.weight.data
+        snp_count = self.layer.weight.shape[1] - cov_weights.shape[1]
+        print('covariate weight shapes are ', weight.shape, snp_count, cov_weights.shape, weight[:, snp_count:].shape)
+        weight[:, snp_count:] = cov_weights
+        self.layer.weight = torch.nn.Parameter(weight)
     

@@ -15,6 +15,7 @@ from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
 import flwr
+from sklearn.linear_model import LinearRegression
 
 from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates
 from nn.lightning import DataModule
@@ -85,6 +86,7 @@ class Node(Process):
             experiment_id,
             tags=tags,
         )
+        self.log(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
         # logging.info(f'run info id in _start_client_run is {run.info.run_id}')
         return mlflow.start_run(run.info.run_id, nested=True)
 
@@ -131,9 +133,9 @@ class Node(Process):
         self.log(f'phenotypes dtypes are : {y_train.dtype}, {y_val.dtype}, {y_test.dtype}')
 
         self.log(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
-        y_train -= MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
-        y_val -= MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
-        y_test -= MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        self.y_train = y_train - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        self.y_val = y_val - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        self.y_test = y_test - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
         self.feature_count = X_train.shape[1]
         self.covariate_count = X_cov_train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count
@@ -142,6 +144,16 @@ class Node(Process):
         data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size)
         return data_module
 
+    def _pretrain(self) -> numpy.ndarray:
+        lr = LinearRegression()
+        cov_train = load_covariates(self.cfg.dataset.covariates.train)
+        cov_val = load_covariates(self.cfg.dataset.covariates.val)
+        lr.fit(cov_train, self.y_train)
+        val_r2 = lr.score(cov_val, self.y_val)
+        train_r2 = lr.score(cov_train, self.y_train)
+        cov_count = cov_train.shape[1]
+        print(f'pretraining on {cov_train.shape[0]} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+        return lr.coef_
         
     def _train_model(self, client: FLClient) -> bool:
         """
@@ -160,7 +172,6 @@ class Node(Process):
                 time.sleep(5)
                 continue
         return False
-
 
     def run(self) -> None:
         """Runs data loading and training of node
@@ -189,6 +200,8 @@ class Node(Process):
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node))
             self.log(f'Started run for node {self.node_index}')
-            
+            if self.cfg.experiment.pretrain_on_cov:
+                cov_weights = self._pretrain() 
+                client.model.set_covariate_weights(cov_weights)
             self._train_model(client)
             

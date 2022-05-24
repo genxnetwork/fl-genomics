@@ -61,6 +61,8 @@ def configure_logging():
 if __name__ == '__main__':
     
     configure_logging()
+    print(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
+
     # parse command-line runner.py arguments
     args = OmegaConf.from_cli(sys.argv)
     queue = multiprocessing.Queue()

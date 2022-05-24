@@ -1,5 +1,6 @@
 from matplotlib.pyplot import get
 from omegaconf import DictConfig
+from sklearn.linear_model import LinearRegression
 import torch
 import logging
 from typing import Dict, OrderedDict, Tuple, Any
@@ -9,6 +10,7 @@ from flwr.client import NumPyClient
 from sklearn.metrics import mean_squared_error, r2_score
 import mlflow
 
+from fl.datasets.memory import load_covariates, load_phenotype
 from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
 from nn.lightning import DataModule
 
@@ -106,16 +108,6 @@ class FLClient(NumPyClient):
         trainer.fit(self.model, datamodule=self.data_module)
         return self.get_parameters(), self.data_module.train_len(), {}
 
-    def calculate_loader_metrics(self, trainer: Trainer, loader: DataLoader) -> Tuple[float, float]:
-        preds = trainer.predict(self.model, loader)
-        preds = torch.cat(preds, dim=0).detach().cpu().numpy()
-        y_true = torch.cat([batch[1] for batch in iter(loader)]).detach().cpu().numpy()
-        
-        mse = mean_squared_error(y_true, preds)
-        r2 = r2_score(y_true, preds)
-        # we do that because mse and r2 have type numpy.float32 which is not a valid type for return of `evaluate` function
-        return float(mse), float(r2)
-
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         self.model.eval()
@@ -128,7 +120,7 @@ class FLClient(NumPyClient):
         val_len = self.data_module.val_len()
 
         logging.info(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
+        print(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
         
         results = unreduced_metrics.to_result_dict()
-        print('results dtype are: ', type(unreduced_metrics.val_loss), type(val_len), type(results))
         return unreduced_metrics.val_loss, val_len, results

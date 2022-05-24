@@ -5,6 +5,7 @@ experiment:
   random_state: 4
   snp_count: 2000
   test_samples_limit: 2000
+  pretrain_on_cov: True
 fold:
   index: 0
 node:
@@ -12,9 +13,9 @@ node:
   model:
     name: lassonet_regressor
     batch_size: 256
-    hidden_size: 64
+    hidden_size: 32
     alpha_start: -3
-    alpha_end: -0.1
+    alpha_end: 0.5
     init_limit: 0.01
   optimizer:
     name: sgd
