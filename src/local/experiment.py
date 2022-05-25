@@ -5,6 +5,8 @@ import numpy
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
+from mlflow.types import Schema, TensorSpec
+from mlflow.models.signature import ModelSignature
 from numpy import hstack, argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
 from xgboost import XGBRegressor
@@ -329,6 +331,18 @@ class LassoNetExperiment(NNExperiment):
         mlflow.log_metric('val_r2', best_val_r2)
         print(f"Test r2: {best_test_r2:.4f}")
         mlflow.log_metric('test_r2', best_test_r2)
+        
+        if self.cfg.experiment.get('log_model', None):
+            input_schema = Schema([
+                TensorSpec(numpy.dtype(numpy.float32), (-1, self.X_train.shape[1])),
+            ])
+            output_schema = Schema([TensorSpec(numpy.dtype(numpy.float32), (-1, self.cfg.model.batch_size))])
+            signature = ModelSignature(inputs=input_schema, outputs=output_schema)
+            mlflow.pytorch.log_model(self.model,
+                                     artifact_path='lassonet-model',
+                                     registered_model_name='lassonet',
+                                     signature=signature)
+            
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
