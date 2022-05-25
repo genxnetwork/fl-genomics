@@ -17,7 +17,7 @@ import numpy
 import flwr
 from sklearn.linear_model import LinearRegression
 
-from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates
+from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates, get_sample_indices
 from nn.lightning import DataModule
 from nn.models import BaseNet, LinearRegressor, MLPRegressor
 from fl.federation.client import FLClient
@@ -97,23 +97,31 @@ class Node(Process):
             DataModule: Subclass of LightningDataModule for loading data during training
         """        
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
-        test_sample_indices = numpy.arange(test_samples_limit).astype(numpy.uint32) if test_samples_limit is not None else None
+
+        sample_indices_train = get_sample_indices(self.cfg.dataset.pfile.train,
+                                                       self.cfg.dataset.phenotype.train)
+        sample_indices_val = get_sample_indices(self.cfg.dataset.pfile.val,
+                                                     self.cfg.dataset.phenotype.val)
+        sample_indices_test = get_sample_indices(self.cfg.dataset.pfile.test,
+                                                      self.cfg.dataset.phenotype.test,
+                                                      indices_limit=test_samples_limit)
+
         X_train = load_from_pgen(self.cfg.dataset.pfile.train, 
             self.cfg.dataset.gwas, 
             snp_count=None,
-            sample_indices=None, 
+            sample_indices=sample_indices_train, 
             missing=self.cfg.experiment.missing) 
         X_val = load_from_pgen(
             self.cfg.dataset.pfile.val, 
             self.cfg.dataset.gwas, 
             snp_count=None, 
-            sample_indices=None,
+            sample_indices=sample_indices_val,
             missing=self.cfg.experiment.missing) 
         X_test = load_from_pgen(
             self.cfg.dataset.pfile.test, 
             self.cfg.dataset.gwas,
             snp_count=None, 
-            sample_indices=test_sample_indices, 
+            sample_indices=sample_indices_test, 
             missing=self.cfg.experiment.missing) 
 
         self.log(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
@@ -145,6 +153,11 @@ class Node(Process):
         return data_module
 
     def _pretrain(self) -> numpy.ndarray:
+        """Pretrains linear regression on phenotype and covariates
+
+        Returns:
+            numpy.ndarray: Coefficients of covarites without intercept
+        """        
         lr = LinearRegression()
         cov_train = load_covariates(self.cfg.dataset.covariates.train)
         cov_val = load_covariates(self.cfg.dataset.covariates.val)

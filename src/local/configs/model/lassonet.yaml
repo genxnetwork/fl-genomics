@@ -4,12 +4,12 @@ model:
   name: lassonet
   precision: 32
   batch_size: 128
-  max_epochs: 96
+  max_epochs: 48
   hidden_size: 512
   alpha_start: -1
   alpha_end: 0.5
   init_limit: 0.002
-  patience: 36
+  patience: 16
   
 experiment:
   gpus: 1

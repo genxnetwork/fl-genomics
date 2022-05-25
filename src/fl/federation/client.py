@@ -1,14 +1,11 @@
-from matplotlib.pyplot import get
 from omegaconf import DictConfig
-from sklearn.linear_model import LinearRegression
 import torch
 import logging
 from typing import Dict, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
-from torch.utils.data import DataLoader
 from flwr.client import NumPyClient
 from sklearn.metrics import mean_squared_error, r2_score
-import mlflow
+from time import time
 
 from fl.datasets.memory import load_covariates, load_phenotype
 from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
@@ -111,15 +108,16 @@ class FLClient(NumPyClient):
     def evaluate(self, parameters, config):
         self.set_parameters(parameters)
         self.model.eval()
-                
+
+        start = time()                
         need_test_eval = 'current_round' in config and config['current_round'] == -1
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
                                                         test=need_test_eval, 
                                                         best_col=config.get('best_col', None))
         unreduced_metrics.log_to_mlflow()
         val_len = self.data_module.val_len()
-
-        logging.info(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
+        end = time()
+        logging.info(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
         print(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
         
         results = unreduced_metrics.to_result_dict()

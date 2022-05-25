@@ -4,7 +4,7 @@ experiment:
   missing: zero
   random_state: 4
   snp_count: 2000
-  test_samples_limit: 2000
+  test_samples_limit: 4000
   pretrain_on_cov: True
 fold:
   index: 0
