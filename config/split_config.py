@@ -6,8 +6,8 @@ uniform_split_config = {
 non_iid_split_name = 'ethnic_split'
 uneven_split_shares_list = [0.01777, 0.00349, 1/2, 1/4, 1/8, 1/16 , 1/32]
 
-heterogeneous_split_name = 'heterogeneous_split'
-n_heterogeneous_nodes = 4
+heterogeneous_split_name = 'region_split'
+n_heterogeneous_nodes = 11
 
 # Maps ethnic backgrounds to split_ids
 # 0 - white british
