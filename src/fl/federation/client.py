@@ -1,13 +1,11 @@
 from omegaconf import DictConfig
 import torch
-import logging
+from logging import Logger
 from typing import Dict, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
 from flwr.client import NumPyClient
-from sklearn.metrics import mean_squared_error, r2_score
 from time import time
 
-from fl.datasets.memory import load_covariates, load_phenotype
 from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
 from nn.lightning import DataModule
 
@@ -66,7 +64,7 @@ class ModelFactory:
 
 
 class FLClient(NumPyClient):
-    def __init__(self, server: str, data_module: DataModule, node_params: DictConfig):
+    def __init__(self, server: str, data_module: DataModule, node_params: DictConfig, logger: Logger):
         """Trains {model} in federated setting
 
         Args:
@@ -79,6 +77,11 @@ class FLClient(NumPyClient):
         self.data_module = data_module
         self.best_model_path = None
         self.node_params = node_params
+        self.logger = logger
+        self.log(f'cuda device count: {torch.cuda.device_count()}')
+
+    def log(self, msg):
+        self.logger.info(msg)
 
     def get_parameters(self):
         return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
@@ -98,11 +101,14 @@ class FLClient(NumPyClient):
             # we recreate a model and set parameters again
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.node_params)
             self.set_parameters(parameters)
-            
+        
+        start = time()                
         self.model.train()
         self.model.current_round = config['current_round']
         trainer = Trainer(logger=False, **self.node_params.training)
         trainer.fit(self.model, datamodule=self.data_module)
+        end = time()
+        self.log(f'node: {self.node_params.index}\tfit elapsed: {end-start:.2f}s')
         return self.get_parameters(), self.data_module.train_len(), {}
 
     def evaluate(self, parameters, config):
@@ -117,8 +123,8 @@ class FLClient(NumPyClient):
         unreduced_metrics.log_to_mlflow()
         val_len = self.data_module.val_len()
         end = time()
-        logging.info(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
-        print(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
+        self.log(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
+        # print(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
         
         results = unreduced_metrics.to_result_dict()
         return unreduced_metrics.val_loss, val_len, results

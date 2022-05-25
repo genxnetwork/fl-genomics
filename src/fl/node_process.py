@@ -194,7 +194,7 @@ class Node(Process):
         mlflow_client = MlflowClient()
         data_module = self._load_data()
 
-        client = FLClient(self.server_url, data_module, self.cfg.node)
+        client = FLClient(self.server_url, data_module, self.cfg.node, self.logger)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
