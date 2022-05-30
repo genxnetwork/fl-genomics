@@ -98,6 +98,10 @@ class Node(Process):
         """        
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
 
+        self.log(f'loading train sample indices from pfile {self.cfg.dataset.pfile.train} and phenotype {self.cfg.dataset.phenotype.train}')
+        self.log(f'loading val sample indices from pfile {self.cfg.dataset.pfile.val} and phenotype {self.cfg.dataset.phenotype.val}')
+        self.log(f'loading test sample indices from pfile {self.cfg.dataset.pfile.test} and phenotype {self.cfg.dataset.phenotype.test}')
+
         sample_indices_train = get_sample_indices(self.cfg.dataset.pfile.train,
                                                        self.cfg.dataset.phenotype.train)
         sample_indices_val = get_sample_indices(self.cfg.dataset.pfile.val,
@@ -109,7 +113,7 @@ class Node(Process):
 
         # because for each node we have the exact same test dataset
         # the idea is that each node will run inference on their part of test dataset with size {test_samples_limit}
-        sample_indices_test = sample_indices_test[self.node_index*test_samples_limit: (self.node_index+1)*test_samples_limit]
+        # sample_indices_test = sample_indices_test[self.node_index*test_samples_limit: (self.node_index+1)*test_samples_limit]
 
         X_train = load_from_pgen(self.cfg.dataset.pfile.train, 
             self.cfg.dataset.gwas, 
