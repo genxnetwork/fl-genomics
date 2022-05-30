@@ -79,6 +79,8 @@ class FLClient(NumPyClient):
         self.node_params = node_params
         self.logger = logger
         self.log(f'cuda device count: {torch.cuda.device_count()}')
+        self.log(f'training params are: {self.node_params.training}')
+
 
     def log(self, msg):
         self.logger.info(msg)
@@ -97,7 +99,7 @@ class FLClient(NumPyClient):
             # probably ref to some model parameter tensor get lost
             self.set_parameters(parameters)
         except ReferenceError as re:
-            print(re)
+            self.logger.error(re)
             # we recreate a model and set parameters again
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.node_params)
             self.set_parameters(parameters)

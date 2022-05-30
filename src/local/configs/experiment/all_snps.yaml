@@ -4,4 +4,4 @@ include_covariates: True
 different_node_gwas: False
 snp_count: 596409
 random_state: 0
-test_samples_limit: 4000
+test_samples_limit: null

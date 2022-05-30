@@ -38,7 +38,7 @@ class RegLoaderMetrics(LoaderMetrics):
 
     def log_to_mlflow(self) -> None:
         mlflow.log_metric(f'{self.prefix}_loss', self.loss, self.epoch)
-        mlflow.log_metric(f'{self.prefix}_r2', self.loss, self.epoch)
+        mlflow.log_metric(f'{self.prefix}_r2', self.r2, self.epoch)
 
     def to_result_dict(self) -> Dict:
         return {f'{self.prefix}_loss': self.loss, f'{self.prefix}_r2': self.r2}

@@ -71,9 +71,9 @@ class MlflowLogger:
         avg_metrics.log_to_mlflow()
 
         if rnd != -1:
-            lassonet_best_metrics = avg_metrics.reduce('mean')
+            best_metrics = avg_metrics.reduce('mean')
             logging.info(f'logging final centralized evaluation results')
-            logging.info(f'round: {rnd}\t' + str(lassonet_best_metrics))
+            logging.info(f'round: {rnd}\t' + str(best_metrics))
 
         return avg_metrics
 
@@ -102,16 +102,16 @@ class Checkpointer:
         if aggregated_parameters is not None and len(self.history) > 0 and self.history[-1] == min(self.history):
             # Save aggregated_weights
             aggregated_weights = parameters_to_weights(aggregated_parameters)
-            print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
+            # print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
             numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
         else:
             pass
     
     def load_best_parameters(self) -> Parameters:
         dct = numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz'))
-        print(f'loading best parameters')
-        for key, value in dct.items():
-            print(key, value.shape)
+        # print(f'loading best parameters')
+        # for key, value in dct.items():
+            # print(key, value.shape)
         weights = list(numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz')).values())
         return weights_to_parameters(weights)
     
@@ -160,7 +160,7 @@ class MCMixin:
         self, rnd: int, parameters: Parameters, client_manager: ClientManager
     ) -> List[Tuple[ClientProxy, EvaluateIns]]:
         if rnd == -1:
-            print(f'loading best parameters for final evaluation')
+            # print(f'loading best parameters for final evaluation')
             parameters = self.checkpointer.load_best_parameters()
         return super().configure_evaluate(rnd, parameters, client_manager)
 

@@ -102,9 +102,14 @@ class Node(Process):
                                                        self.cfg.dataset.phenotype.train)
         sample_indices_val = get_sample_indices(self.cfg.dataset.pfile.val,
                                                      self.cfg.dataset.phenotype.val)
+
+        
         sample_indices_test = get_sample_indices(self.cfg.dataset.pfile.test,
-                                                      self.cfg.dataset.phenotype.test,
-                                                      indices_limit=test_samples_limit)
+                                                      self.cfg.dataset.phenotype.test)
+
+        # because for each node we have the exact same test dataset
+        # the idea is that each node will run inference on their part of test dataset with size {test_samples_limit}
+        sample_indices_test = sample_indices_test[self.node_index*test_samples_limit: (self.node_index+1)*test_samples_limit]
 
         X_train = load_from_pgen(self.cfg.dataset.pfile.train, 
             self.cfg.dataset.gwas, 
@@ -131,16 +136,12 @@ class Node(Process):
         X_cov_test = load_covariates(self.cfg.dataset.covariates.test)[:test_samples_limit, :].astype(numpy.float16)
 
         self.log(f'dtypes are : {X_train.dtype}, {X_val.dtype}, {X_test.dtype}, {X_cov_train.dtype}, {X_cov_val.dtype}, {X_cov_test.dtype}')
-        X_train = numpy.hstack([X_train, X_cov_train])
-        X_val = numpy.hstack([X_val, X_cov_val])
-        X_test = numpy.hstack([X_test, X_cov_test])
-        self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1]} total features')
-        self.log(f'dtypes are : {X_train.dtype}, {X_val.dtype}, {X_test.dtype}')
-
+        self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1] + X_cov_train.shape[1]} total features')
+        
         y_train, y_val, y_test = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val), load_phenotype(self.cfg.dataset.phenotype.test)
         self.log(f'phenotypes dtypes are : {y_train.dtype}, {y_val.dtype}, {y_test.dtype}')
 
-        self.log(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
+        self.log(f'We have {y_train.shape[0]} train, {y_val.shape[0]} val, {y_test.shape[0]} test phenotypes')
         self.y_train = y_train - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
         self.y_val = y_val - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
         self.y_test = y_test - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
@@ -149,7 +150,8 @@ class Node(Process):
         self.snp_count = self.feature_count - self.covariate_count
         self.sample_count = X_train.shape[0]
 
-        data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size)
+        data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size,
+                                 X_cov_train, X_cov_val, X_cov_test)
         return data_module
 
     def _pretrain(self) -> numpy.ndarray:
@@ -165,7 +167,7 @@ class Node(Process):
         val_r2 = lr.score(cov_val, self.y_val)
         train_r2 = lr.score(cov_train, self.y_train)
         cov_count = cov_train.shape[1]
-        print(f'pretraining on {cov_train.shape[0]} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+        self.log(f'pretraining on {cov_train.shape[0]} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
         return lr.coef_
         
     def _train_model(self, client: FLClient) -> bool:
@@ -184,6 +186,10 @@ class Node(Process):
                 # probably server slurm job have not started yet
                 time.sleep(5)
                 continue
+            except Exception as e:
+                self.logger.error(e)
+                self.logger.error(e.with_traceback())
+                raise e
         return False
 
     def run(self) -> None:

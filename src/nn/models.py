@@ -287,7 +287,7 @@ class LassoNetRegressor(BaseNet):
 
         weight = self.layer.weight.data
         snp_count = self.layer.weight.shape[1] - cov_weights.shape[1]
-        print('covariate weight shapes are ', weight.shape, snp_count, cov_weights.shape, weight[:, snp_count:].shape)
+        #('covariate weight shapes are ', weight.shape, snp_count, cov_weights.shape, weight[:, snp_count:].shape)
         weight[:, snp_count:] = cov_weights
         self.layer.weight = torch.nn.Parameter(weight)
     
