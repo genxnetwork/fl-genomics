@@ -5,6 +5,8 @@ import numpy
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
+from mlflow.types import Schema, TensorSpec
+from mlflow.models.signature import ModelSignature
 from numpy import hstack, argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
 from xgboost import XGBRegressor
@@ -135,7 +137,7 @@ class LocalExperiment():
         r2_train = r2_score(self.y_train, preds_train)
         r2_val = r2_score(self.y_val, preds_val)
         r2_test = r2_score(self.y_test, preds_test)
-
+        
         print(f"Train r2: {r2_train}")
         mlflow.log_metric('train_r2', r2_train)
         print(f"Val r2: {r2_val}")
@@ -292,8 +294,6 @@ class LassoNetExperiment(NNExperiment):
         weight = self.model.layer.weight.data
         weight[:, snp_count:] = cov_weights
         self.model.layer.weight = torch.nn.Parameter(weight)
-        # self.model.layer.weight[:, snp_count:] = cov_weights
-        # self.model.layer.bias[:] = lr.intercept_
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
@@ -305,6 +305,22 @@ class LassoNetExperiment(NNExperiment):
 
     
     def eval_and_log(self):
+        if self.cfg.experiment.get('log_model', None):
+            self.logger.info("Logging model")
+            input_schema = Schema([
+                TensorSpec(numpy.dtype(numpy.float32), (-1, self.X_train.shape[1])),
+            ])
+            output_schema = Schema([TensorSpec(numpy.dtype(numpy.float32), (-1, self.cfg.model.batch_size))])
+            signature = ModelSignature(inputs=input_schema, outputs=output_schema)
+            mlflow.pytorch.log_model(self.model,
+                                     artifact_path='lassonet-model',
+                                     registered_model_name=f"lassonet_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node_index}",
+                                     signature=signature,
+                                     pickle_protocol=4)
+
+            self.logger.info("Model logged")
+        
+        self.logger.info("Evaluating model and logging metrics")
         self.model.eval()
         train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
         
@@ -320,7 +336,7 @@ class LassoNetExperiment(NNExperiment):
         best_val_r2 = amax(r2_val_list)
         best_train_r2 = r2_score(self.y_train, train_preds[:, best_col])
         best_test_r2 = r2_score(self.y_test, test_preds[:, best_col])
-
+        
         print(f'Best alpha: {self.model.alphas[best_col]:.6f}')
         print(f"Train r2: {best_train_r2:.4f}")
         mlflow.log_metric('train_r2', best_train_r2)
@@ -328,6 +344,7 @@ class LassoNetExperiment(NNExperiment):
         mlflow.log_metric('val_r2', best_val_r2)
         print(f"Test r2: {best_test_r2:.4f}")
         mlflow.log_metric('test_r2', best_test_r2)
+        
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {

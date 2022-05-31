@@ -58,8 +58,31 @@ dataset:
 server:
   rounds: 36
   checkpoint_dir: 'models/${dataset.phenotype.name}/fold_${fold.index}'
+  # strategy:
+  #   name: fedavg
+  #   nodes: 
+  #     - 0
+  #     - 2
+  #     - 3
+  #     - 4
+  #     - 5
+  #     - 6
+  
+  # strategy:
+  #   name: qfedavg
+  #   nodes: 
+  #     - 0
+  #     - 2
+  #     - 3
+  #     - 4
+  #     - 5
+  #     - 6
+  #   args: 
+  #     q_param: 0.2
+  #     qffl_learning_rate: 0.1
+
   strategy:
-    name: fedavg
+    name: fedadam
     nodes: 
       - 0
       - 2
@@ -67,23 +90,12 @@ server:
       - 4
       - 5
       - 6
-  
-  # strategy:
-  #   name: qfedavg
-  #   node_count: ${env:FL_NODE_COUNT,2}
-  #   args: 
-  #     q_param: 0.2
-  #     qffl_learning_rate: 0.1
-
-  # strategy:
-  #   name: fedadam
-  #   node_count: ${env:FL_NODE_COUNT,2}
-  #   args:
-  #     eta: 1e-1
-  #     eta_l: 1e-1
-  #     beta_1: 0.9
-  #     beta_2: 0.99
-  #     tau: 1e-9 
+    args:
+      eta: 1e-1
+      eta_l: 1e-1
+      beta_1: 0.9
+      beta_2: 0.99
+      tau: 1e-9 
 
   # strategy:
   #   name: fedadagrad

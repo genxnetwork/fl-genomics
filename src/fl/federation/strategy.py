@@ -180,12 +180,59 @@ class MCQFedAvg(MCMixin,QFedAvg):
     def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
         super().__init__(mlflow_logger, checkpointer, **kwargs)
 
+    def evaluate(self, parameters: Parameters) -> Optional[Tuple[float, Dict[str, Scalar]]]:
+        cen_ev = super().evaluate(parameters)
+        if cen_ev is not None:
+            return cen_ev
+        # aggregate_fit in QFedAvg needs a previous loss value to calculate lipschitz constants
+        # flwr implementation evaluates old weights in centralized mode using evaluate function impl from fedavg
+        # evaluate in fedavg works if and only if eval_fn init parameter was provided
+        # instead of centralized evaluation we pull loss from checkpointer loss history
+        return (self.checkpointer.history[-1], {}) if len(self.checkpointer.history) > 0 else (200, {})
+
 
 class MCFedAdagrad(MCMixin,FedAdagrad):
     def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
-        super().__init__(mlflow_logger, checkpointer, **kwargs)
+        initial_parameters = weights_to_parameters([numpy.zeros((1,1))])
+        self.weights_inited_properly = False
+        super().__init__(mlflow_logger, checkpointer, initial_parameters=initial_parameters, **kwargs)
 
+    def evaluate(self, parameters: Parameters) -> Optional[Tuple[float, Dict[str, Scalar]]]:
+        cen_ev = super().evaluate(parameters)
+        # fedadam calculates updates using old and new weights
+        # we need to set initial weights
+        # evaluate called by server after getting random initial parameters from one of the clients
+        # we set those parameters as initial weights
+        if not self.weights_inited_properly:
+            print(f'initializing weights!!!')
+            self.current_weights = parameters_to_weights(parameters)
+            self.weights_inited_properly = True
+        else:
+            print(f'we do not need to initialize weights')
+        return cen_ev
+
+    def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
+        return None
 
 class MCFedAdam(MCMixin,FedAdam):
     def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
-        super().__init__(mlflow_logger, checkpointer, **kwargs)
+        initial_parameters = weights_to_parameters([numpy.zeros((1,1))])
+        self.weights_inited_properly = False
+        super().__init__(mlflow_logger, checkpointer, initial_parameters=initial_parameters, **kwargs)
+
+    def evaluate(self, parameters: Parameters) -> Optional[Tuple[float, Dict[str, Scalar]]]:
+        cen_ev = super().evaluate(parameters)
+        # fedadam calculates updates using old and new weights
+        # we need to set initial weights
+        # evaluate called by server after getting random initial parameters from one of the clients
+        # we set those parameters as initial weights
+        if not self.weights_inited_properly:
+            print(f'initializing weights!!!')
+            self.current_weights = parameters_to_weights(parameters)
+            self.weights_inited_properly = True
+        else:
+            print(f'we do not need to initialize weights')
+        return cen_ev
+
+    def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
+        return None
