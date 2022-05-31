@@ -1,0 +1,11 @@
+fold_count: 1
+ethnicities: ['WB0', 'WB1', 'WB2', 'WB3', 'WB4', 'WB5', 'WB6', 'WB7', 'WB8', 'WB9', 'WB10']
+ukb_dataset: '/gpfs/gpfs0/ukb_data/processed_data/fml'
+phenotype: 
+  name: 'standing_height'
+  code: 50
+covariates: 
+  '31': 'sex'
+  '21003': 'age' 
+snp_counts: 
+  - 10000

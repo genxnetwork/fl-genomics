@@ -9,7 +9,7 @@ model:
   alpha_start: -2
   alpha_end: 0.5
   init_limit: 0.002
-  patience: 12
+  patience: 16
   
 experiment:
   gpus: 1

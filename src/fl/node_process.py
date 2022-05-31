@@ -15,11 +15,13 @@ from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
 import flwr
+from sklearn.linear_model import LinearRegression
 
-from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates
+from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates, get_sample_indices
 from nn.lightning import DataModule
 from nn.models import BaseNet, LinearRegressor, MLPRegressor
 from fl.federation.client import FLClient
+from utils.phenotype import MEAN_PHENO_DICT
 
 
 @dataclass
@@ -84,6 +86,7 @@ class Node(Process):
             experiment_id,
             tags=tags,
         )
+        self.log(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
         # logging.info(f'run info id in _start_client_run is {run.info.run_id}')
         return mlflow.start_run(run.info.run_id, nested=True)
 
@@ -93,33 +96,83 @@ class Node(Process):
         Returns:
             DataModule: Subclass of LightningDataModule for loading data during training
         """        
-        X_train = load_from_pgen(self.cfg.dataset.pfile.train, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
-        X_val = load_from_pgen(self.cfg.dataset.pfile.val, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
-        X_test = load_from_pgen(self.cfg.dataset.pfile.test, self.cfg.dataset.gwas, None, missing=self.cfg.experiment.missing) 
+        test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
+
+        self.log(f'loading train sample indices from pfile {self.cfg.dataset.pfile.train} and phenotype {self.cfg.dataset.phenotype.train}')
+        self.log(f'loading val sample indices from pfile {self.cfg.dataset.pfile.val} and phenotype {self.cfg.dataset.phenotype.val}')
+        self.log(f'loading test sample indices from pfile {self.cfg.dataset.pfile.test} and phenotype {self.cfg.dataset.phenotype.test}')
+
+        sample_indices_train = get_sample_indices(self.cfg.dataset.pfile.train,
+                                                       self.cfg.dataset.phenotype.train)
+        sample_indices_val = get_sample_indices(self.cfg.dataset.pfile.val,
+                                                     self.cfg.dataset.phenotype.val)
+
+        
+        sample_indices_test = get_sample_indices(self.cfg.dataset.pfile.test,
+                                                      self.cfg.dataset.phenotype.test)
+
+        # because for each node we have the exact same test dataset
+        # the idea is that each node will run inference on their part of test dataset with size {test_samples_limit}
+        # sample_indices_test = sample_indices_test[self.node_index*test_samples_limit: (self.node_index+1)*test_samples_limit]
+
+        X_train = load_from_pgen(self.cfg.dataset.pfile.train, 
+            self.cfg.dataset.gwas, 
+            snp_count=None,
+            sample_indices=sample_indices_train, 
+            missing=self.cfg.experiment.missing) 
+        X_val = load_from_pgen(
+            self.cfg.dataset.pfile.val, 
+            self.cfg.dataset.gwas, 
+            snp_count=None, 
+            sample_indices=sample_indices_val,
+            missing=self.cfg.experiment.missing) 
+        X_test = load_from_pgen(
+            self.cfg.dataset.pfile.test, 
+            self.cfg.dataset.gwas,
+            snp_count=None, 
+            sample_indices=sample_indices_test, 
+            missing=self.cfg.experiment.missing) 
 
         self.log(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
         
-        X_cov_train = load_covariates(self.cfg.dataset.covariates.train)
-        X_cov_val = load_covariates(self.cfg.dataset.covariates.val)
-        X_cov_test =load_covariates(self.cfg.dataset.covariates.test)
-        X_train = numpy.hstack([X_train, X_cov_train])
-        X_val = numpy.hstack([X_val, X_cov_val])
-        X_test = numpy.hstack([X_test, X_cov_test])
-        self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1]} total features')
+        X_cov_train = load_covariates(self.cfg.dataset.covariates.train).astype(numpy.float16)
+        X_cov_val = load_covariates(self.cfg.dataset.covariates.val).astype(numpy.float16)
+        X_cov_test = load_covariates(self.cfg.dataset.covariates.test)[:test_samples_limit, :].astype(numpy.float16)
 
+        self.log(f'dtypes are : {X_train.dtype}, {X_val.dtype}, {X_test.dtype}, {X_cov_train.dtype}, {X_cov_val.dtype}, {X_cov_test.dtype}')
+        self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1] + X_cov_train.shape[1]} total features')
+        
         y_train, y_val, y_test = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val), load_phenotype(self.cfg.dataset.phenotype.test)
-        self.log(f'We have {y_train.shape[0]} train phenotypes and {y_val.shape[0]} val phenotypes')
-        y_train -= 160
-        y_val -= 160
-        y_test -= 160
+        self.log(f'phenotypes dtypes are : {y_train.dtype}, {y_val.dtype}, {y_test.dtype}')
+
+        self.log(f'We have {y_train.shape[0]} train, {y_val.shape[0]} val, {y_test.shape[0]} test phenotypes')
+        self.y_train = y_train - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        self.y_val = y_val - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        self.y_test = y_test - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
         self.feature_count = X_train.shape[1]
         self.covariate_count = X_cov_train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count
         self.sample_count = X_train.shape[0]
 
-        data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size)
+        data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size,
+                                 X_cov_train, X_cov_val, X_cov_test)
         return data_module
 
+    def _pretrain(self) -> numpy.ndarray:
+        """Pretrains linear regression on phenotype and covariates
+
+        Returns:
+            numpy.ndarray: Coefficients of covarites without intercept
+        """        
+        lr = LinearRegression()
+        cov_train = load_covariates(self.cfg.dataset.covariates.train)
+        cov_val = load_covariates(self.cfg.dataset.covariates.val)
+        lr.fit(cov_train, self.y_train)
+        val_r2 = lr.score(cov_val, self.y_val)
+        train_r2 = lr.score(cov_train, self.y_train)
+        cov_count = cov_train.shape[1]
+        self.log(f'pretraining on {cov_train.shape[0]} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+        return lr.coef_
         
     def _train_model(self, client: FLClient) -> bool:
         """
@@ -137,8 +190,11 @@ class Node(Process):
                 # probably server slurm job have not started yet
                 time.sleep(5)
                 continue
+            except Exception as e:
+                self.logger.error(e)
+                self.logger.error(e.with_traceback())
+                raise e
         return False
-
 
     def run(self) -> None:
         """Runs data loading and training of node
@@ -148,7 +204,7 @@ class Node(Process):
         mlflow_client = MlflowClient()
         data_module = self._load_data()
 
-        client = FLClient(self.server_url, data_module, self.cfg.node)
+        client = FLClient(self.server_url, data_module, self.cfg.node, self.logger)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
@@ -167,6 +223,8 @@ class Node(Process):
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node))
             self.log(f'Started run for node {self.node_index}')
-            
+            if self.cfg.experiment.pretrain_on_cov:
+                cov_weights = self._pretrain() 
+                client.model.set_covariate_weights(cov_weights)
             self._train_model(client)
             

@@ -1,0 +1,100 @@
+experiment:
+  description: LassoNET model
+  name: federated_lassonet_standing-height
+  missing: zero
+  random_state: 4
+  snp_count: 2000
+  test_samples_limit: null
+  pretrain_on_cov: True
+fold:
+  index: 0
+node:
+  index: ???
+  model:
+    name: lassonet_regressor
+    batch_size: 256
+    hidden_size: 32
+    alpha_start: -3
+    alpha_end: 0.5
+    init_limit: 0.01
+  optimizer:
+    name: sgd
+    lr: 1e-4
+    weight_decay: 0.0
+    # momentum: 0.5
+  #scheduler:
+  #  name: ExponentialLR
+  scheduler:
+    name: exponential_lr
+    rounds: 36
+    epochs_in_round: 4
+    gamma: 0.99
+  training:
+    max_epochs: ${node.scheduler.epochs_in_round}
+    enable_progress_bar: False
+    enable_model_summary: False
+    strategy: ddp
+dataset:
+  split: 
+    name: 'uneven_split' 
+    path: '/gpfs/gpfs0/ukb_data/test/${.name}'
+  phenotype:
+    name: standing_height
+    root: '${dataset.split.path}/phenotypes/${.name}/node_${node.index}/fold_${fold.index}'
+    train: '${.root}_train.tsv'
+    val: '${.root}_val.tsv'
+    test: '${.root}_test.tsv'
+  covariates:
+    names:
+      - age
+      - sex
+    root: '${dataset.split.path}/covariates/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}'
+    train: '${.root}_train.tsv'
+    val: '${.root}_val.tsv'
+    test: '${.root}_test.tsv'
+  pfile:
+    root: '${dataset.split.path}/genotypes/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}/union/top_${experiment.snp_count}'
+    train: '${.root}_train'
+    val: '${.root}_val'
+    test: '${.root}_test'
+  gwas: '${dataset.split.path}/${dataset.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
+
+server:
+  rounds: 36
+  checkpoint_dir: 'models/${dataset.phenotype.name}/fold_${fold.index}'
+  strategy:
+    name: fedavg
+    nodes: 
+      - 0
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+  
+  # strategy:
+  #   name: qfedavg
+  #   node_count: ${env:FL_NODE_COUNT,2}
+  #   args: 
+  #     q_param: 0.2
+  #     qffl_learning_rate: 0.1
+
+  # strategy:
+  #   name: fedadam
+  #   node_count: ${env:FL_NODE_COUNT,2}
+  #   args:
+  #     eta: 1e-1
+  #     eta_l: 1e-1
+  #     beta_1: 0.9
+  #     beta_2: 0.99
+  #     tau: 1e-9 
+
+  # strategy:
+  #   name: fedadagrad
+  #   node_count: ${env:FL_NODE_COUNT,2}
+  #   args:
+  #     eta: 1e-1
+  #     eta_l: 1e-1
+  #     tau: 1e-9  
+
+

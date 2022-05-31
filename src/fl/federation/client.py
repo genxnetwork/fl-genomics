@@ -1,14 +1,12 @@
 from omegaconf import DictConfig
 import torch
-import logging
+from logging import Logger
 from typing import Dict, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
-from torch.utils.data import DataLoader
 from flwr.client import NumPyClient
-from sklearn.metrics import mean_squared_error, r2_score
-import mlflow
+from time import time
 
-from nn.models import BaseNet, LinearRegressor, MLPRegressor
+from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
 from nn.lightning import DataModule
 
 
@@ -39,17 +37,34 @@ class ModelFactory:
         )
 
     @staticmethod
+    def _create_lassonet_regressor(input_size: int, params: Any) -> LassoNetRegressor:
+        return LassoNetRegressor(
+            input_size=input_size,
+            hidden_size=params.model.hidden_size,
+            optim_params=params.optimizer,
+            scheduler_params=params.scheduler,
+            cov_count=2, #TODO: make configurable or computable
+            alpha_start=params.model.alpha_start,
+            alpha_end=params.model.alpha_end,
+            init_limit=params.model.init_limit
+        )
+
+    @staticmethod
     def create_model(input_size: int, params: Any) -> BaseNet:
-        if params.model.name == 'linear_regressor':
-            return ModelFactory._create_linear_regressor(input_size, params)
-        elif params.model.name == 'mlp_regressor':
-            return ModelFactory._create_mlp_regressor(input_size, params)
-        else:
-            raise ValueError(f'model name {params.model.name} is unknown')
+        model_dict = {
+            'linear_regressor': ModelFactory._create_linear_regressor,
+            'mlp_regressor': ModelFactory._create_mlp_regressor,
+            'lassonet_regressor': ModelFactory._create_lassonet_regressor
+        }
+
+        create_func = model_dict.get(params.model.name, None)
+        if create_func is None:
+            raise ValueError(f'model name {params.model.name} is unknown, it should be one of the {list(model_dict.keys())}')
+        return create_func(input_size, params)
 
 
 class FLClient(NumPyClient):
-    def __init__(self, server: str, data_module: DataModule, node_params: DictConfig):
+    def __init__(self, server: str, data_module: DataModule, node_params: DictConfig, logger: Logger):
         """Trains {model} in federated setting
 
         Args:
@@ -62,6 +77,13 @@ class FLClient(NumPyClient):
         self.data_module = data_module
         self.best_model_path = None
         self.node_params = node_params
+        self.logger = logger
+        self.log(f'cuda device count: {torch.cuda.device_count()}')
+        self.log(f'training params are: {self.node_params.training}')
+
+
+    def log(self, msg):
+        self.logger.info(msg)
 
     def get_parameters(self):
         return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
@@ -72,58 +94,50 @@ class FLClient(NumPyClient):
         self.model.load_state_dict(state_dict, strict=True)
 
     def fit(self, parameters, config):
+        # self.log(f'started fitting with config {config}')
         try:
             # to catch spurious error "weakly-referenced object no longer exists"
             # probably ref to some model parameter tensor get lost
             self.set_parameters(parameters)
         except ReferenceError as re:
-            print(re)
+            self.logger.error(re)
             # we recreate a model and set parameters again
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.node_params)
             self.set_parameters(parameters)
-            
+        
+        start = time()    
+        # self.log('fit after set parameters')            
         self.model.train()
+        # self.log('set model to train')
         self.model.current_round = config['current_round']
         trainer = Trainer(logger=False, **self.node_params.training)
+        # self.log('trainer created')
         trainer.fit(self.model, datamodule=self.data_module)
+        # self.log('model fitted by trainer')
+        end = time()
+        self.log(f'node: {self.node_params.index}\tfit elapsed: {end-start:.2f}s')
         return self.get_parameters(), self.data_module.train_len(), {}
 
-    def calculate_loader_metrics(self, trainer: Trainer, loader: DataLoader) -> Tuple[float, float]:
-        preds = trainer.predict(self.model, loader)
-        preds = torch.cat(preds, dim=0).detach().cpu().numpy()
-        y_true = torch.cat([batch[1] for batch in iter(loader)]).detach().cpu().numpy()
-        
-        mse = mean_squared_error(y_true, preds)
-        r2 = r2_score(y_true, preds)
-        # we do that because mse and r2 have type numpy.float32 which is not a valid type for return of `evaluate` function
-        return float(mse), float(r2)
-
     def evaluate(self, parameters, config):
+        self.log(f'starting to set parameters in evaluate with config {config}')
         self.set_parameters(parameters)
+        self.log('set parameters in evaluate')
         self.model.eval()
-        trainer = Trainer(logger=False, **self.node_params.training)
-        # train_loader = DataLoader(self.model.train_dataset, batch_size=64, num_workers=1, shuffle=False)
-        
-        train_loader, val_loader, test_loader = self.data_module.predict_dataloader()
-        train_loss, train_r2 = self.calculate_loader_metrics(trainer, train_loader)
-        val_loss, val_r2 = self.calculate_loader_metrics(trainer, val_loader)
-        
-        val_len = self.data_module.val_len()
-        epoch = self.model.fl_current_epoch()
-        logging.info(f'round: {self.model.current_round}\ttrain_loss: {train_loss:.4f}\ttrain_r2: {train_r2:.4f}\tval_loss: {val_loss:.3f}\tval_r2: {val_r2:.4f}\tval_len: {val_len}')
-        mlflow.log_metric('train_loss', train_loss, epoch)
-        mlflow.log_metric('train_r2', train_r2, epoch)
-        mlflow.log_metric('val_r2', val_r2, epoch)
-        mlflow.log_metric('val_loss', val_loss, epoch)
-        
-        results = {"val_loss": val_loss, "train_loss": train_loss, "train_r2": train_r2, "val_r2": val_r2}
-        if 'current_round' in config and config['current_round'] == -1:
-            print(f'Final evaluation started')
-            test_loss, test_r2 = self.calculate_loader_metrics(trainer, test_loader)
-            mlflow.log_metric('test_r2', test_r2)
-            results['test_r2'] = test_r2
-            print(f'test_r2 is {test_r2:.4f} for {self.data_module.test_len()} samples')
-            results['test_len'] = self.data_module.test_len()
 
-        logging.info(f'val_loss type: {type(val_loss)}, val_len type: {type(val_len)}')
-        return val_loss, val_len, results
+        start = time()                
+        need_test_eval = 'current_round' in config and config['current_round'] == -1
+        self.log(f'starting predict and eval with {need_test_eval}')
+        unreduced_metrics = self.model.predict_and_eval(self.data_module, 
+                                                        test=need_test_eval, 
+                                                        best_col=config.get('best_col', None),
+                                                        logger=self.logger)
+        self.log('starting log to mlflow in eval')
+        unreduced_metrics.log_to_mlflow()
+        print(f'calculating val len')
+        val_len = self.data_module.val_len()
+        end = time()
+        self.log(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
+        # print(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
+        
+        results = unreduced_metrics.to_result_dict()
+        return unreduced_metrics.val_loss, val_len, results

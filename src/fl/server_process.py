@@ -37,10 +37,10 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_d
 
     logging.info(f'strategy args: {args}')
 
-    mlflow_logger = MlflowLogger(epochs_in_round)
+    mlflow_logger = MlflowLogger(epochs_in_round, 'lassonet_regressor')
     checkpointer = Checkpointer(checkpoint_dir)
     if strategy_params.name == 'fedavg':
-        return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
+        return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     elif strategy_params.name == 'qfedavg':
         return MCQFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
     elif strategy_params.name ==  'fedadam':

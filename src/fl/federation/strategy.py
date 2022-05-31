@@ -1,3 +1,4 @@
+import pickle
 import shutil
 from typing import List, Tuple, Optional, Dict
 import logging
@@ -19,6 +20,8 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
 from flwr.server.client_manager import ClientManager
 
+from nn.utils import Metrics, RegFederatedMetrics
+
 
 def fit_round(rnd: int):
     """Send round number to client."""
@@ -33,31 +36,22 @@ RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 
 class MlflowLogger:
-    def __init__(self, epochs_in_round: int) -> None:
+    def __init__(self, epochs_in_round: int, model_type: str) -> None:
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
+        if model_type not in ['lassonet_regressor', 'mlp_regressor']:
+            raise ValueError(f'model_type should be one of the lassonet_regressor, mlp_regressor and not {model_type}')
 
-    def _calculate_agg_metric(self, metric_name: str, results: RESULTS, custom_len_name: str = None) -> float:
-        """Calculates weighted average {metric_name} from {results}
+        self.model_type = model_type
 
-        Args:
-            metric_name (str): Name of metric in {results}
-            results (RESULTS): List of client's client proxies and current round metrics
-            custom_len_name (str): Needed if we are calculating test metrics using test_len value returned from each client
-        Returns:
-            float: averaged metric
-        """        
-        if custom_len_name is None:
-            losses = [r.metrics[metric_name] * r.num_examples for _, r in results]
-            examples = [r.num_examples for _, r in results]
+    def _get_reduction_type(self, rnd: int) -> str:
+        if self.model_type == 'lassonet_regressor':
+            return 'mean' if rnd == -1 else 'lassonet_best'
         else:
-            losses = [r.metrics[metric_name] * r.metrics[custom_len_name] for _, r in results]
-            examples = [r.metrics[custom_len_name] for _, r in results]
+            return 'mean' 
 
-        return sum(losses) / sum(examples)
-
-    def log_losses(self, rnd: int, results: RESULTS) -> float:
+    def log_losses(self, rnd: int, results: RESULTS) -> Metrics:
         """Logs val_loss, val and train r^2 to mlflow
 
         Args:
@@ -65,24 +59,23 @@ class MlflowLogger:
             results (RESULTS): Central model evaluation results from server
 
         Returns:
-            float: Current validation loss
-        """        
-        train_loss = self._calculate_agg_metric('train_loss', results)
-        val_loss = self._calculate_agg_metric('val_loss', results)
-        train_r2 = self._calculate_agg_metric('train_r2', results)
-        val_r2 = self._calculate_agg_metric('val_r2', results)
-        logging.info(f"round {rnd}\ttrain_loss: {train_loss:.4f}\ttrain_r2: {train_r2:.4f}\tval_loss: {val_loss:.2f}\tval_r2: {val_r2:.4f}")
-        mlflow.log_metric('train_loss', train_loss, step=rnd*self.epochs_in_round)
-        mlflow.log_metric('val_loss', val_loss, step=rnd*self.epochs_in_round)
-        mlflow.log_metric('train_r2', train_r2, step=rnd*self.epochs_in_round)
-        mlflow.log_metric('val_r2', val_r2, step=rnd*self.epochs_in_round)
+            Metrics: Metrics reduced over clients
+        """       
+        metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
+        fed_metrics = RegFederatedMetrics(metric_list, rnd*self.epochs_in_round)
+        # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
+        # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
+        avg_metrics = fed_metrics.reduce(reduction=self._get_reduction_type(rnd))
+        # logging.info(avg_metrics)
+        logging.info(f'round {rnd}\t' + str(avg_metrics))
+        avg_metrics.log_to_mlflow()
 
-        if rnd == -1:
+        if rnd != -1:
+            best_metrics = avg_metrics.reduce('mean')
             logging.info(f'logging final centralized evaluation results')
-            test_r2 = self._calculate_agg_metric('test_r2', results, 'test_len')
-            mlflow.log_metric('test_r2', test_r2, 0)
+            logging.info(f'round: {rnd}\t' + str(best_metrics))
 
-        return val_loss
+        return avg_metrics
 
 
 class Checkpointer:
@@ -109,16 +102,16 @@ class Checkpointer:
         if aggregated_parameters is not None and len(self.history) > 0 and self.history[-1] == min(self.history):
             # Save aggregated_weights
             aggregated_weights = parameters_to_weights(aggregated_parameters)
-            print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
+            # print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
             numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
         else:
             pass
     
     def load_best_parameters(self) -> Parameters:
         dct = numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz'))
-        print(f'loading best parameters')
-        for key, value in dct.items():
-            print(key, value.shape)
+        # print(f'loading best parameters')
+        # for key, value in dct.items():
+            # print(key, value.shape)
         weights = list(numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz')).values())
         return weights_to_parameters(weights)
     
@@ -136,6 +129,7 @@ class MCMixin:
         """        
         self.mlflow_logger = mlflow_logger
         self.checkpointer = checkpointer
+        kwargs['on_evaluate_config_fn'] = self.on_evaluate_config_fn_closure
         super().__init__(**kwargs)
 
     def aggregate_evaluate(
@@ -146,8 +140,10 @@ class MCMixin:
     ) -> Tuple[Optional[float], Dict[str, Scalar]]:
         if not results:
             return None
-        val_loss = self.mlflow_logger.log_losses(rnd, results)
-        self.checkpointer.add_loss_to_history(val_loss)
+        metrics = self.mlflow_logger.log_losses(rnd, results)
+        reduced_metrics = metrics.reduce(self.mlflow_logger._get_reduction_type(rnd)) 
+        self.checkpointer.add_loss_to_history(reduced_metrics.val_loss)
+        self.checkpointer.last_metrics = metrics
         return super().aggregate_evaluate(rnd, results, failures)
     
     def aggregate_fit(
@@ -164,10 +160,15 @@ class MCMixin:
         self, rnd: int, parameters: Parameters, client_manager: ClientManager
     ) -> List[Tuple[ClientProxy, EvaluateIns]]:
         if rnd == -1:
-            print(f'loading best parameters for final evaluation')
+            # print(f'loading best parameters for final evaluation')
             parameters = self.checkpointer.load_best_parameters()
         return super().configure_evaluate(rnd, parameters, client_manager)
 
+    def on_evaluate_config_fn_closure(self, rnd: int):
+        if rnd == -1:
+            return {'current_round': rnd, 'best_col': self.checkpointer.last_metrics.best_col}
+        else:
+            return {'current_round': rnd}
 
 
 class MCFedAvg(MCMixin,FedAvg):

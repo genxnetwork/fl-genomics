@@ -6,28 +6,33 @@ from torch.utils.data import TensorDataset, DataLoader
 from .memory import Int8Dataset
 
 
+NArr = numpy.ndarray
+
+
 class DataModule(LightningDataModule):
-    def __init__(self, X_train: numpy.ndarray, X_val: numpy.ndarray, X_test: numpy.ndarray, y_train: numpy.ndarray, y_val: numpy.ndarray, y_test: numpy.ndarray, batch_size: int):
+    def __init__(self, X_train: NArr, X_val: NArr, X_test: NArr, 
+                 y_train: NArr, y_val: NArr, y_test: NArr, batch_size: int,
+                 X_cov_train: NArr = None, X_cov_val: NArr = None, X_cov_test: NArr = None):
         super().__init__()
-        self.train_dataset = Int8Dataset(X_train, y_train)
-        self.val_dataset = Int8Dataset(X_val, y_val)
-        self.test_dataset = Int8Dataset(X_test, y_test)
+        self.train_dataset = Int8Dataset(X_train, y_train, X_cov_train)
+        self.val_dataset = Int8Dataset(X_val, y_val, X_cov_val)
+        self.test_dataset = Int8Dataset(X_test, y_test, X_cov_test)
         self.batch_size = batch_size
 
     def train_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=4, prefetch_factor=4)
+        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=4, prefetch_factor=2)
         return loader
     
     def val_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=2)
+        loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=1)
         return loader
     
     def test_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=1, prefetch_factor=1)
+        loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=1)
         return loader
 
     def predict_dataloader(self) -> List[DataLoader]:
-        train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=1, prefetch_factor=1)
+        train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=1)
         val_loader = self.val_dataloader()
         test_loader = self.test_dataloader()
         return [train_loader, val_loader, test_loader]
