@@ -30,10 +30,15 @@ class Metrics(LoaderMetrics):
 
 @dataclass
 class RegLoaderMetrics(LoaderMetrics):
+    # type of dataset, one of the {train, val, test}
     prefix: str
+    # loss value
     loss: float
+    # r2 value
     r2: float
+    # epoch number
     epoch: int
+    # count of samples
     samples: int
 
     def log_to_mlflow(self) -> None:
@@ -95,14 +100,20 @@ class LassoNetRegMetrics(Metrics):
 
     def to_result_dict(self) -> Dict:
         return {'metrics': pickle.dumps(self)}
-        train, test = map(self._calculate_mean_metrics, [self.train, self.val, self.test])
-        train_dict, test_dict = [m.to_result_dict() if m is not None else {} for m in [train, test]]
-        val_losses = weights_to_parameters(numpy.array([vm.loss for vm in self.val], dtype=numpy.float32))
-        val_r2s = weights_to_parameters(numpy.array([vm.r2 for vm in self.val]))
-        val_dict = {f'{self.val[0].prefix}_loss': val_losses, f'{self.val[0].prefix}_r2': val_r2s}
-        return train_dict | val_dict | test_dict
 
     def reduce(self, reduction='mean'):
+        """Reduces LassoNET metrics on hidden_size axis
+        i.e. averages over all Lasso models with different l1 regularization parameter 
+        or chooses the best model based on validation metrics
+
+        Args:
+            reduction (str, optional): If 'mean', then it averages metrics over all lasso models. 
+                If 'lassonet_best', then it chooses the best lasso model based on validation r2 and returns just its metrics. 
+                Defaults to 'mean'.
+
+        Returns:
+            RegMetrics: Returns RegMetrics object with one train, one val and one test RegLoaderMetrics
+        """        
         if reduction == 'mean':
             train, val, test = map(self._calculate_mean_metrics, [self.train, self.val, self.test])
             return RegMetrics(train, val, test, epoch=train.epoch)
@@ -113,7 +124,9 @@ class LassoNetRegMetrics(Metrics):
                 return RegMetrics(self.train[best_col], self.val[best_col], None, self.epoch)
             else:
                 return RegMetrics(self.train[best_col], self.val[best_col], self.test[best_col], self.epoch)
-    
+        else:
+            raise ValueError(f'reduction should be one of ["mean", "lassonet_best"]')
+
     def __str__(self) -> str:
 
         train, val, test = map(self._calculate_mean_metrics, [self.train, self.val, self.test])
@@ -141,7 +154,20 @@ class RegFederatedMetrics(Metrics):
         return self._weighted_mean_metrics('val', [client.val for client in self.clients]).val_loss
 
     def reduce(self, reduction='mean'):
+        """Reduces metrics from all clients into one metrics aggregated over all clients
 
+        Args:
+            reduction (str, optional): If 'mean' then it calculates a weighed mean over clients. 
+                If 'lassonet_best', then it averages each lasso model from all clients independently 
+                and then it chooses the best model based on aggregated val loss. Defaults to 'mean'.
+
+        Raises:
+            ValueError: If reduction not one of the ['mean', 'lassonet_best']
+            ValueError: If in case of 'lassonet_best' reduction each of clients metrics does not have a list of Lasso models metrics.
+
+        Returns:
+            _type_: _description_
+        """        
         if reduction == 'mean':
             reduced_clients = [
                 [m.reduce().train for m in self.clients], 
