@@ -94,6 +94,7 @@ class FLClient(NumPyClient):
         self.model.load_state_dict(state_dict, strict=True)
 
     def fit(self, parameters, config):
+        # self.log(f'started fitting with config {config}')
         try:
             # to catch spurious error "weakly-referenced object no longer exists"
             # probably ref to some model parameter tensor get lost
@@ -104,25 +105,35 @@ class FLClient(NumPyClient):
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.node_params)
             self.set_parameters(parameters)
         
-        start = time()                
+        start = time()    
+        # self.log('fit after set parameters')            
         self.model.train()
+        # self.log('set model to train')
         self.model.current_round = config['current_round']
         trainer = Trainer(logger=False, **self.node_params.training)
+        # self.log('trainer created')
         trainer.fit(self.model, datamodule=self.data_module)
+        # self.log('model fitted by trainer')
         end = time()
         self.log(f'node: {self.node_params.index}\tfit elapsed: {end-start:.2f}s')
         return self.get_parameters(), self.data_module.train_len(), {}
 
     def evaluate(self, parameters, config):
+        self.log(f'starting to set parameters in evaluate with config {config}')
         self.set_parameters(parameters)
+        self.log('set parameters in evaluate')
         self.model.eval()
 
         start = time()                
         need_test_eval = 'current_round' in config and config['current_round'] == -1
+        self.log(f'starting predict and eval with {need_test_eval}')
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
                                                         test=need_test_eval, 
-                                                        best_col=config.get('best_col', None))
+                                                        best_col=config.get('best_col', None),
+                                                        logger=self.logger)
+        self.log('starting log to mlflow in eval')
         unreduced_metrics.log_to_mlflow()
+        print(f'calculating val len')
         val_len = self.data_module.val_len()
         end = time()
         self.log(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')

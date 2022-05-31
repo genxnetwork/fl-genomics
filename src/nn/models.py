@@ -215,7 +215,8 @@ class LassoNetRegressor(BaseNet):
     def __init__(self, input_size: int, hidden_size: int, 
                  optim_params: Dict, scheduler_params: Dict,
                  cov_count: int = 0, 
-                 alpha_start: float = -1, alpha_end: float = -1, init_limit: float = 0.01) -> None:
+                 alpha_start: float = -1, alpha_end: float = -1, init_limit: float = 0.01,
+                 logger = None) -> None:
         super().__init__(input_size, optim_params, scheduler_params)
         
         assert alpha_end > alpha_start
@@ -227,6 +228,7 @@ class LassoNetRegressor(BaseNet):
         self.bn = BatchNorm1d(self.input_size)
         self.r2_score = R2Score(num_outputs=self.hidden_size, multioutput='raw_values')
         init_uniform_(self.layer.weight, a=-init_limit, b=init_limit) 
+        self.stdout_logger = logger
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = self.layer(self.bn(x))
@@ -259,13 +261,18 @@ class LassoNetRegressor(BaseNet):
         r2s = self._unreduced_r2_score(y_pred, y_true)
         return [RegLoaderMetrics(prefix, loss, r2, self.fl_current_epoch(), samples=y_true.shape[0]) for loss, r2 in zip(losses, r2s)]
 
-    def predict_and_eval(self, datamodule: DataModule, test=False, best_col : Optional[int] = None) -> Metrics:
+    def predict_and_eval(self, datamodule: DataModule, test=False, best_col : Optional[int] = None, logger = None) -> Metrics:
         train_loader, val_loader, test_loader = datamodule.predict_dataloader()
+        logger.info(f'got predict_dataloaders')
         y_train_pred, y_train = self.predict(train_loader)
+        logger.info(f'predicted train dataloader')
         y_val_pred, y_val = self.predict(val_loader)
+        logger.info(f'predicted val dataloader')
         
         train_metrics = self._unreduced_pred_metrics('train', y_train_pred, y_train)
+        logger.info('got train metrics')
         val_metrics = self._unreduced_pred_metrics('val', y_val_pred, y_val)
+        logger.info(f'got val metrics')
         
         if test:
             y_test_pred, y_test = self.predict(test_loader)
