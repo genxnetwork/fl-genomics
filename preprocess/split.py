@@ -77,6 +77,11 @@ class SplitNonIID(SplitBase):
         
 class SplitHeterogeneous(SplitBase):
     def split(self, areas_path=areas_path):
+        '''
+        Splits white british samples based on a provided table with region codes.
+        Args:
+        areas_path: path to file with region codes.
+        '''
         df = self.get_ethnic_background()
         
         # Drop samples with missing/prefer not to answer ethnic background
