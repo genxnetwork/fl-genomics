@@ -19,3 +19,6 @@ class Int8Dataset:
     
     def feature_count(self) -> int:
         return self.X.shape[1] if self.X_cov is None else self.X.shape[1] + self.X_cov.shape[1]
+
+    def covariate_count(self) -> int:
+        return self.X_cov.shape[1] if self.X_cov is not None else 0

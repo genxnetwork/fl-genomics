@@ -51,3 +51,6 @@ class DataModule(LightningDataModule):
 
     def feature_count(self):
         return self.train_dataset.feature_count()
+
+    def covariate_count(self):
+         return self.train_dataset.covariate_count()
