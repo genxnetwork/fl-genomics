@@ -1,5 +1,5 @@
 defaults:
-  - model: lassonet
+  - node: lassonet
   - experiment: gwas 
   - split: region
   - data: topk_snps

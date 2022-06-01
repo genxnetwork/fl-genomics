@@ -2,10 +2,10 @@ index: ???
 model:
   name: lassonet_regressor
   batch_size: 256
-  hidden_size: 32
+  hidden_size: 64
   alpha_start: -3
   alpha_end: 0.5
-  init_limit: 0.01
+  init_limit: 0.001
 optimizer:
   name: sgd
   lr: 5e-3

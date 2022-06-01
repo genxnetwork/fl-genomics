@@ -41,13 +41,13 @@ def get_active_nodes(cfg: DictConfig):
 
 
 @hydra.main(config_path='configs', config_name='default')
-def run():
+def run(cfg: DictConfig):
     
     configure_logging()
     print(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
-
+    print(cfg)
+    exit()
     # parse command-line runner.py arguments
-    args = OmegaConf.from_cli(sys.argv)
     queue = multiprocessing.Queue()
     cfg_path = 'src/fl/configs/lassonet.yaml'
     server_url = f'{gethostname()}:8080'
@@ -58,7 +58,6 @@ def run():
     mlflow_url = os.environ.get('MLFLOW_TRACKING_URI', './mlruns')
     print(f'logging mlflow data to server {mlflow_url}')
     
-    cfg = OmegaConf.merge(OmegaConf.load(cfg_path), args)
     experiment = mlflow.set_experiment(cfg.experiment.name)
 
     params_hash = get_cfg_hash(cfg)
