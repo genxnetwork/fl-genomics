@@ -338,6 +338,7 @@ class LassoNetExperiment(NNExperiment):
         best_test_r2 = r2_score(self.y_test, test_preds[:, best_col])
         
         print(f'Best alpha: {self.model.alphas[best_col]:.6f}')
+        mlflow.log_metric('best_alpha', self.model.alphas[best_col])
         print(f"Train r2: {best_train_r2:.4f}")
         mlflow.log_metric('train_r2', best_train_r2)
         print(f"Val r2: {best_val_r2:.4f}")
