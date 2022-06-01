@@ -1,0 +1,69 @@
+name: 'region_split' 
+path: '/gpfs/gpfs0/ukb_data/test/${.name}'
+nodes: 
+  north_east:
+    name: 'North East (England)'
+    resources:
+      gpus: 1
+    sample_count: 47971
+    index: 0
+  north_west:
+    name: 'North West (England)'
+    resources:
+      gpus: 1
+    sample_count: 70311
+    index: 1
+  yorkshire:
+    name: 'Yorkshire and The Humber'
+    resources:
+      gpus: 1
+    sample_count: 57158
+    index: 2
+  east_midlands:
+    name: 'East Midlands (England)'
+    resources:
+      gpus: 0
+    sample_count: 30528
+    index: 3
+  west_midlands:
+    name: 'West Midlands (England)'
+    resources:
+      gpus: 0
+    sample_count: 38283
+    index: 4
+  east:
+    name: 'East of England'
+    resources:
+      gpus: 0
+    sample_count: 10854
+    index: 5
+  london:
+    name: 'London'
+    resources:
+      gpus: 1
+    sample_count: 41348
+    index: 6
+  south_east:
+    name: 'South East (England)'
+    resources:
+      gpus: 0
+    sample_count: 29777
+    index: 7
+  south_west:
+    name: 'South West (England)'
+    resources:
+      gpus: 0
+    sample_count: 29253
+    index: 8
+  wales:
+    name: 'Wales'
+    resources:
+      gpus: 0
+    sample_count: 19399
+    index: 9
+  scotland:
+    name: 'Scotland'
+    resources:
+      gpus: 0     
+    sample_count: 36027
+    index: 10

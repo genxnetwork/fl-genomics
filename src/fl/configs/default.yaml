@@ -1,0 +1,15 @@
+defaults:
+  - model: lassonet
+  - experiment: gwas 
+  - split: region
+  - data: topk_snps
+  - strategy: fedavg
+  - _self_ 
+
+fold:
+  index: 0
+
+server:
+  rounds: 8
+  checkpoint_dir: 'models/${data.phenotype.name}/fold_${fold.index}'
+  

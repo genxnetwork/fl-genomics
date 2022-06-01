@@ -1,20 +1,8 @@
-#!/bin/env python
-
-#SBATCH --job-name=multiprocess
-#SBATCH --output=logs/multiprocess_%j.out
-#SBATCH --error=logs/multiprocess_%j.err
-#SBATCH --time=00:20:00
-#SBATCH --partition=gpu_devel
-#SBATCH --nodes=1
-#SBATCH --gpus=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem 26000
-
 import multiprocessing
 import sys
 import os
 from socket import gethostname
+import hydra
 from omegaconf import DictConfig, OmegaConf
 import mlflow
 import hashlib
@@ -35,18 +23,6 @@ def get_cfg_hash(cfg: DictConfig):
     return hashlib.sha224(yaml_representation.encode()).hexdigest()
 
 
-NODE_RESOURCES = {
-    '0': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
-    '1': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
-    '2': {'partition': 'gpu', 'mem_mb': 64000, 'gpus': 1},
-    '3': {'partition': 'gpu', 'mem_mb': 36000, 'gpus': 1},
-    '4': {'partition': 'gpu', 'mem_mb': 24000, 'gpus': 1},
-    '5': {'partition': 'gpu', 'mem_mb': 16000, 'gpus': 1},
-    '6': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
-    '7': {'partition': 'cpu', 'mem_mb': 8000, 'gpus': 0},
-}
-
-
 def configure_logging():
     # loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
     all_names = [name for name in logging.root.manager.loggerDict]
@@ -58,7 +34,14 @@ def configure_logging():
         logger.handlers = []
 
 
-if __name__ == '__main__':
+def get_active_nodes(cfg: DictConfig):
+    if cfg.strategy.active_nodes == 'all':
+        return cfg.split.nodes
+    return cfg.split.nodes[cfg.strategy.active_nodes]
+
+
+@hydra.main(config_path='configs', config_name='default')
+def run():
     
     configure_logging()
     print(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
@@ -87,20 +70,24 @@ if __name__ == '__main__':
         }
     ) as run:
         mlflow.log_params(cfg.server)
+        mlflow.log_params(cfg.strategy)
         info = MlflowInfo(experiment.experiment_id, run.info.run_id)
 
         # assigning gpus to nodes and creating process objects
         gpu_index = -1
-        for node_index in cfg.server.strategy.nodes:
-            need_gpu = NODE_RESOURCES[str(node_index)]['gpus']
+        active_nodes = get_active_nodes(cfg)
+        node_processes = []
+        for node_info in active_nodes:
+            need_gpu = node_info.resources.get('gpus', 0)
             if need_gpu:
                 gpu_index += 1
-                trainer_info = TrainerInfo([gpu_index], 'gpu', node_index)
+                trainer_info = TrainerInfo([gpu_index], 'gpu', node_info.index)
             else:
-                trainer_info = TrainerInfo(1, 'cpu', node_index)
+                trainer_info = TrainerInfo(1, 'cpu', node_info.index)
             node = Node(server_url, log_dir, info, queue, cfg, trainer_info)
             node.start()
-            print(f'starting node {node_index}')
+            print(f'starting node {node_info.index}, name: {node_info.name}')
+            node_processes.append(node)
         
         # create, start and wait for server to finish 
         server = Server(log_dir, queue, params_hash, cfg)
@@ -108,6 +95,10 @@ if __name__ == '__main__':
         server.join()
         
         # wait for all nodes to finish
-        for node_index in cfg.server.strategy.nodes:
+        for node in node_processes:
             node.join()
         print(f'Nodes are finished')
+    
+
+if __name__ == '__main__':
+    run()

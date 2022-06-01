@@ -15,6 +15,7 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_d
 
     Args:
         strategy_params (DictConfig): Strategy params with name, node_count and optional args dict
+        epochs_in_round (int): Number of epochs in each federation round
         checkpoint_dir (str): Directory for saving model checkpoints
 
     Raises:
@@ -75,7 +76,7 @@ class Server(Process):
         """Runs flower server federated learning training
         """        
         self._configure_logging()
-        strategy = get_strategy(self.cfg.server.strategy, 
+        strategy = get_strategy(self.cfg.strategy, 
                                 self.cfg.node.scheduler.epochs_in_round, 
                                 os.path.join(self.cfg.server.checkpoint_dir, self.params_hash))
         start_server(
