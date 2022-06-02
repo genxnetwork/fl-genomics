@@ -2,6 +2,6 @@ description: LassoNET on gwas SNPs
 name: federated_lassonet_standing-height
 missing: zero
 random_state: 4
-snp_count: 2000
+snp_count: 10000
 test_samples_limit: null
 pretrain_on_cov: True

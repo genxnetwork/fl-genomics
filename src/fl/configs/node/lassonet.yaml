@@ -21,3 +21,5 @@ training:
   enable_progress_bar: False
   enable_model_summary: False
   strategy: ddp
+  devices: ???
+  accelerator: ???

@@ -36,8 +36,11 @@ def configure_logging():
 
 def get_active_nodes(cfg: DictConfig):
     if cfg.strategy.active_nodes == 'all':
-        return cfg.split.nodes
-    return cfg.split.nodes[cfg.strategy.active_nodes]
+        return [cfg.split.nodes[name] for name in cfg.split.nodes]
+    active_nodes = []
+    for node_index in cfg.strategy.active_nodes:
+        active_nodes.append(cfg.split.nodes[node_index])
+    return active_nodes
 
 
 @hydra.main(config_path='configs', config_name='default')
@@ -46,15 +49,12 @@ def run(cfg: DictConfig):
     configure_logging()
     print(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
     print(cfg)
-    exit()
     # parse command-line runner.py arguments
     queue = multiprocessing.Queue()
-    cfg_path = 'src/fl/configs/lassonet.yaml'
     server_url = f'{gethostname()}:8080'
     log_dir = f'logs/job-{os.environ["SLURM_JOB_ID"]}'
     os.makedirs(log_dir, exist_ok=True)
 
-    # command-line arguments take precedents over config parameters
     mlflow_url = os.environ.get('MLFLOW_TRACKING_URI', './mlruns')
     print(f'logging mlflow data to server {mlflow_url}')
     
@@ -91,11 +91,14 @@ def run(cfg: DictConfig):
         # create, start and wait for server to finish 
         server = Server(log_dir, queue, params_hash, cfg)
         server.start()
-        server.join()
-        
+
         # wait for all nodes to finish
         for node in node_processes:
             node.join()
+        
+        # wait for server to finish
+        server.join()
+        
         print(f'Nodes are finished')
     
 
