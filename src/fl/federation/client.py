@@ -18,7 +18,7 @@ class ModelFactory:
 
     """    
     @staticmethod
-    def _create_linear_regressor(input_size: int, params: Any) -> LinearRegressor:
+    def _create_linear_regressor(input_size: int, covariate_count: int, params: Any) -> LinearRegressor:
         return LinearRegressor(
             input_size=input_size,
             l1=params.model.l1,
@@ -27,7 +27,7 @@ class ModelFactory:
         )
 
     @staticmethod
-    def _create_mlp_regressor(input_size: int, params: Any) -> MLPRegressor:
+    def _create_mlp_regressor(input_size: int, covariate_count: int, params: Any) -> MLPRegressor:
         return MLPRegressor(
             input_size=input_size,
             hidden_size=params.model.hidden_size,
@@ -37,20 +37,20 @@ class ModelFactory:
         )
 
     @staticmethod
-    def _create_lassonet_regressor(input_size: int, params: Any) -> LassoNetRegressor:
+    def _create_lassonet_regressor(input_size: int, covariate_count: int, params: Any) -> LassoNetRegressor:
         return LassoNetRegressor(
             input_size=input_size,
             hidden_size=params.model.hidden_size,
             optim_params=params.optimizer,
             scheduler_params=params.scheduler,
-            cov_count=2, #TODO: make configurable or computable
+            cov_count=covariate_count, 
             alpha_start=params.model.alpha_start,
             alpha_end=params.model.alpha_end,
             init_limit=params.model.init_limit
         )
 
     @staticmethod
-    def create_model(input_size: int, params: Any) -> BaseNet:
+    def create_model(input_size: int, covariate_count: int, params: Any) -> BaseNet:
         model_dict = {
             'linear_regressor': ModelFactory._create_linear_regressor,
             'mlp_regressor': ModelFactory._create_mlp_regressor,
@@ -60,7 +60,7 @@ class ModelFactory:
         create_func = model_dict.get(params.model.name, None)
         if create_func is None:
             raise ValueError(f'model name {params.model.name} is unknown, it should be one of the {list(model_dict.keys())}')
-        return create_func(input_size, params)
+        return create_func(input_size, covariate_count, params)
 
 
 class FLClient(NumPyClient):
@@ -71,9 +71,10 @@ class FLClient(NumPyClient):
             server (str): Server address with port
             data_module (DataModule): Module with train, val and test dataloaders
             node_params (Dict): Node config with model, dataset, and training parameters
+            logger (Logger): Process-specific logger
         """        
         self.server = server
-        self.model = ModelFactory.create_model(data_module.feature_count(), node_params)
+        self.model = ModelFactory.create_model(data_module.feature_count(), data_module.covariate_count(), node_params)
         self.data_module = data_module
         self.best_model_path = None
         self.node_params = node_params
@@ -102,7 +103,7 @@ class FLClient(NumPyClient):
         except ReferenceError as re:
             self.logger.error(re)
             # we recreate a model and set parameters again
-            self.model = ModelFactory.create_model(self.data_module.feature_count(), self.node_params)
+            self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.node_params)
             self.set_parameters(parameters)
         
         start = time()    
@@ -133,7 +134,7 @@ class FLClient(NumPyClient):
                                                         logger=self.logger)
         self.log('starting log to mlflow in eval')
         unreduced_metrics.log_to_mlflow()
-        print(f'calculating val len')
+        self.log(f'calculating val len')
         val_len = self.data_module.val_len()
         end = time()
         self.log(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
