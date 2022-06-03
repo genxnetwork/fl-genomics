@@ -6,7 +6,7 @@ model:
   batch_size: 128
   max_epochs: 48
   hidden_size: 512
-  alpha_start: -1
+  alpha_start: -2
   alpha_end: 0.5
   init_limit: 0.002
   patience: 16
@@ -15,10 +15,10 @@ experiment:
   gpus: 1
   optimizer:
     name: sgd
-    lr: 5e-3
+    lr: 1e-2
     weight_decay: 0.0
   scheduler:
     name: exponential_lr
     rounds: ${model.max_epochs}
     epochs_in_round: 1
-    gamma: 0.97
+    gamma: 0.92

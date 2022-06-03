@@ -1,7 +1,17 @@
-name: local-models-all-snps
-include_genotype: True
-include_covariates: True
-different_node_gwas: False
-snp_count: 596409
-random_state: 0
-test_samples_limit: null
+# @package _global_
+
+experiment:
+  name: local-models-all-snps
+  include_genotype: True
+  include_covariates: True
+  different_node_gwas: False
+  snp_count: 596409
+  random_state: 0
+  test_samples_limit: null
+
+data:
+  genotype:
+    root: ${split_dir}/genotypes/node_${node_index}/fold_${fold_index}
+    train: ${.root}_train
+    val: ${.root}_val
+    test: ${.root}_test
