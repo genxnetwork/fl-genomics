@@ -281,7 +281,7 @@ class LassoNetRegressor(BaseNet):
                 best_col = numpy.argmax([vm.r2 for vm in val_metrics])
             metrics = RegMetrics(train_metrics[best_col], val_metrics[best_col], test_metrics[best_col], epoch=self.fl_current_epoch())
         else:
-            metrics = LassoNetRegMetrics(train_metrics, val_metrics, None, self.fl_current_epoch())
+            metrics = LassoNetRegMetrics(train_metrics, val_metrics, None, self.fl_current_epoch(), best_col=best_col)
             
         return metrics
 
