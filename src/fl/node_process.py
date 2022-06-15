@@ -98,57 +98,57 @@ class Node(Process):
         """        
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
 
-        self.log(f'loading train sample indices from pfile {self.cfg.dataset.pfile.train} and phenotype {self.cfg.dataset.phenotype.train}')
-        self.log(f'loading val sample indices from pfile {self.cfg.dataset.pfile.val} and phenotype {self.cfg.dataset.phenotype.val}')
-        self.log(f'loading test sample indices from pfile {self.cfg.dataset.pfile.test} and phenotype {self.cfg.dataset.phenotype.test}')
+        self.log(f'loading train sample indices from pfile {self.cfg.data.genotype.train} and phenotype {self.cfg.data.phenotype.train}')
+        self.log(f'loading val sample indices from pfile {self.cfg.data.genotype.val} and phenotype {self.cfg.data.phenotype.val}')
+        self.log(f'loading test sample indices from pfile {self.cfg.data.genotype.test} and phenotype {self.cfg.data.phenotype.test}')
 
-        sample_indices_train = get_sample_indices(self.cfg.dataset.pfile.train,
-                                                       self.cfg.dataset.phenotype.train)
-        sample_indices_val = get_sample_indices(self.cfg.dataset.pfile.val,
-                                                     self.cfg.dataset.phenotype.val)
+        sample_indices_train = get_sample_indices(self.cfg.data.genotype.train,
+                                                       self.cfg.data.phenotype.train)
+        sample_indices_val = get_sample_indices(self.cfg.data.genotype.val,
+                                                     self.cfg.data.phenotype.val)
 
         
-        sample_indices_test = get_sample_indices(self.cfg.dataset.pfile.test,
-                                                      self.cfg.dataset.phenotype.test)
+        sample_indices_test = get_sample_indices(self.cfg.data.genotype.test,
+                                                      self.cfg.data.phenotype.test)
 
         # because for each node we have the exact same test dataset
         # the idea is that each node will run inference on their part of test dataset with size {test_samples_limit}
         # sample_indices_test = sample_indices_test[self.node_index*test_samples_limit: (self.node_index+1)*test_samples_limit]
 
-        X_train = load_from_pgen(self.cfg.dataset.pfile.train, 
-            self.cfg.dataset.gwas, 
+        X_train = load_from_pgen(self.cfg.data.genotype.train, 
+            self.cfg.data.gwas, 
             snp_count=None,
             sample_indices=sample_indices_train, 
             missing=self.cfg.experiment.missing) 
         X_val = load_from_pgen(
-            self.cfg.dataset.pfile.val, 
-            self.cfg.dataset.gwas, 
+            self.cfg.data.genotype.val, 
+            self.cfg.data.gwas, 
             snp_count=None, 
             sample_indices=sample_indices_val,
             missing=self.cfg.experiment.missing) 
         X_test = load_from_pgen(
-            self.cfg.dataset.pfile.test, 
-            self.cfg.dataset.gwas,
+            self.cfg.data.genotype.test, 
+            self.cfg.data.gwas,
             snp_count=None, 
             sample_indices=sample_indices_test, 
             missing=self.cfg.experiment.missing) 
 
         self.log(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
         
-        X_cov_train = load_covariates(self.cfg.dataset.covariates.train).astype(numpy.float16)
-        X_cov_val = load_covariates(self.cfg.dataset.covariates.val).astype(numpy.float16)
-        X_cov_test = load_covariates(self.cfg.dataset.covariates.test)[:test_samples_limit, :].astype(numpy.float16)
+        X_cov_train = load_covariates(self.cfg.data.covariates.train).astype(numpy.float16)
+        X_cov_val = load_covariates(self.cfg.data.covariates.val).astype(numpy.float16)
+        X_cov_test = load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :].astype(numpy.float16)
 
         self.log(f'dtypes are : {X_train.dtype}, {X_val.dtype}, {X_test.dtype}, {X_cov_train.dtype}, {X_cov_val.dtype}, {X_cov_test.dtype}')
         self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1] + X_cov_train.shape[1]} total features')
         
-        y_train, y_val, y_test = load_phenotype(self.cfg.dataset.phenotype.train), load_phenotype(self.cfg.dataset.phenotype.val), load_phenotype(self.cfg.dataset.phenotype.test)
+        y_train, y_val, y_test = load_phenotype(self.cfg.data.phenotype.train), load_phenotype(self.cfg.data.phenotype.val), load_phenotype(self.cfg.data.phenotype.test)
         self.log(f'phenotypes dtypes are : {y_train.dtype}, {y_val.dtype}, {y_test.dtype}')
 
         self.log(f'We have {y_train.shape[0]} train, {y_val.shape[0]} val, {y_test.shape[0]} test phenotypes')
-        self.y_train = y_train - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
-        self.y_val = y_val - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
-        self.y_test = y_test - MEAN_PHENO_DICT[self.cfg.dataset.phenotype.name]
+        self.y_train = y_train - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
+        self.y_val = y_val - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
+        self.y_test = y_test - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
         self.feature_count = X_train.shape[1]
         self.covariate_count = X_cov_train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count
@@ -165,8 +165,8 @@ class Node(Process):
             numpy.ndarray: Coefficients of covarites without intercept
         """        
         lr = LinearRegression()
-        cov_train = load_covariates(self.cfg.dataset.covariates.train)
-        cov_val = load_covariates(self.cfg.dataset.covariates.val)
+        cov_train = load_covariates(self.cfg.data.covariates.train)
+        cov_val = load_covariates(self.cfg.data.covariates.val)
         lr.fit(cov_train, self.y_train)
         val_r2 = lr.score(cov_val, self.y_val)
         train_r2 = lr.score(cov_train, self.y_train)
@@ -214,9 +214,9 @@ class Node(Process):
             tags={
                 'description': self.cfg.experiment.description,
                 'node_index': str(self.node_index),
-                'phenotype': self.cfg.dataset.phenotype.name,
+                'phenotype': self.cfg.data.phenotype.name,
                 #TODO: make it a parameter
-                'split': self.cfg.dataset.split.name,
+                'split': self.cfg.split.name,
                 'snp_count': str(self.snp_count),
                 'sample_count': str(self.sample_count)
             }

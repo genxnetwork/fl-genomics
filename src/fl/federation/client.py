@@ -103,7 +103,7 @@ class FLClient(NumPyClient):
         except ReferenceError as re:
             self.logger.error(re)
             # we recreate a model and set parameters again
-            self.model = ModelFactory.create_model(self.data_module.feature_count(), self.node_params)
+            self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.node_params)
             self.set_parameters(parameters)
         
         start = time()    

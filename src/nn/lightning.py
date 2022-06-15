@@ -20,19 +20,19 @@ class DataModule(LightningDataModule):
         self.batch_size = batch_size
 
     def train_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=2, prefetch_factor=1)
+        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
         return loader
     
     def val_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=1)
+        loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
         return loader
     
     def test_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=1)
+        loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
         return loader
 
     def predict_dataloader(self) -> List[DataLoader]:
-        train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=2, prefetch_factor=1)
+        train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
         val_loader = self.val_dataloader()
         test_loader = self.test_dataloader()
         return [train_loader, val_loader, test_loader]

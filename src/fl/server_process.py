@@ -10,11 +10,13 @@ from flwr.server.strategy import FedAvg
 from fl.federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, MlflowLogger, fit_round, on_evaluate_config_fn
 
 
-def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_dir: str) -> FedAvg:
+def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: int, checkpoint_dir: str) -> FedAvg:
     """Creates flwr Strategy from strategy config entry
 
     Args:
         strategy_params (DictConfig): Strategy params with name, node_count and optional args dict
+        epochs_in_round (int): Number of epochs in each federation round
+        node_count (int): Number of nodes to federate
         checkpoint_dir (str): Directory for saving model checkpoints
 
     Raises:
@@ -26,9 +28,9 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_d
     default_args = OmegaConf.create({
         "fraction_fit": 0.99,
         "fraction_eval": 0.99,
-        "min_fit_clients": len(strategy_params.nodes),
-        "min_eval_clients": len(strategy_params.nodes),
-        "min_available_clients": len(strategy_params.nodes)
+        "min_fit_clients": node_count,
+        "min_eval_clients": node_count,
+        "min_available_clients": node_count
     })
     if 'args' in strategy_params:
         args = OmegaConf.merge(default_args, strategy_params.args)
@@ -75,8 +77,10 @@ class Server(Process):
         """Runs flower server federated learning training
         """        
         self._configure_logging()
-        strategy = get_strategy(self.cfg.server.strategy, 
+        node_count = len(self.cfg.split.nodes) if self.cfg.strategy.active_nodes == 'all' else len(self.cfg.strategy.active_nodes)
+        strategy = get_strategy(self.cfg.strategy, 
                                 self.cfg.node.scheduler.epochs_in_round, 
+                                node_count,
                                 os.path.join(self.cfg.server.checkpoint_dir, self.params_hash))
         start_server(
                     server_address="[::]:8080",
