@@ -26,7 +26,7 @@ class BaseNet(LightningModule):
         self.layer = Linear(input_size, 1)
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
-        self.current_round = 0
+        self.current_round = 1
 
     def forward(self, x):
         out = self.layer(x)
@@ -73,7 +73,7 @@ class BaseNet(LightningModule):
         self.log('val_loss', avg_loss, prog_bar=True)    
 
     def fl_current_epoch(self):
-        return self.current_round * self.scheduler_params['epochs_in_round'] + self.current_epoch
+        return (self.current_round - 1) * self.scheduler_params['epochs_in_round'] + self.current_epoch
 
     def _get_current_lr(self):
         optim = self.trainer.optimizers[0] 
@@ -81,7 +81,7 @@ class BaseNet(LightningModule):
         return lr
     
     def _configure_adamw(self):
-        last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
+        last_epoch = (self.current_round - 1) * self.scheduler_params['epochs_in_round']
         optimizer = torch.optim.AdamW([
             {
                 'params': self.parameters(), 
