@@ -1,4 +1,0 @@
-experiment:
-  description: test mlflow server run
-rounds: 64
-node_count: 4
