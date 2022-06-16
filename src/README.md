@@ -63,6 +63,14 @@ wc -l node_{0,1,2,3,4,5,6,7,8,9,10}/fold_0_train.tsv
   28793 /gpfs/gpfs0/ukb_data/test/region_split/phenotypes/standing_height/node_10/fold_0_train.tsv
  328133 total
 
+ **Ethnic split**
+  343163 /gpfs/gpfs0/ukb_data/test/ethnic_split/phenotypes/standing_height/node_0/fold_0_train.tsv
+   6002 /gpfs/gpfs0/ukb_data/test/ethnic_split/phenotypes/standing_height/node_1/fold_0_train.tsv
+   5999 /gpfs/gpfs0/ukb_data/test/ethnic_split/phenotypes/standing_height/node_2/fold_0_train.tsv
+   1196 /gpfs/gpfs0/ukb_data/test/ethnic_split/phenotypes/standing_height/node_3/fold_0_train.tsv
+  30164 /gpfs/gpfs0/ukb_data/test/ethnic_split/phenotypes/standing_height/node_4/fold_0_train.tsv
+ 386524 total
+
 ### [Deprecated] Old way
 
 **training of all models in src/fl/configs folder on two nodes from uneven split using snakemake**
