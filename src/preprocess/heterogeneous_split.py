@@ -2,9 +2,8 @@ from utils.plink import run_plink
 import sys
 from os import path
 import logging
-sys.path.append('dimred/src')
 from utils.split import Split
-from gwas.train_val_split import CVSplitter
+from preprocess.train_val_split import CVSplitter
 from config.path import data_root
 from config.split_config import heterogeneous_split_name, n_heterogeneous_nodes, non_iid_split_name
 from preprocess.split import SplitHeterogeneous
