@@ -15,6 +15,19 @@ node_size_dict = {
         2: 6086,
         3: 1201,
         4: 30317 
+    },
+    'region_split': {
+        0: 47971,
+        1: 70311,
+        2: 57158,
+        3: 30528,
+        4: 38283,
+        5: 10854,
+        6: 41348,
+        7: 29777,
+        8: 29253,
+        9: 19399,
+        10: 36027
     }
 }
 
@@ -26,5 +39,18 @@ node_name_dict = {
         2: 'AC',
         3: 'CN',
         4: 'mix'
+    },
+    'region_split': {
+        0: 'North East (England)',
+        1: 'North West (England)',
+        2: 'Yorkshire and The Humber',
+        3: 'East Midlands (England)',
+        4: 'West Midlands (England)',
+        5: 'East of England',
+        6: 'London',
+        7: 'South East (England)',
+        8: 'South West (England)',
+        9: 'Wales',
+        10: 'Scotland'
     }
 }

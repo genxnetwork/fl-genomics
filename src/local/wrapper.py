@@ -17,7 +17,7 @@ def append_args_to_wrapper(arg_list: list):
     """Takes a list of command line arguments for a local experiment and uses them
     to populate a template script for launching the experiment with Slurm.
     """
-    with open(f"/trinity/home/{os.environ['USER']}/uk-biobank/src/local/wrapper.sh", 'r') as f:
+    with open(f"/trinity/home/{os.environ['USER']}/uk-biobank/src/local/wrapper_template.sh", 'r') as f:
         wrapper=f.read().rstrip()+" "
 
     run_experiment = None 
