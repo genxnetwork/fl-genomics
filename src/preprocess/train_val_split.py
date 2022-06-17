@@ -9,8 +9,6 @@ from sklearn.preprocessing import StandardScaler
 from numpy import array_split, array, cumsum
 
 from utils.split import Split
-from utils.phenotype import adjust_and_write
-
 
 FOLD_COUNT = 10
 
@@ -238,10 +236,6 @@ class CVSplitter:
         val_data.to_csv(val_path, sep='\t', index=False)
         test_data.to_csv(test_path, sep='\t', index=False)
 
-    def adjust_phenotype(self, node_index: int):
-        for fold_index in range(FOLD_COUNT):
-            adjust_and_write(self.split, node_index, fold_index)
-
 
 @hydra.main(config_path='configs', config_name='split')
 def main(cfg: DictConfig):
@@ -266,12 +260,6 @@ def main(cfg: DictConfig):
 
         cv.standardize_covariates(node_index, cfg.zstd_covariates)
         print(f'covariates {cfg.zstd_covariates} were standardized')
-
-        cv.adjust_phenotype(node_index)
-        print(f'phenotype {cfg.phenotype.name} was adjusted')
-        print(f'splitting into {FOLD_COUNT} folds for node {node_index} completed')
-        print()
-        
 
 if __name__ == '__main__':
     main()
