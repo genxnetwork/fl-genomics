@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from ukb_loader import UKBDataLoader
+# from ukb_loader import UKBDataLoader
 from numpy.random import seed, choice
 import pandas as pd
 pd.options.mode.chained_assignment = None # Shush

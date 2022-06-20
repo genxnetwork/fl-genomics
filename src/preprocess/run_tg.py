@@ -1,15 +1,17 @@
-import os.path
+import os
+import sys
 
-from config.path import ukb_loader_dir, sample_qc_ids_path, ukb_pfile_path, data_root
-from config.pca_config import pca_config
-from config.qc_config import sample_qc_config, variant_qc_config
-from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list
 from preprocess.pca import PCA
 from preprocess.qc import QC, sample_qc
 from preprocess.split import SplitNonIID
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter, WBSplitter
+from config.path import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
+    TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT
+from config.pca_config import pca_config_tg
+from config.qc_config import sample_qc_config, variant_qc_config
+from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list
 
 import logging
 from os import path, symlink
@@ -25,11 +27,14 @@ if __name__ == '__main__':
     
     # Generate file with sample IDs that pass central QC with plink
     logger.info(f'Running sample QC and saving valid ids to {sample_qc_ids_path}')
-    sample_qc(ukb_pfile_path, sample_qc_ids_path)
+    sample_qc(bin_file_path=TG_BFILE_PATH, output_path=TG_SAMPLE_QC_IDS_PATH, bin_file_type='--bfile')
     
     logger.info(f'Running global PCA')
-    PCA().run(input_prefix=ukb_pfile_path, pca_config=pca_config, output_path=os.path.join(data_root, 'pca', 'global'),
-              scatter_plot_path=os.path.join(data_root, 'figures', 'global_pca.html'))
+    os.makedirs(os.path.join(TG_DATA_ROOT, 'pca'), exist_ok=True)
+    PCA().run(input_prefix=TG_BFILE_PATH, pca_config=pca_config_tg,
+              output_path=os.path.join(TG_DATA_ROOT, 'pca', 'global'),
+              scatter_plot_path=os.path.join(TG_OUT, 'global_pca.html'),
+              bin_file_type='--bfile')
 
     # Split dataset into IID and non-IID datasets and then QC each local dataset
     logger.info("Splitting ethnic dataset")
