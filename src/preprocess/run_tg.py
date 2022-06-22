@@ -3,11 +3,12 @@ import sys
 
 from preprocess.pca import PCA
 from preprocess.qc import QC, sample_qc
-from preprocess.split import SplitNonIID
+from preprocess.splitter import SplitNonIID
+from preprocess.splitter_tg import SplitTG
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter, WBSplitter
-from config.path import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
+from config.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
     TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT
 from config.pca_config import pca_config_tg
 from config.qc_config import sample_qc_config, variant_qc_config
@@ -26,19 +27,20 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     
     # Generate file with sample IDs that pass central QC with plink
-    logger.info(f'Running sample QC and saving valid ids to {sample_qc_ids_path}')
-    sample_qc(bin_file_path=TG_BFILE_PATH, output_path=TG_SAMPLE_QC_IDS_PATH, bin_file_type='--bfile')
-    
-    logger.info(f'Running global PCA')
-    os.makedirs(os.path.join(TG_DATA_ROOT, 'pca'), exist_ok=True)
-    PCA().run(input_prefix=TG_BFILE_PATH, pca_config=pca_config_tg,
-              output_path=os.path.join(TG_DATA_ROOT, 'pca', 'global'),
-              scatter_plot_path=os.path.join(TG_OUT, 'global_pca.html'),
-              bin_file_type='--bfile')
+    # logger.info(f'Running sample QC and saving valid ids to {sample_qc_ids_path}')
+    # sample_qc(bin_file_path=TG_BFILE_PATH, output_path=TG_SAMPLE_QC_IDS_PATH, bin_file_type='--bfile')
+    #
+    # logger.info(f'Running global PCA')
+    # os.makedirs(os.path.join(TG_DATA_ROOT, 'pca'), exist_ok=True)
+    # PCA().run(input_prefix=TG_BFILE_PATH, pca_config=pca_config_tg,
+    #           output_path=os.path.join(TG_DATA_ROOT, 'pca', 'global'),
+    #           scatter_plot_path=None,
+    #           # scatter_plot_path=os.path.join(TG_OUT, 'global_pca.html'),
+    #           bin_file_type='--bfile')
 
     # Split dataset into IID and non-IID datasets and then QC each local dataset
     logger.info("Splitting ethnic dataset")
-    prefix_splits = SplitNonIID().split(make_pgen=True)
+    prefix_splits = SplitTG().split(make_pgen=True)
 
     for local_prefix in prefix_splits:
         logger.info(f'Running local QC for {local_prefix}')

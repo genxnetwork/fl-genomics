@@ -4,9 +4,9 @@ import plotly.express as px
 import sys
 sys.path.append('..')
 
-from config.path import data_root
+from config.global_config import data_root
 from config.split_config import ethnic_background_name_map
-from preprocess.split import SplitBase
+from preprocess.splitter import SplitBase
 from utils.plink import run_plink
 
 
@@ -30,6 +30,7 @@ class PCA(object):
         eigenvec['ethnic_background_name'] = eb_df.loc[eigenvec.IID, 'ethnic_background'].map(ethnic_background_name_map)
         px.scatter(eigenvec, x='PC1', y='PC2', color='ethnic_background_name').write_html(scatter_plot_path)
 
-    def run(self, input_prefix: str, pca_config: dict, output_path: str, scatter_plot_path: str, bin_file_type='--pfile'):
+    def run(self, input_prefix: str, pca_config: dict, output_path: str, scatter_plot_path=None, bin_file_type='--pfile'):
         self.pca(input_prefix=input_prefix, pca_config=pca_config, output_path=output_path, bin_file_type=bin_file_type)
-        self.pc_scatterplot(pca_path=output_path, scatter_plot_path=scatter_plot_path)
+        if scatter_plot_path is not None:
+            self.pc_scatterplot(pca_path=output_path, scatter_plot_path=scatter_plot_path)

@@ -5,7 +5,7 @@ import pandas as pd
 pd.options.mode.chained_assignment = None # Shush
 import os
 
-from config.path import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path
+from config.global_config import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path
 from config.split_config import non_iid_split_name, split_map, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, random_seed
 from utils.plink import run_plink
 
@@ -38,8 +38,8 @@ class SplitBase(object):
         
         return df
     
-    def make_split_pgen(self, split_id_path: str, prefix: str) -> None:
-        run_plink(args_dict={'--pfile': ukb_pfile_path,
+    def make_split_pgen(self, split_id_path: str, prefix: str, bin_file_type='--pfile', bin_file=ukb_pfile_path) -> None:
+        run_plink(args_dict={bin_file_type: bin_file,
                              '--out': prefix,
                              '--keep': split_id_path},
                   args_list=['--make-pgen'])

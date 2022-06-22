@@ -1,12 +1,12 @@
 import os.path
 
-from config.path import ukb_loader_dir, sample_qc_ids_path, ukb_pfile_path, data_root
+from config.global_config import ukb_loader_dir, sample_qc_ids_path, ukb_pfile_path, data_root
 from config.pca_config import pca_config
 from config.qc_config import sample_qc_config, variant_qc_config
 from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list
 from preprocess.pca import PCA
 from preprocess.qc import QC, sample_qc
-from preprocess.split import SplitNonIID
+from preprocess.splitter import SplitNonIID
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter, WBSplitter

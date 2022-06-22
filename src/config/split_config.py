@@ -4,7 +4,7 @@ uniform_split_config = {
 }
 
 non_iid_split_name = 'ethnic_split'
-uneven_split_shares_list = [0.01777, 0.00349, 1/2, 1/4, 1/8, 1/16 , 1/32]
+uneven_split_shares_list = [0.01777, 0.00349, 1/2, 1/4, 1/8, 1/16, 1/32]
 
 heterogeneous_split_name = 'region_split'
 n_heterogeneous_nodes = 11
@@ -64,3 +64,9 @@ ethnic_background_name_map = {
 heterogeneous_split_codes = [1, 1001, 1002, 1003]
 
 random_seed = 32
+
+TG_SUPERPOP_DICT = {'TSI': 'Europe', 'GBR': 'Europe', 'FIN': 'Europe', # europe
+                     'CHB': 'EAsia', 'JPT': 'EAsia', 'KHV': 'EAsia',  # east-asian
+                     'YRI': 'Africa', 'ESN': 'Africa', 'MSL': 'Africa', 'LWK': 'Africa', # african
+                     'PEL': 'America', 'PUR': 'America', # america, hopefully native
+                     'BEB': 'SAsia', 'PJL': 'SAsia', 'STU': 'SAsia'} # india
