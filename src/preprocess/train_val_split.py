@@ -8,6 +8,7 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
 from numpy import array_split, array, cumsum
 
+from config.split_config import NUM_FOLDS
 from utils.split import Split
 
 FOLD_COUNT = 10
@@ -69,24 +70,27 @@ class CVSplitter:
         """        
         self.split = split
 
-    def split_ids(self, node_index: int, random_state: int):
+    def split_ids(self, node_index: int = None, node: str = None, random_state: int = 34, num_folds: int = NUM_FOLDS):
         """
-        Splits sample ids into 10-fold cv for each node. 80% are train, 10% are val and 10% are test.
+        Splits sample ids into K-fold cv for each node. At each fold, 1/Kth goes to test data, 1/Kth (randomly) to val
+        and the rest to train
         
         Args:
             node_index (int): Index of node
+            node_index (int): Alternatively, node name
             random_state (int): Fixed random_state for train_test_split sklearn function
-        """    
+            num_folds (int): number of folds
+        """
         path = self.split.get_source_ids_path(node_index)
         # we do not need sex here
         ids = pandas.read_table(path).loc[:, ['FID', 'IID']]
-        train_size, val_size, test_size = int(ids.shape[0]*0.8), int(ids.shape[0]*0.1), int(ids.shape[0]*0.1)
-        train_size += (ids.shape[0] - train_size - test_size - val_size)
 
-        kfold = KFold(n_splits=10, shuffle=True, random_state=random_state)
+        kfold = KFold(n_splits=num_folds, shuffle=True, random_state=random_state)
         for fold_index, (train_val_indices, test_indices) in enumerate(kfold.split(ids.loc[:, ['FID', 'IID']])):
             
-            train_indices, val_indices = train_test_split(train_val_indices, train_size=train_size, random_state=random_state)
+            train_indices, val_indices = train_test_split(train_val_indices,
+                                                          train_size=(NUM_FOLDS - 2) / (NUM_FOLDS - 1),
+                                                          random_state=random_state)
             
             for indices, part in zip([train_indices, val_indices, test_indices], ['train', 'val', 'test']):
                 out_path = self.split.get_ids_path(node_index, fold_index, part)

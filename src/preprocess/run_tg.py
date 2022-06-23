@@ -9,10 +9,11 @@ from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter, WBSplitter
 from config.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
-    TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT
+    TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT, SPLIT_DIR
 from config.pca_config import pca_config_tg
 from config.qc_config import sample_qc_config, variant_qc_config
-from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list
+from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list, \
+    TG_SUPERPOP_DICT
 
 import logging
 from os import path, symlink
@@ -44,15 +45,15 @@ if __name__ == '__main__':
 
     for local_prefix in prefix_splits:
         logger.info(f'Running local QC for {local_prefix}')
-        local_prefix_qc = QC.qc(input_prefix=local_prefix, qc_config=variant_qc_config)
+        local_prefix_qc = QC.qc(input_prefix=os.path.join(SPLIT_DIR, local_prefix), qc_config=variant_qc_config)
         
-    logger.info("making k-fold split for ethnic dataset")    
-    num_ethnic_nodes = max(list(split_map.values()))+1
-    ethnic_split = Split(path.join(data_root, non_iid_split_name), 'standing_height', num_ethnic_nodes)
+    logger.info("making k-fold split for the TG dataset")
+    nodes = list(set(TG_SUPERPOP_DICT.values()))
+    ethnic_split = Split(SPLIT_DIR, 'ethnicity', nodes=nodes)
     splitter = CVSplitter(ethnic_split)
     
-    for node_index in range(num_ethnic_nodes):
-        splitter.split_ids(node_index, random_state=0)
+    for node in nodes:
+        splitter.split_ids(node=node, random_state=0)
         
     logger.info("Generating white_british uniform split")
     uniform_split = Split(path.join(data_root, uniform_split_config['uniform_split_name']),
