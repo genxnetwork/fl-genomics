@@ -1,7 +1,8 @@
+import os
 from typing import List
 import hydra
 from omegaconf import DictConfig
-from os import symlink, path
+from os import symlink
 
 import pandas
 from sklearn.model_selection import KFold, train_test_split
@@ -37,7 +38,7 @@ class WBSplitter:
     def split_ids(self):
         for fold_index in range(self.n_folds):
             for part_name in ["train", "val"]:
-                path = self.ethnic_split.get_ids_path(0, fold_index, part_name)
+                path = self.ethnic_split.get_ids_path(node_index=0, fold_index=fold_index, part_name=part_name)
                 ids = pandas.read_table(path).loc[:, ['FID', 'IID']]
                 
                 if isinstance(self.array_split_arg, int):
@@ -48,14 +49,15 @@ class WBSplitter:
                 assert len(ids) == sum([len(split_ids) for split_ids in split_ids_list])
                     
                 for node_index, split_ids in enumerate(split_ids_list):
-                    out_path = self.new_split.get_ids_path(node_index, fold_index, part_name)
+                    out_path = self.new_split.get_ids_path(node_index=node_index, fold_index=fold_index, part_name=part_name)
                     split_ids.to_csv(out_path, sep='\t', index=False)
             
             # Symlink for test ids
             for node_index in range(self.n_nodes):
-                source_path = self.ethnic_split.get_ids_path(0, fold_index, 'test')
-                destination_path = self.new_split.get_ids_path(node_index, fold_index, 'test')
-                if not path.exists(destination_path):
+                source_path = self.ethnic_split.get_ids_path(node_index=0, fold_index=fold_index, part_name='test')
+                destination_path = self.new_split.get_ids_path(node_index=node_index, fold_index=fold_index,
+                                                               part_name='test')
+                if not os.path.exists(destination_path):
                     symlink(source_path, destination_path)
 
               
@@ -70,7 +72,7 @@ class CVSplitter:
         """        
         self.split = split
 
-    def split_ids(self, node_index: int = None, node: str = None, random_state: int = 34, num_folds: int = NUM_FOLDS):
+    def split_ids(self, ids_path: str = None, node_index: int = None, node: str = None, random_state: int = 34, num_folds: int = NUM_FOLDS):
         """
         Splits sample ids into K-fold cv for each node. At each fold, 1/Kth goes to test data, 1/Kth (randomly) to val
         and the rest to train
@@ -81,23 +83,23 @@ class CVSplitter:
             random_state (int): Fixed random_state for train_test_split sklearn function
             num_folds (int): number of folds
         """
-        path = self.split.get_source_ids_path(node_index)
+        if ids_path is None:
+            ids_path = self.split.get_source_ids_path(fn=f'{node_index}.csv' if node_index is not None else f'{node}.tsv')
         # we do not need sex here
-        ids = pandas.read_table(path).loc[:, ['FID', 'IID']]
+        ids = pandas.read_table(ids_path).rename(columns={'#IID': 'IID'}).filter(['FID', 'IID'])
 
         kfold = KFold(n_splits=num_folds, shuffle=True, random_state=random_state)
-        for fold_index, (train_val_indices, test_indices) in enumerate(kfold.split(ids.loc[:, ['FID', 'IID']])):
-            
+        for fold_index, (train_val_indices, test_indices) in enumerate(kfold.split(ids)):
             train_indices, val_indices = train_test_split(train_val_indices,
                                                           train_size=(NUM_FOLDS - 2) / (NUM_FOLDS - 1),
                                                           random_state=random_state)
             
             for indices, part in zip([train_indices, val_indices, test_indices], ['train', 'val', 'test']):
-                out_path = self.split.get_ids_path(node_index, fold_index, part)
+                out_path = self.split.get_ids_path(node_index=node_index, node=node, fold_index=fold_index, part_name=part)
                 ids.iloc[indices, :].to_csv(out_path, sep='\t', index=False)
 
 
-    def split_phenotypes(self, node_index: int) -> str:
+    def split_phenotypes(self, node_index: int) -> None:
         """
         Extracts train or val subset of samples from file with phenotypes and covariates
 
@@ -112,16 +114,14 @@ class CVSplitter:
         for fold_index in range(FOLD_COUNT):
             for part in ['train', 'val', 'test']:
                 
-                fold_indices = pandas.read_table(self.split.get_ids_path(node_index, fold_index, part))
+                fold_indices = pandas.read_table(self.split.get_ids_path(node_index=node_index, fold_index=fold_index, part_name=part))
                 part_phenotype = phenotype.merge(fold_indices, how='inner', on=['FID', 'IID'])
 
-                out_path = self.split.get_cov_pheno_path(node_index, fold_index, part)
+                out_path = self.split.get_cov_pheno_path(node_index=node_index, fold_index=fold_index, part=part)
                 part_phenotype.to_csv(out_path, sep='\t', index=False)
 
-        return out_path
 
-
-    def split_pca(self, node_index: int) -> str:
+    def split_pca(self, node_index: int) -> None:
         """
         Extracts train or val subset of samples from file with principal components
         Args:
@@ -136,11 +136,10 @@ class CVSplitter:
         for fold_index in range(FOLD_COUNT):
             for part in ['train', 'val', 'test']:
                 
-                fold_indices = pandas.read_table(self.split.get_ids_path(node_index, fold_index, part))
+                fold_indices = pandas.read_table(self.split.get_ids_path(node_index=node_index, fold_index=fold_index, part_name=part))
                 
                 fold_pca = pca.merge(fold_indices, how='inner', on=['FID', 'IID'])
-                fold_pca.to_csv(self.split.get_pca_path(node_index, fold_index, part), sep='\t', index=False)
-
+                fold_pca.to_csv(self.split.get_pca_path(node_index=node_index, fold_index=fold_index, part=part), sep='\t', index=False)
 
     def prepare_cov_and_phenotypes(self, node_index: int):
         """Transforms phenotype+covariates and pca files into phenotype and pca+covariates files for each fold.
@@ -151,16 +150,15 @@ class CVSplitter:
         for fold_index in range(FOLD_COUNT):
             for part in ['train', 'val', 'test']: 
 
-                pca_path = self.split.get_pca_path(node_index, fold_index, part)
-                cov_pheno_path = self.split.get_cov_pheno_path(node_index, fold_index, part)
-                pca_cov_path = self.split.get_pca_cov_path(node_index, fold_index, part)
-                phenotype_path = self.split.get_phenotype_path(node_index, fold_index, part)
+                pca_path = self.split.get_pca_path(node_index=node_index, fold_index=fold_index, part=part)
+                cov_pheno_path = self.split.get_cov_pheno_path(node_index=node_index, fold_index=fold_index, part=part)
+                pca_cov_path = self.split.get_pca_cov_path(node_index=node_index, fold_index=fold_index, part=part)
+                phenotype_path = self.split.get_phenotype_path(node_index=node_index, fold_index=fold_index, part=part)
 
                 self.prepare_cov_and_phenotype_for_fold(pca_path, cov_pheno_path, pca_cov_path, phenotype_path)
 
-
+    @staticmethod
     def prepare_cov_and_phenotype_for_fold(
-            self,
             pca_path: str,
             cov_pheno_path: str,
             pca_cov_path: str,

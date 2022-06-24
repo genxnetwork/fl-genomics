@@ -2,4 +2,4 @@ pca_config = {
     '--pca': 'approx'
 }
 
-pca_config_tg = {'--pca': '10'}
+pca_config_tg = {'--pca': '20'}

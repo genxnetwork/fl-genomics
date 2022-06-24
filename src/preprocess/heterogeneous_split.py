@@ -27,7 +27,7 @@ ethnic_split = Split(path.join(data_root, non_iid_split_name), 'standing_height'
     
 for split in [heterogeneous_split]:
     logger.info(f"Processing split {split.root_dir}")
-    for node_index in range(n_heterogenous_nodes):
+    for node_index in range(n_heterogeneous_nodes):
         logger.info(f"Node {node_index}")
         for fold_index in range(1):
             for part_name in ['train', 'val', 'test']:
@@ -35,8 +35,8 @@ for split in [heterogeneous_split]:
                 # Extract and save genotypes
                 run_plink(args_dict={
                 '--pfile': ethnic_split.get_source_pfile_path(0),
-                '--keep': split.get_ids_path(node_index, fold_index, part_name),
-                '--out':  split.get_pfile_path(node_index, fold_index, part_name)
+                '--keep': split.get_ids_path(node_index=node_index, fold_index=fold_index, part_name=part_name),
+                '--out':  split.get_pfile_path(node_index=node_index, fold_index=fold_index, part_name=part_name)
                 }, args_list=['--make-pgen', '--threads', '4'])
 
                 logger.info(f"Train PCA")

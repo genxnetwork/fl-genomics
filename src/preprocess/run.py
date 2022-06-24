@@ -1,4 +1,5 @@
 import os.path
+import sys
 
 from config.global_config import ukb_loader_dir, sample_qc_ids_path, ukb_pfile_path, data_root
 from config.pca_config import pca_config
@@ -45,7 +46,7 @@ if __name__ == '__main__':
     splitter = CVSplitter(ethnic_split)
     
     for node_index in range(num_ethnic_nodes):
-        splitter.split_ids(node_index, random_state=0)
+        splitter.split_ids(node_index=node_index, random_state=0)
         
     logger.info("Generating white_british uniform split")
     uniform_split = Split(path.join(data_root, uniform_split_config['uniform_split_name']),
@@ -77,35 +78,35 @@ if __name__ == '__main__':
                     # Symlinks for test set of uneven and uniform splits
                     if (split in [uniform_split, uneven_split]) and part_name == 'test':
                         # Symlink test white british genotypes
-                        if not path.exists(split.get_pfile_path(node_index, fold_index, part_name)):
-                            symlink(ethnic_split.get_pfile_path(0, fold_index, part_name),
-                                    split.get_pfile_path(node_index, fold_index, part_name))
+                        if not path.exists(split.get_pfile_path(node_index=node_index, fold_index=fold_index, part_name=part_name)):
+                            symlink(ethnic_split.get_pfile_path(node_index=0, fold_index=fold_index, part_name=part_name),
+                                    split.get_pfile_path(node_index=node_index, fold_index=fold_index, part_name=part_name))
                         
                         # Symlink test white british PCAs
-                        if not path.exists(split.get_pca_path(node_index, fold_index, part_name, ext='.sscore')):
-                            symlink(ethnic_split.get_pca_path(0, fold_index, part_name, ext='.sscore'),
-                                    split.get_pca_path(node_index, fold_index, part_name, ext='.sscore'))
+                        if not path.exists(split.get_pca_path(node_index=node_index, fold_index=fold_index, part=part_name, ext='.sscore')):
+                            symlink(ethnic_split.get_pca_path(node_index=0, fold_index=fold_index, part=part_name, ext='.sscore'),
+                                    split.get_pca_path(node_index=node_index, fold_index=fold_index, part=part_name, ext='.sscore'))
                             
                     else:
                         # Extract and save genotypes
                         run_plink(args_dict={
                         '--pfile': ethnic_split.get_source_pfile_path(node_index) \
                                if split == ethnic_split else ethnic_split.get_source_pfile_path(0),
-                        '--keep': split.get_ids_path(node_index, fold_index, part_name),
-                        '--out':  split.get_pfile_path(node_index, fold_index, part_name)
+                        '--keep': split.get_ids_path(node_index=node_index, fold_index=fold_index, part_name=part_name),
+                        '--out':  split.get_pfile_path(node_index=node_index, fold_index=fold_index, part_name=part_name)
                         }, args_list=['--make-pgen'])
 
                         # Run PCA on train and save weights for projection
                         if part_name == 'train':
-                            run_plink(args_list=['--pfile', split.get_pfile_path(node_index, fold_index, part_name),
+                            run_plink(args_list=['--pfile', split.get_pfile_path(node_index=node_index, fold_index=fold_index, part_name=part_name),
                                                  '--freq', 'counts',
-                                                 '--out', split.get_pca_path(node_index, fold_index, part_name, ext=''),
+                                                 '--out', split.get_pca_path(node_index=node_index, fold_index=fold_index, part=part_name, ext=''),
                                                  '--pca', 'allele-wts', '20', 'approx'],
                                       )                    
                         # Use saved PCA weights for all projections
-                        run_plink(args_list=['--pfile', split.get_pfile_path(node_index, fold_index, part_name),
-                                             '--read-freq', split.get_pca_path(node_index, fold_index, 'train', ext='.acount'),
-                                             '--score', split.get_pca_path(node_index, fold_index, 'train', ext='.eigenvec.allele'), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
-                                             '--out', split.get_pca_path(node_index, fold_index, part_name, ext='')]
+                        run_plink(args_list=['--pfile', split.get_pfile_path(node_index=node_index, fold_index=fold_index, part_name=part_name),
+                                             '--read-freq', split.get_pca_path(node_index=node_index, fold_index=fold_index, part='train', ext='.acount'),
+                                             '--score', split.get_pca_path(node_index=node_index, fold_index=fold_index, part='train', ext='.eigenvec.allele'), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
+                                             '--out', split.get_pca_path(node_index=node_index, fold_index=fold_index, part=part_name, ext='')]
                                   )
     

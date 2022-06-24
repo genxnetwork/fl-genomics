@@ -54,14 +54,14 @@ class Split:
             makedirs(os.path.join(self.pca_cov_dir, self.phenotype, node), exist_ok=True)
             makedirs(os.path.join(self.gwas_dir, self.phenotype, node), exist_ok=True)
 
-    def get_source_ids_path(self, node_index: int = None, node: str = None) -> str:
-        if node_index is not None:
-            return os.path.join(self.node_ids_dir, f'{node_index}.csv')
-        else:
-            return os.path.join(self.node_ids_dir, f'{node_index}.csv')
+    def get_source_ids_path(self, fn: str) -> str:
+        return os.path.join(self.node_ids_dir, fn)
 
-    def get_ids_path(self, node_index: int, fold_index: int, part_name: str) -> str:
-        return os.path.join(self.node_ids_dir, f'node_{node_index}', f'fold_{fold_index}_{part_name}.tsv')
+    def get_ids_path(self, fold_index: int, part_name: str, node_index: int = None, node: str = None) -> str:
+        if node_index is not None:
+            return os.path.join(self.node_ids_dir, f'node_{node_index}', f'fold_{fold_index}_{part_name}.tsv')
+        else:
+            return os.path.join(self.node_ids_dir, node, f'fold_{fold_index}_{part_name}.tsv')
 
     def get_source_phenotype_path(self, node_index: int) -> str:
         # TODO: rename split to node in preprocessing
@@ -76,14 +76,14 @@ class Split:
         else:
             return os.path.join(self.phenotypes_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
 
-    def get_source_pca_path(self, node_index: int) -> str:
-        return os.path.join(self.pca_dir, f'{node_index}_projections.csv.eigenvec')
+    def get_source_pca_path(self, node_index: int = None, node: str = None) -> str:
+        return os.path.join(self.pca_dir, f'{node_index}_projections.csv.eigenvec' if node_index is not None else f'{node}_projections.csv.eigenvec')
 
-    def get_pca_path(self, node_index: int, fold_index: int, part: str, ext: str = '.csv.eigenvec') -> str:            
-        return os.path.join(self.pca_dir, f'node_{node_index}', f'fold_{fold_index}_{part}_projections') + ext
+    def get_pca_path(self, fold_index: int, part: str, node_index: int = None, node: str = None, ext: str = '.csv.eigenvec') -> str:
+        return os.path.join(self.pca_dir, f'node_{node_index}' if node_index is not None else node, f'fold_{fold_index}_{part}_projections') + ext
     
-    def get_pca_cov_path(self, node_index: int, fold_index: int, part: str) -> str:
-        return os.path.join(self.pca_cov_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
+    def get_pca_cov_path(self, fold_index: int, part: str, node_index: int = None, node: str = None) -> str:
+        return os.path.join(self.pca_cov_dir, self.phenotype, f'node_{node_index}' if node_index is not None else node, f'fold_{fold_index}_{part}.tsv')
 
     def get_gwas_path(self, node_index: int, fold_index: int, adjusted: bool = False) -> str:
         return os.path.join(self.gwas_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}.adjusted.tsv' if adjusted else f'fold_{fold_index}.tsv')
@@ -91,11 +91,11 @@ class Split:
     def get_snplist_path(self, strategy: str, node_index: int, fold_index: int) -> str:
         return os.path.join(self.snplists_dir, self.phenotype, f'node_{node_index}_fold_{fold_index}_{strategy}.snplist')
 
-    def get_source_pfile_path(self, node_index: int) -> str:
-        return os.path.join(self.genotypes_dir, f'node_{node_index}_filtered')
+    def get_source_pfile_path(self, node_index: int = None, node: str = None) -> str:
+        return os.path.join(self.genotypes_dir, f'node_{node_index}_filtered' if node_index is not None else f'{node}_filtered')
 
-    def get_pfile_path(self, node_index: int, fold_index: int, part_name:str):
-        return os.path.join(self.genotypes_dir, f"node_{node_index}", f"fold_{fold_index}_{part_name}")
+    def get_pfile_path(self, fold_index: int, part_name: str, node_index: int = None, node: str = None):
+        return os.path.join(self.genotypes_dir, f"node_{node_index}" if node_index is not None else node, f"fold_{fold_index}_{part_name}")
     
     def get_topk_pfile_path(self, strategy: str, node_index: int, fold_index: int, snp_count: int, part: str, sample_count: int = None) -> str:
         fold_dir = os.path.join(self.genotypes_dir, self.phenotype, f'node_{node_index}', strategy, f'fold_{fold_index}')
