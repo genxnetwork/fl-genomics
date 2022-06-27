@@ -81,22 +81,33 @@ class LassoNetRegMetrics(Metrics):
 
     @property
     def val_loss(self) -> float:
-        return self._calculate_mean_metrics(self.val).loss
+        if self.best_col is not None:
+            return self.val[self.best_col].loss
+        else:
+            return self._calculate_mean_metrics(self.val).loss
 
     def _calculate_mean_metrics(self, metric_list: Optional[List[RegLoaderMetrics]]) -> RegLoaderMetrics:
         if metric_list is None or len(metric_list) == 0:
             return None
         mean_loss = sum([m.loss for m in metric_list])/len(metric_list)
         mean_r2 = sum([m.r2 for m in metric_list])/len(metric_list)
-        samples = sum([m.samples for m in metric_list])
+        samples = sum([m.samples for m in metric_list])/len(metric_list)
         return RegLoaderMetrics(metric_list[0].prefix, mean_loss, mean_r2, metric_list[0].epoch, samples)
 
     def log_to_mlflow(self) -> None:
-        train, val, test = map(self._calculate_mean_metrics, [self.train, self.val, self.test])
-        train.log_to_mlflow()
-        val.log_to_mlflow()
-        if test is not None:
-            test.log_to_mlflow()
+        if self.best_col is None:
+            train, val, test = map(self._calculate_mean_metrics, [self.train, self.val, self.test])
+            train.log_to_mlflow()
+            val.log_to_mlflow()
+            if test is not None:
+                test.log_to_mlflow()
+        else:
+            print(f'LassoNetRegMetrics DEBUG log_to_mlflow(): {self.train[self.best_col]}, {self.val[self.best_col]}')
+            train, val = self.train[self.best_col], self.val[self.best_col]
+            train.log_to_mlflow()
+            val.log_to_mlflow()
+            if self.test is not None and len(self.test) > 0:
+                self.test[self.best_col].log_to_mlflow()
 
     def to_result_dict(self) -> Dict:
         return {'metrics': pickle.dumps(self)}
@@ -129,12 +140,21 @@ class LassoNetRegMetrics(Metrics):
 
     def __str__(self) -> str:
 
-        train, val, test = map(self._calculate_mean_metrics, [self.train, self.val, self.test])
-        train_val_str = f'train_loss: {train.loss:.4f}\ttrain_r2: {train.r2:.4f}\tval_loss: {val.loss:.4f}\tval_r2: {val.r2:.4f}'
-        if test is not None:
-            return train_val_str + f'\ttest_loss: {test.loss:.4f}\ttest_r2: {test.r2:.4f}'
+        if self.best_col is None:
+            train, val, test = map(self._calculate_mean_metrics, [self.train, self.val, self.test])
+            train_val_str = f'train_loss: {train.loss:.4f}\ttrain_r2: {train.r2:.4f}\tval_loss: {val.loss:.4f}\tval_r2: {val.r2:.4f}'
+            if test is not None:
+                return train_val_str + f'\ttest_loss: {test.loss:.4f}\ttest_r2: {test.r2:.4f}'
+            else:
+                return train_val_str
         else:
-            return train_val_str
+            train, val = self.train[self.best_col], self.val[self.best_col]
+            train_val_str = f'train_loss: {train.loss:.4f}\ttrain_r2: {train.r2:.4f}\tval_loss: {val.loss:.4f}\tval_r2: {val.r2:.4f}'
+            if self.test is not None and len(self.test) > 0:
+                test = self.test[self.best_col]
+                return train_val_str + f'\ttest_loss: {test.loss:.4f}\ttest_r2: {test.r2:.4f}'
+            else:
+                return train_val_str
         
 
 @dataclass
@@ -192,7 +212,7 @@ class RegFederatedMetrics(Metrics):
                     test_col_list = [m.test[col] for m in self.clients]
                     test = self._weighted_mean_metrics(test_col_list)
                     lassonet_metrics.test.append(test)
-    
+            lassonet_metrics.best_col = numpy.argmax([vm.r2 for vm in lassonet_metrics.val])
             return lassonet_metrics
         else:
             raise ValueError('reduction should be one of the ["mean", "lassonet_best"]')
