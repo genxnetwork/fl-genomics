@@ -3,6 +3,8 @@ import torch
 from logging import Logger
 from typing import Dict, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
+from pytorch_lightning.utilities.model_summary import _format_summary_table, summarize
+
 from flwr.client import NumPyClient
 from time import time
 
@@ -106,6 +108,22 @@ class FLClient(NumPyClient):
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.node_params)
             self.set_parameters(parameters)
         
+        for key, value in self.model.state_dict().items():
+            if value.shape == ():
+                self.log(f'state dict summary: {key} has shape () and value {value}')
+            else:
+                self.log(f'state dict summary: {key}: {value.shape}, {value.mean()}, {value.sum()}')
+
+        '''
+        model_summary = summarize(self.model, max_depth=2)
+        summary_data = model_summary._get_summary_data()
+        total_parameters = model_summary.total_parameters
+        trainable_parameters = model_summary.trainable_parameters
+        model_size = model_summary.model_size
+
+        summary_table = _format_summary_table(total_parameters, trainable_parameters, model_size, *summary_data)
+        self.log("\n" + summary_table)
+        '''
         start = time()    
         # self.log('fit after set parameters')            
         self.model.train()

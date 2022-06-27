@@ -53,7 +53,7 @@ class Node(Process):
             trainer_info (TrainerInfo): Where to train node
         """        
         Process.__init__(self, **kwargs)
-        os.environ['MASTER_PORT'] = str(47000+trainer_info.node_index) 
+        os.environ['MASTER_PORT'] = str(47000+numpy.random.randint(1000)+trainer_info.node_index) 
         self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
         self.trainer_info = trainer_info
@@ -68,7 +68,7 @@ class Node(Process):
         # https://github.com/PyTorchLightning/pytorch-lightning/issues/3431
         # logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
         self.logger = logging.getLogger(f'node-{self.node_index}.log')
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
         self.logger.addHandler(logging.FileHandler(os.path.join(self.log_dir, f'node-{self.node_index}.log')))
 
         # logging.basicConfig(filename=os.path.join(self.log_dir, f'node-{self.node_index}.log'), level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
@@ -154,7 +154,7 @@ class Node(Process):
         self.snp_count = self.feature_count - self.covariate_count
         self.sample_count = X_train.shape[0]
 
-        data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size,
+        data_module = DataModule(X_train, X_val, X_test, self.y_train, self.y_val, self.y_test, self.cfg.node.model.batch_size,
                                  X_cov_train, X_cov_val, X_cov_test)
         return data_module
 

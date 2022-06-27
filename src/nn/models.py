@@ -23,14 +23,9 @@ class BaseNet(LightningModule):
             scheduler_params (Dict): Parameters of learning rate scheduler
         """        
         super().__init__()
-        self.layer = Linear(input_size, 1)
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
         self.current_round = 1
-
-    def forward(self, x):
-        out = self.layer(x)
-        return out
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
@@ -160,6 +155,9 @@ class LinearRegressor(BaseNet):
 
     def calculate_loss(self, y_hat, y):
         return mse_loss(y_hat.squeeze(1), y)
+
+    def forward(self, x) -> Any:
+        return self.layer(x)
     
 
 class LinearClassifier(BaseNet):
@@ -173,6 +171,9 @@ class LinearClassifier(BaseNet):
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return binary_cross_entropy_with_logits(y_hat, y)
+
+    def forward(self, x) -> Any:
+        return self.layer(x)
     
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
@@ -270,9 +271,7 @@ class LassoNetRegressor(BaseNet):
         logger.info(f'predicted val dataloader')
         
         train_metrics = self._unreduced_pred_metrics('train', y_train_pred, y_train)
-        logger.info('got train metrics')
         val_metrics = self._unreduced_pred_metrics('val', y_val_pred, y_val)
-        logger.info(f'got val metrics')
         
         if test:
             y_test_pred, y_test = self.predict(test_loader)

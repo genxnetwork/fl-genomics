@@ -2,7 +2,6 @@ import pickle
 import shutil
 from typing import List, Tuple, Optional, Dict
 import logging
-import mlflow
 import numpy
 import os
 
@@ -196,7 +195,7 @@ class MCQFedAvg(MCMixin,QFedAvg):
         # flwr implementation evaluates old weights in centralized mode using evaluate function impl from fedavg
         # evaluate in fedavg works if and only if eval_fn init parameter was provided
         # instead of centralized evaluation we pull loss from checkpointer loss history
-        return (self.checkpointer.history[-1], {}) if len(self.checkpointer.history) > 0 else (200, {})
+        return (self.checkpointer.history[-1], {}) if len(self.checkpointer.history) > 0 else (100, {})
 
 
 class MCFedAdagrad(MCMixin,FedAdagrad):
@@ -221,6 +220,7 @@ class MCFedAdagrad(MCMixin,FedAdagrad):
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
+
 
 class MCFedAdam(MCMixin,FedAdam):
     def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
