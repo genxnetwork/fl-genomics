@@ -27,25 +27,25 @@ if __name__ == '__main__':
                         )
     logger = logging.getLogger()
     
-    # # Generate file with sample IDs that pass central QC with plink
-    # logger.info(f'Running sample QC and saving valid ids to {TG_SAMPLE_QC_IDS_PATH}')
-    # sample_qc(bin_file_path=TG_BFILE_PATH, output_path=TG_SAMPLE_QC_IDS_PATH, bin_file_type='--bfile')
-    #
-    # logger.info(f'Running global PCA')
-    # os.makedirs(os.path.join(TG_DATA_ROOT, 'pca'), exist_ok=True)
-    # PCA().run(input_prefix=TG_BFILE_PATH, pca_config=pca_config_tg,
-    #           output_path=os.path.join(TG_DATA_ROOT, 'pca', 'global'),
-    #           scatter_plot_path=None,
-    #           # scatter_plot_path=os.path.join(TG_OUT, 'global_pca.html'),
-    #           bin_file_type='--bfile')
-    #
+    # Generate file with sample IDs that pass central QC with plink
+    logger.info(f'Running sample QC and saving valid ids to {TG_SAMPLE_QC_IDS_PATH}')
+    sample_qc(bin_file_path=TG_BFILE_PATH, output_path=TG_SAMPLE_QC_IDS_PATH, bin_file_type='--bfile')
+
+    logger.info(f'Running global PCA')
+    os.makedirs(os.path.join(TG_DATA_ROOT, 'pca'), exist_ok=True)
+    PCA().run(input_prefix=TG_BFILE_PATH, pca_config=pca_config_tg,
+              output_path=os.path.join(TG_DATA_ROOT, 'pca', 'global'),
+              scatter_plot_path=None,
+              # scatter_plot_path=os.path.join(TG_OUT, 'global_pca.html'),
+              bin_file_type='--bfile')
+
     # Split dataset into IID and non-IID datasets and then QC each local dataset
-    # logger.info("Splitting ethnic dataset")
-    # prefix_splits = SplitTG().split(make_pgen=True)
-    #
-    # for local_prefix in prefix_splits:
-    #     logger.info(f'Running local QC for {local_prefix}')
-    #     local_prefix_qc = QC.qc(input_prefix=os.path.join(SPLIT_GENO_DIR, local_prefix), qc_config=variant_qc_config)
+    logger.info("Splitting ethnic dataset")
+    prefix_splits = SplitTG().split(make_pgen=True)
+
+    for local_prefix in prefix_splits:
+        logger.info(f'Running local QC for {local_prefix}')
+        local_prefix_qc = QC.qc(input_prefix=os.path.join(SPLIT_GENO_DIR, local_prefix), qc_config=variant_qc_config)
 
     logger.info("making k-fold split for the TG dataset")
     nodes = list(set(TG_SUPERPOP_DICT.values()))
