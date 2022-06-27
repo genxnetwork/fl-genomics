@@ -6,14 +6,11 @@ from preprocess.pca import PCA
 from preprocess.qc import QC, sample_qc
 from preprocess.split import SplitNonIID
 from utils.plink import run_plink
-import sys
-sys.path.append('dimred/src')
 from utils.split import Split
-from gwas.train_val_split import CVSplitter, WBSplitter
+from preprocess.train_val_split import CVSplitter, WBSplitter
 
 import logging
 from os import path, symlink
-
 
 if __name__ == '__main__':
     # runs the whole pipeline
