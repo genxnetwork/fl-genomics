@@ -75,7 +75,7 @@ def get_sample_indices(pfile_path: str, phenotype_path: str, indices_limit: Opti
         numpy.ndarray: Array with list of indices required to load samples present in
             the phenotype from the genotype file.
     """
-    psam = pandas.read_table(pfile_path + '.psam')
+    psam = pandas.read_table(pfile_path + '.psam').rename(columns={'#IID': 'IID'})
     pheno = pandas.read_table(phenotype_path)
     psam['idx'] = numpy.arange(0, psam.shape[0])
     indices = psam.loc[psam.IID.isin(pheno.IID), 'idx'].values.astype('uint32')

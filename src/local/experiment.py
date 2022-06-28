@@ -355,7 +355,7 @@ experiment_dict = {
 }
 
             
-@hydra.main(config_path='configs', config_name='default')
+@hydra.main(config_path='configs', config_name='tg')
 def local_experiment(cfg: DictConfig):
     print(cfg)
     assert cfg.model.name in experiment_dict.keys()

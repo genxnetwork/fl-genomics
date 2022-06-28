@@ -1,0 +1,15 @@
+# @package _global_
+
+experiment:
+  name: local-models-tg
+  include_genotype: True
+  include_covariates: False
+  random_state: 0
+  test_samples_limit: null
+
+data:
+  genotype:
+    root: ${split_dir}/genotypes/${node}/fold_${fold_index}
+    train: ${.root}_train
+    val: ${.root}_val
+    test: ${.root}_test

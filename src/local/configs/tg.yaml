@@ -1,0 +1,25 @@
+defaults:
+  - _self_
+  - model: mlp
+  - experiment: tg
+
+split_dir: /media/storage/TG/data/superpop_split
+node: EUR
+fold_index: 0
+
+phenotype:
+  name: ancestry
+
+data:
+  genotype:
+    root: ${split_dir}/genotypes/${node}/fold_${fold_index}
+    train: ${.root}_train
+    val: ${.root}_val
+    test: ${.root}_test
+
+  phenotype:
+    root: ${split_dir}/only_phenotypes/ancestry/${node}/fold_${fold_index}
+    train: ${.root}_train.tsv
+    val: ${.root}_val.tsv
+    test: ${.root}_test.tsv
+
