@@ -1,17 +1,19 @@
 from utils.plink import run_plink
 from config.qc_config import sample_qc_config
 
-def sample_qc(ukb_pfile_path: str, output_path: str):
+
+def sample_qc(bin_file_path: str, output_path: str, bin_file_type='--pfile'):
     """
     Performs sample QC on the whole UKB dataset, writing filtered sample IDs
     to the output path.
     """
     run_plink(
-        args_dict = {**{'--pfile': ukb_pfile_path,
+        args_dict={**{bin_file_type: bin_file_path,
                         '--out': output_path},
                      **sample_qc_config},
-        args_list = ['--write-samples']
+        args_list=['--write-samples']
     )
+
 
 class QC(object):
     """ Class that utilises QC to be used for local QC """
