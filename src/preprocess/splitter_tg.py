@@ -2,9 +2,9 @@ import os
 
 import pandas as pd
 
-from config.global_config import TG_DATA_ROOT, TG_SAMPLE_QC_IDS_PATH, TG_BFILE_PATH, SPLIT_DIR, SPLIT_ID_DIR, \
+from configs.global_config import TG_DATA_ROOT, TG_SAMPLE_QC_IDS_PATH, TG_BFILE_PATH, SPLIT_DIR, SPLIT_ID_DIR, \
     SPLIT_GENO_DIR
-from config.split_config import TG_SUPERPOP_DICT
+from configs.split_config import TG_SUPERPOP_DICT
 from preprocess.splitter import SplitBase
 
 

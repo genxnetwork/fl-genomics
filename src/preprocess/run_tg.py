@@ -10,11 +10,11 @@ from preprocess.splitter_tg import SplitTG
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter, WBSplitter
-from config.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
+from configs.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
     TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT, SPLIT_DIR, SPLIT_ID_DIR, SPLIT_GENO_DIR
-from config.pca_config import pca_config_tg
-from config.qc_config import sample_qc_config, variant_qc_config
-from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list, \
+from configs.pca_config import pca_config_tg
+from configs.qc_config import sample_qc_config, variant_qc_config
+from configs.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list, \
     TG_SUPERPOP_DICT, NUM_FOLDS
 
 import logging

@@ -4,8 +4,8 @@ from os import path
 import logging
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter
-from config.global_config import data_root
-from config.split_config import heterogeneous_split_name, n_heterogeneous_nodes, non_iid_split_name
+from configs.global_config import data_root
+from configs.split_config import heterogeneous_split_name, n_heterogeneous_nodes, non_iid_split_name
 from preprocess.splitter import SplitHeterogeneous
 
 logging.basicConfig(level=logging.INFO,

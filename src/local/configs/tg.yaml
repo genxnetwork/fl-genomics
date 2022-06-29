@@ -3,6 +3,7 @@ defaults:
   - model: mlp
   - experiment: tg
 
+study: tg
 split_dir: /media/storage/TG/data/superpop_split
 node: EUR
 fold_index: 0

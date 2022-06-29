@@ -1,10 +1,10 @@
-""" Global config contains paths and other general settings. This file is added to git.
+""" Global configs contains paths and other general settings. This file is added to git.
     Imports local_config.py that is not added to git and
-    contains local settings to overwrite those of the global config
+    contains local settings to overwrite those of the global configs
 """
 import os
 if os.path.exists(os.path.join(os.path.dirname(__file__), 'local_config.py')):
-    from config.local_config import *
+    from configs.local_config import *
 
 ###############################################################################
 # PATHS

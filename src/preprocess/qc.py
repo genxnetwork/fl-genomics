@@ -1,5 +1,5 @@
 from utils.plink import run_plink
-from config.qc_config import sample_qc_config
+from configs.qc_config import sample_qc_config
 
 
 def sample_qc(bin_file_path: str, output_path: str, bin_file_type='--pfile'):

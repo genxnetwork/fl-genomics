@@ -48,9 +48,9 @@ def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, sample_indic
     return array
 
 
-def load_phenotype(phenotype_path: str) -> numpy.ndarray:
+def load_phenotype(phenotype_path: str, out_type = numpy.float32) -> numpy.ndarray:
     data = pandas.read_table(phenotype_path)
-    return data.iloc[:, -1].values.astype(numpy.float32)
+    return data.iloc[:, -1].values.astype(out_type)
 
 
 def load_covariates(covariates_path: str, load_pcs: bool = False) -> numpy.ndarray:

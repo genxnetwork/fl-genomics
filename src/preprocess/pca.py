@@ -4,8 +4,8 @@ import plotly.express as px
 import sys
 sys.path.append('..')
 
-from config.global_config import data_root
-from config.split_config import ethnic_background_name_map
+from configs.global_config import data_root
+from configs.split_config import ethnic_background_name_map
 from preprocess.splitter import SplitBase
 from utils.plink import run_plink
 

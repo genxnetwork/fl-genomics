@@ -9,7 +9,7 @@ from sklearn.model_selection import KFold, train_test_split
 from sklearn.preprocessing import StandardScaler
 from numpy import array_split, array, cumsum
 
-from config.split_config import NUM_FOLDS
+from configs.split_config import NUM_FOLDS
 from utils.split import Split
 
 FOLD_COUNT = 10
