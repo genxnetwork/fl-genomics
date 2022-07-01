@@ -2,10 +2,12 @@ import pandas as pd
 import plotly.express as px
 
 import sys
+
+from configs.split_config import ethnic_background_name_map
+
 sys.path.append('..')
 
 from configs.global_config import data_root
-from configs.split_config import ethnic_background_name_map
 from preprocess.splitter import SplitBase
 from utils.plink import run_plink
 

@@ -1,7 +1,10 @@
+from abc import abstractmethod
+
 import hydra
 import logging
 from sys import stdout
 import numpy
+import pandas as pd
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
@@ -18,7 +21,8 @@ from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, 
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
 from nn.models import MLPPredictor, LassoNetRegressor
-from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT
+from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT
+from utils.loaders import load_plink_pcs
 
 
 class LocalExperiment(object):
@@ -63,7 +67,7 @@ class LocalExperiment(object):
                 'snps': str(int(self.cfg.experiment.include_genotype))
             }
         else:
-            raise NotImplementedError('Please define the study in config! See src/configs/default.yaml')
+            raise ValueError('Please define the study in config! See src/configs/default.yaml')
         self.run = mlflow.start_run(tags=universal_tags | study_tags)
 
     def load_data(self):
@@ -83,14 +87,21 @@ class LocalExperiment(object):
         self.y_test = self.y_test[:test_samples_limit]
 
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
-        
-        if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
-            self.load_genotype_and_covariates_()    
-        elif self.cfg.experiment.include_genotype:
-            self.load_genotype_()
+
+        if self.cfg.study == 'ukb':
+            if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
+                self.load_genotype_and_covariates_()
+            elif self.cfg.experiment.include_genotype:
+                self.load_genotype_()
+            else:
+                self.load_covariates_()
+        elif self.cfg.study == 'tg':
+            self.X_train = load_plink_pcs(path=self.cfg.data.x_reduced.train)
+            self.X_val = load_plink_pcs(path=self.cfg.data.x_reduced.val)
+            self.X_test = load_plink_pcs(path=self.cfg.data.x_reduced.test)
         else:
-            self.load_covariates_()
-            
+            raise ValueError('Please define the study in config! See src/configs/default.yaml')
+
         self.logger.info(f"{self.X_train.shape[1]} features loaded")
         
     def load_sample_indices(self):
@@ -135,13 +146,14 @@ class LocalExperiment(object):
                                      gwas_path=self.cfg.data.get('gwas', None),
                                      snp_count=self.cfg.experiment.get('snp_count', None),
                                      sample_indices=self.sample_indices_test)
-        
+
     def load_covariates_(self):
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         self.X_train = load_covariates(self.cfg.data.covariates.train)
         self.X_val = load_covariates(self.cfg.data.covariates.val)
         self.X_test = load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :]
     
+    @abstractmethod
     def train(self):
         pass
         
@@ -217,7 +229,8 @@ class NNExperiment(LocalExperiment):
                                   hidden_size=self.cfg.model.hidden_size,
                                   l1=self.cfg.model.alpha,
                                   optim_params=self.cfg.experiment.optimizer,
-                                  scheduler_params=self.cfg.experiment.scheduler
+                                  scheduler_params=self.cfg.experiment.scheduler,
+                                  loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
                                   )
 
     def train(self):
@@ -226,7 +239,9 @@ class NNExperiment(LocalExperiment):
         mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
         
         self.create_model()
-        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}',
+                                       gpus=self.cfg.experiment.get('gpus', None),
+                                       precision=self.cfg.model.precision,
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")

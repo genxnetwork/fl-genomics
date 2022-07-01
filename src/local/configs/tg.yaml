@@ -18,6 +18,12 @@ data:
     val: ${.root}_val
     test: ${.root}_test
 
+  x_reduced:
+    root: /media/storage/TG/data/pca/global.eigenvec
+    train: ${.root}
+    val: ${.root}
+    test: ${.root}
+
   phenotype:
     root: ${split_dir}/only_phenotypes/ancestry/${node}/fold_${fold_index}
     train: ${.root}_train.tsv
