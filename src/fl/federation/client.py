@@ -108,22 +108,6 @@ class FLClient(NumPyClient):
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.node_params)
             self.set_parameters(parameters)
         
-        for key, value in self.model.state_dict().items():
-            if value.shape == ():
-                self.log(f'state dict summary: {key} has shape () and value {value}')
-            else:
-                self.log(f'state dict summary: {key}: {value.shape}, {value.mean()}, {value.sum()}')
-
-        '''
-        model_summary = summarize(self.model, max_depth=2)
-        summary_data = model_summary._get_summary_data()
-        total_parameters = model_summary.total_parameters
-        trainable_parameters = model_summary.trainable_parameters
-        model_size = model_summary.model_size
-
-        summary_table = _format_summary_table(total_parameters, trainable_parameters, model_size, *summary_data)
-        self.log("\n" + summary_table)
-        '''
         start = time()    
         # self.log('fit after set parameters')            
         self.model.train()
@@ -147,9 +131,7 @@ class FLClient(NumPyClient):
         need_test_eval = 'current_round' in config and config['current_round'] == -1
         self.log(f'starting predict and eval with {need_test_eval}')
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
-                                                        test=need_test_eval, 
-                                                        best_col=config.get('best_col', None),
-                                                        logger=self.logger)
+                                                        test=need_test_eval)
         self.log('starting log to mlflow in eval')
         unreduced_metrics.log_to_mlflow()
         self.log(f'calculating val len')

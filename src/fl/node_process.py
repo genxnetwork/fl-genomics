@@ -111,10 +111,6 @@ class Node(Process):
         sample_indices_test = get_sample_indices(self.cfg.data.genotype.test,
                                                       self.cfg.data.phenotype.test)
 
-        # because for each node we have the exact same test dataset
-        # the idea is that each node will run inference on their part of test dataset with size {test_samples_limit}
-        # sample_indices_test = sample_indices_test[self.node_index*test_samples_limit: (self.node_index+1)*test_samples_limit]
-
         X_train = load_from_pgen(self.cfg.data.genotype.train, 
             self.cfg.data.gwas, 
             snp_count=None,

@@ -63,7 +63,8 @@ class RegMetrics(Metrics):
     def log_to_mlflow(self) -> None:
         self.train.log_to_mlflow()
         self.val.log_to_mlflow()
-        self.test.log_to_mlflow()
+        if self.test is not None:
+            self.test.log_to_mlflow()
 
     def to_result_dict(self) -> Dict:
         # train_dict, val_dict, test_dict = [m.to_result_dict() for m in [self.train, self.val, self.test]]
@@ -164,6 +165,8 @@ class RegFederatedMetrics(Metrics):
     epoch: int
     
     def _weighted_mean_metrics(self, metric_list: List[LoaderMetrics]) -> Metrics:
+        if metric_list[0] is None:
+            return None
         samples = sum([m.samples for m in metric_list])
         mean_weighted_loss = sum([m.loss*m.samples/samples for m in metric_list])
         mean_weighted_r2 = sum([m.r2*m.samples/samples for m in metric_list])
@@ -181,14 +184,10 @@ class RegFederatedMetrics(Metrics):
                 If 'lassonet_best', then it averages each lasso model from all clients independently 
                 and then it chooses the best model based on aggregated val loss. Defaults to 'mean'.
 
-        Raises:
-            ValueError: If reduction not one of the ['mean', 'lassonet_best']
-            ValueError: If in case of 'lassonet_best' reduction each of clients metrics does not have a list of Lasso models metrics.
-
         Returns:
-            _type_: _description_
+            RegMetrics | LassoNetRegMetrics: Standard aggregated metrics or lassonet multioutput metrics with best_col attribute set.
         """        
-        if reduction == 'mean':
+        if not isinstance(self.clients[0].train, List):
             reduced_clients = [
                 [m.reduce().train for m in self.clients], 
                 [m.reduce().val for m in self.clients], 
@@ -196,11 +195,7 @@ class RegFederatedMetrics(Metrics):
             ]
             train, val, test = map(self._weighted_mean_metrics, reduced_clients)
             return RegMetrics(train, val, test, self.epoch)
-
-        elif reduction == 'lassonet_best':
-            if not isinstance(self.clients[0].train, List):
-                raise ValueError(f'for applying lassonet_best reduction each of client.train, client.val, client.test metrics should be a list')
-            
+        else:
             lassonet_metrics = LassoNetRegMetrics([], [], [], epoch=self.epoch)
             for col in range(len(self.clients[0].train)):
                 train_col_list = [m.train[col] for m in self.clients]
@@ -214,8 +209,6 @@ class RegFederatedMetrics(Metrics):
                     lassonet_metrics.test.append(test)
             lassonet_metrics.best_col = numpy.argmax([vm.r2 for vm in lassonet_metrics.val])
             return lassonet_metrics
-        else:
-            raise ValueError('reduction should be one of the ["mean", "lassonet_best"]')
 
     def log_to_mlflow(self) -> None:
         return self.reduce().log_to_mlflow()
