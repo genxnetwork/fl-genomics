@@ -1,2 +1,4 @@
 name: fedavg
 active_nodes: all
+args:
+  accept_failures: False

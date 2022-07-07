@@ -68,8 +68,8 @@ def run(cfg: DictConfig):
             'params_hash': params_hash,
         }
     ) as run:
-        mlflow.log_params(cfg.server)
-        mlflow.log_params(cfg.strategy)
+        mlflow.log_params(OmegaConf.to_container(cfg.server, resolve=True))
+        mlflow.log_params(OmegaConf.to_container(cfg.strategy, resolve=True))
         info = MlflowInfo(experiment.experiment_id, run.info.run_id)
 
         # assigning gpus to nodes and creating process objects

@@ -20,7 +20,7 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
 from flwr.server.client_manager import ClientManager
 
-from nn.utils import Metrics, RegFederatedMetrics
+from nn.utils import LassoNetRegMetrics, Metrics, RegFederatedMetrics
 
 
 def fit_round(rnd: int):
@@ -70,11 +70,6 @@ class MlflowLogger:
         logging.info(f'round {rnd}\t' + str(avg_metrics))
         avg_metrics.log_to_mlflow()
 
-        if rnd != -1:
-            best_metrics = avg_metrics.reduce('mean')
-            logging.info(f'logging final centralized evaluation results')
-            logging.info(f'round: {rnd}\t' + str(best_metrics))
-
         return avg_metrics
 
 
@@ -88,9 +83,15 @@ class Checkpointer:
         os.makedirs(checkpoint_dir, exist_ok=True)
         self.checkpoint_dir = checkpoint_dir
         self.history = []
+        self.best_metrics = None
+        self.last_metrics = None
 
-    def add_loss_to_history(self, loss: float) -> None:
-        self.history.append(loss)
+    def add_loss_to_history(self, metrics: Metrics) -> None:
+        self.history.append(metrics.val_loss)
+
+    def set_best_metrics(self, metrics: Metrics) -> None:
+        if self.history[-1] == min(self.history):
+            self.best_metrics = metrics
 
     def save_checkpoint(self, rnd: int, aggregated_parameters: Parameters) -> None:
         """Checks if current model has minimum loss and if so, saves it to 'best_temp_model.ckpt'
@@ -99,19 +100,16 @@ class Checkpointer:
             rnd (int): Current FL round
             aggregated_parameters (Parameters): Aggregated model parameters
         """        
-        if aggregated_parameters is not None and len(self.history) > 0 and self.history[-1] == min(self.history):
-            # Save aggregated_weights
-            aggregated_weights = parameters_to_weights(aggregated_parameters)
-            # print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
-            numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
+        if aggregated_parameters is not None:
+            if len(self.history) == 0 or (len(self.history) > 0 and self.history[-1] == min(self.history)):
+                # Save aggregated_weights
+                aggregated_weights = parameters_to_weights(aggregated_parameters)
+                # print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
+                numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
         else:
             pass
     
     def load_best_parameters(self) -> Parameters:
-        dct = numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz'))
-        # print(f'loading best parameters')
-        # for key, value in dct.items():
-            # print(key, value.shape)
         weights = list(numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz')).values())
         return weights_to_parameters(weights)
     
@@ -138,11 +136,15 @@ class MCMixin:
         results: RESULTS,
         failures: List[BaseException],
     ) -> Tuple[Optional[float], Dict[str, Scalar]]:
+        
         if not results:
             return None
+
         metrics = self.mlflow_logger.log_losses(rnd, results)
         reduced_metrics = metrics.reduce(self.mlflow_logger._get_reduction_type(rnd)) 
-        self.checkpointer.add_loss_to_history(reduced_metrics.val_loss)
+        self.checkpointer.add_loss_to_history(reduced_metrics)
+        # unreduced metrics because in case of lassonet_regressor we need best_col attribute
+        self.checkpointer.set_best_metrics(metrics)
         self.checkpointer.last_metrics = metrics
         return super().aggregate_evaluate(rnd, results, failures)
     
@@ -162,13 +164,19 @@ class MCMixin:
         if rnd == -1:
             # print(f'loading best parameters for final evaluation')
             parameters = self.checkpointer.load_best_parameters()
+        print(f'DEBUG: starting to configure eval')
         return super().configure_evaluate(rnd, parameters, client_manager)
 
     def on_evaluate_config_fn_closure(self, rnd: int):
         if rnd == -1:
-            return {'current_round': rnd, 'best_col': self.checkpointer.last_metrics.best_col}
+            return {'current_round': rnd, 'best_col': self.checkpointer.best_metrics.best_col}
         else:
-            return {'current_round': rnd}
+            print(f'DEBUG: starting to get best col')
+            if self.checkpointer.last_metrics is not None and isinstance(self.checkpointer.last_metrics, LassoNetRegMetrics):
+                best_col = self.checkpointer.last_metrics.best_col
+                return {'current_round': rnd, 'best_col': best_col}
+            else:
+                return {'current_round': rnd}
 
 
 class MCFedAvg(MCMixin,FedAvg):

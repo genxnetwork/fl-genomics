@@ -218,7 +218,7 @@ class Node(Process):
                 'sample_count': str(self.sample_count)
             }
         ):
-            mlflow.log_params(OmegaConf.to_container(self.cfg.node))
+            mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
             if self.cfg.experiment.pretrain_on_cov:
                 cov_weights = self._pretrain() 
