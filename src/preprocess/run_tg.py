@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 
 from preprocess.pca import PCA
 from preprocess.qc import QC, sample_qc
@@ -26,7 +27,7 @@ if __name__ == '__main__':
                         datefmt='%Y-%m-%d %H:%M:%S'
                         )
     logger = logging.getLogger()
-    
+
     # Generate file with sample IDs that pass central QC with plink
     logger.info(f'Running sample QC and saving valid ids to {TG_SAMPLE_QC_IDS_PATH}')
     sample_qc(bin_file_path=TG_BFILE_PATH, output_path=TG_SAMPLE_QC_IDS_PATH, bin_file_type='--bfile')
@@ -51,10 +52,9 @@ if __name__ == '__main__':
     nodes = list(set(TG_SUPERPOP_DICT.values()))
     superpop_split = Split(SPLIT_DIR, 'ethnicity', nodes=nodes)
     splitter = CVSplitter(superpop_split)
-    
+
     for node in nodes:
         splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}.psam'), node=node, random_state=0)
-        
 
     logger.info(f"Processing split {superpop_split.root_dir}")
     for node in set(TG_SUPERPOP_DICT.values()):
@@ -68,17 +68,56 @@ if __name__ == '__main__':
                 '--out':  superpop_split.get_pfile_path(node=node, fold_index=fold_index, part_name=part_name)
                 }, args_list=['--make-pgen'])
 
-                # # Run PCA on train and save weights for projection
-                # if part_name == 'train':
-                #     run_plink(args_list=['--pfile', superpop_split.get_pfile_path(node=node, fold_index=fold_index, part_name=part_name),
-                #                          '--freq', 'counts',
-                #                          '--out', superpop_split.get_pca_path(node=node, fold_index=fold_index, part=part_name, ext=''),
-                #                          '--pca', 'allele-wts', '20'],
-                #               )
-                # # Use saved PCA weights for all projections
-                # run_plink(args_list=['--pfile', superpop_split.get_pfile_path(node=node, fold_index=fold_index, part_name=part_name),
-                #                      '--read-freq', superpop_split.get_pca_path(node=node, fold_index=fold_index, part='train', ext='.acount'),
-                #                      '--score', superpop_split.get_pca_path(node=node, fold_index=fold_index, part='train', ext='.eigenvec.allele'), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
-                #                      '--out', superpop_split.get_pca_path(node=node, fold_index=fold_index, part=part_name, ext='')]
-                #           )
+    for fold_index in range(10):
+        # Perform centralized sample ids merge to use it with `--keep` flag in plink
+        ids = []
 
+        for node in set(TG_SUPERPOP_DICT.values()):
+            ids_filepath = superpop_split.get_ids_path(
+                fold_index=fold_index,
+                part_name='train',
+                node=node
+            )
+
+            with open(ids_filepath, 'r') as ids_file:
+                reader = csv.reader(ids_file)
+                next(reader)  # skip the header
+                ids.extend([row[0] for row in reader])
+
+        # Store the list of ids inside the super population split file structure
+        centralized_ids_filepath = superpop_split.get_ids_path(
+            fold_index=fold_index,
+            part_name='train',
+            node='ALL'  # centralized PCA
+        )
+
+        with open(centralized_ids_filepath, 'w') as ids_file:
+            writer = csv.writer(ids_file, delimiter='\t', quoting=csv.QUOTE_NONE)
+            writer.writerow(['IID'])  # write header
+            for sample_id in ids:
+                writer.writerow([sample_id])
+
+    for fold_index in range(10):
+        # Train cetralized PCA
+        run_plink(
+            args_list=[
+                '--pfile', TG_BFILE_PATH,
+                '--keep', superpop_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
+                '--freq', 'counts',
+                '--out', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext=''),
+                '--pca', 'allele-wts', '20'
+            ]
+        )
+
+        # Project train, test, and val parts
+        for node in set(TG_SUPERPOP_DICT.values()):
+            for part_name in ['train', 'val', 'test']:
+                run_plink(
+                    args_list=[
+                        '--pfile', superpop_split.get_pfile_path(node=node, fold_index=fold_index, part_name=part_name),
+                        '--read-freq', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext='.acount'),
+                        '--score', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext='.eigenvec.allele'), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
+                        '--out', superpop_split.get_pca_path(node=node, fold_index=fold_index, part_name=part_name),
+                        '--set-missing-var-ids', '@:#'
+                    ]
+                )
