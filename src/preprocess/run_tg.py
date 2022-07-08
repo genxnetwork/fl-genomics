@@ -1,6 +1,6 @@
 import os
 import sys
-import csv
+import pandas as pd
 
 from preprocess.pca import PCA
 from preprocess.qc import QC, sample_qc
@@ -10,7 +10,7 @@ from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter, WBSplitter
 from config.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
-    TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT, SPLIT_DIR, SPLIT_ID_DIR, SPLIT_GENO_DIR
+    TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT, SPLIT_DIR, SPLIT_ID_DIR, SPLIT_GENO_DIR, FOLDS_NUMBER
 from config.pca_config import pca_config_tg
 from config.qc_config import sample_qc_config, variant_qc_config
 from config.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list, \
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     logger.info(f"Processing split {superpop_split.root_dir}")
     for node in set(TG_SUPERPOP_DICT.values()):
         logger.info(f"Saving train, val, test genotypes and running PCA for node {node}")
-        for fold_index in range(10):
+        for fold_index in range(FOLDS_NUMBER):
             for part_name in ['train', 'val', 'test']:
                 # Extract and save genotypes
                 run_plink(args_dict={
@@ -68,7 +68,7 @@ if __name__ == '__main__':
                 '--out':  superpop_split.get_pfile_path(node=node, fold_index=fold_index, part_name=part_name)
                 }, args_list=['--make-pgen'])
 
-    for fold_index in range(10):
+    for fold_index in range(FOLDS_NUMBER):
         # Perform centralized sample ids merge to use it with `--keep` flag in plink
         ids = []
 
@@ -79,10 +79,7 @@ if __name__ == '__main__':
                 node=node
             )
 
-            with open(ids_filepath, 'r') as ids_file:
-                reader = csv.reader(ids_file)
-                next(reader)  # skip the header
-                ids.extend([row[0] for row in reader])
+            ids.extend(pd.read_csv(ids_filepath, sep='\t')['IID'].to_list())
 
         # Store the list of ids inside the super population split file structure
         centralized_ids_filepath = superpop_split.get_ids_path(
@@ -91,13 +88,9 @@ if __name__ == '__main__':
             node='ALL'  # centralized PCA
         )
 
-        with open(centralized_ids_filepath, 'w') as ids_file:
-            writer = csv.writer(ids_file, delimiter='\t', quoting=csv.QUOTE_NONE)
-            writer.writerow(['IID'])  # write header
-            for sample_id in ids:
-                writer.writerow([sample_id])
+        pd.DataFrame({'IID': ids}).to_csv(centralized_ids_filepath, sep='\t', index=False)
 
-    for fold_index in range(10):
+    for fold_index in range(FOLDS_NUMBER):
         # Train cetralized PCA
         run_plink(
             args_list=[
