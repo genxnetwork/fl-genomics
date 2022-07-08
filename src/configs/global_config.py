@@ -24,3 +24,4 @@ TG_SAMPLE_QC_IDS_PATH = globals().get('TG_SAMPLE_QC_IDS_PATH', os.path.join(TG_D
 SPLIT_DIR = os.path.join(TG_DATA_ROOT, 'superpop_split')
 SPLIT_GENO_DIR = os.path.join(TG_DATA_ROOT, 'superpop_split', 'genotypes')
 SPLIT_ID_DIR = os.path.join(TG_DATA_ROOT, 'superpop_split', 'split_ids')
+FOLDS_NUMBER = globals().get('FOLDS_NUMBER', 10)

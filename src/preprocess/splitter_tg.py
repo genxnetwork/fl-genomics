@@ -22,8 +22,8 @@ class SplitTG(SplitBase):
         """
         y = pd.read_csv(os.path.join(TG_DATA_ROOT, 'igsr_samples.tsv'), sep='\t').rename(columns={'Sample name': 'IID', 'Population code': 'ancestry', 'Superpopulation code': 'split'})
         # Leave only those samples that passed population QC
-        sample_qc_ids = pd.read_table(f'{TG_SAMPLE_QC_IDS_PATH}.id')
-        y = y.loc[y['IID'].isin(sample_qc_ids['IID']), :]
+        sample_qc_ids = pd.read_table(f'{TG_SAMPLE_QC_IDS_PATH}')
+        y = y.loc[y['IID'].isin(sample_qc_ids['#IID']), :]
         # filter by min number of samples in a pop
         pop_val_counts = y['ancestry'].value_counts()
         y = y[y['ancestry'].isin(pop_val_counts[pop_val_counts >= min_samples_in_pop].index)]
@@ -42,6 +42,6 @@ class SplitTG(SplitBase):
             split_id_path = os.path.join(SPLIT_ID_DIR, f"{prefix}.tsv")
             df.loc[df['split'] == prefix, 'IID'].to_csv(split_id_path, index=False, sep='\t', header=False)
             if make_pgen:
-                self.make_split_pgen(split_id_path, prefix=os.path.join(SPLIT_GENO_DIR, prefix), bin_file_type='--bfile', bin_file=TG_BFILE_PATH)
+                self.make_split_pgen(split_id_path, prefix=os.path.join(SPLIT_GENO_DIR, prefix), bin_file_type='--pfile', bin_file=TG_BFILE_PATH)
 
         return list(set(TG_SUPERPOP_DICT.values()))
