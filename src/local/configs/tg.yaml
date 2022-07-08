@@ -4,7 +4,7 @@ defaults:
   - experiment: tg
 
 study: tg
-split_dir: /media/storage/TG/data/superpop_split
+split_dir: /media/storage/TG/data/chip/superpop_split
 node: EUR
 fold_index: 0
 
