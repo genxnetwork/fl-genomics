@@ -19,10 +19,10 @@ data:
     test: ${.root}_test
 
   x_reduced:
-    root: /media/storage/TG/data/pca/global.eigenvec
-    train: ${.root}
-    val: ${.root}
-    test: ${.root}
+    root: ${split_dir}/pca/${node}/fold_${fold_index}
+    train: ${.root}_train_projections.sscore
+    val: ${.root}_val_projections.sscore
+    test: ${.root}_test_projections.sscore
 
   phenotype:
     root: ${split_dir}/only_phenotypes/ancestry/${node}/fold_${fold_index}

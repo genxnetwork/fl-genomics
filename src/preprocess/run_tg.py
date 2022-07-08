@@ -57,27 +57,22 @@ if __name__ == '__main__':
         
     ancestry_df = SplitTG().get_ethnic_background()
     logger.info(f"Processing split {superpop_split.root_dir}")
-    # temporary solution
-    all_pca = load_plink_pcs('/media/storage/TG/data/pca/global.eigenvec')
     for node in set(TG_SUPERPOP_DICT.values()):
         logger.info(f"Saving train, val, test genotypes and running PCA for node {node}")
         for fold_index in range(NUM_FOLDS):
             for part_name in ['train', 'val', 'test']:
                 ids_path = superpop_split.get_ids_path(node=node, fold_index=fold_index, part_name=part_name)
 
-                # # Extract and save genotypes
-                # run_plink(args_dict={
-                # '--pfile': superpop_split.get_source_pfile_path(node=node),
-                # '--keep': ids,
-                # '--out':  superpop_split.get_pfile_path(node=node, fold_index=fold_index, part_name=part_name)
-                # }, args_list=['--make-pgen'])
+                # Extract and save genotypes
+                run_plink(args_dict={
+                '--pfile': superpop_split.get_source_pfile_path(node=node),
+                '--keep': ids_path,
+                '--out':  superpop_split.get_pfile_path(node=node, fold_index=fold_index, part_name=part_name)
+                }, args_list=['--make-pgen'])
 
                 # write ancestries aka phenotypes
                 relevant_ids = ancestry_df['IID'].isin(pd.read_csv(ids_path, sep='\t')['IID'])
                 ancestry_df.loc[relevant_ids, ['IID', 'ancestry']].to_csv(superpop_split.get_phenotype_path(node=node, fold_index=fold_index, part=part_name), sep='\t', index=False)
-
-                # temporary solution
-                all_pca.reindex(relevant_ids).to_csv(superpop_split.get_pca_path(node=node, fold_index=fold_index, part=part_name))
 
                 # # Run PCA on train and save weights for projection
                 # if part_name == 'train':
