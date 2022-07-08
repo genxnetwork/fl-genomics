@@ -22,7 +22,7 @@ class SplitTG(SplitBase):
         """
         y = pd.read_csv(os.path.join(TG_DATA_ROOT, 'igsr_samples.tsv'), sep='\t').rename(columns={'Sample name': 'IID', 'Population code': 'ancestry', 'Superpopulation code': 'split'})
         # Leave only those samples that passed population QC
-        sample_qc_ids = pd.read_table(f'{TG_SAMPLE_QC_IDS_PATH}')
+        sample_qc_ids = pd.read_table(f'{TG_SAMPLE_QC_IDS_PATH}.id')
         y = y.loc[y['IID'].isin(sample_qc_ids['#IID']), :]
         # filter by min number of samples in a pop
         pop_val_counts = y['ancestry'].value_counts()
