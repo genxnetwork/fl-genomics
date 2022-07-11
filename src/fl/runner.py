@@ -47,7 +47,6 @@ def get_active_nodes(cfg: DictConfig):
 def run(cfg: DictConfig):
     
     configure_logging()
-    print(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
     print(cfg)
     # parse command-line runner.py arguments
     queue = multiprocessing.Queue()
@@ -66,6 +65,10 @@ def run(cfg: DictConfig):
         tags={
             'description': cfg.experiment.description,
             'params_hash': params_hash,
+            'description': cfg.experiment.description,
+            'phenotype': cfg.data.phenotype.name,
+            #TODO: make it a parameter
+            'split': cfg.split.name,
         }
     ) as run:
         mlflow.log_params(OmegaConf.to_container(cfg.server, resolve=True))

@@ -66,11 +66,11 @@ rule gwas:
         genotype    = "genotypes/node_{node}/fold_{fold}_train.pgen",
         phenotype   = "phenotypes/{phenotype}/node_{node}/fold_{fold}_train.tsv",
         covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
-    threads: 8
+    threads: 4
     resources:
-        time        = "02:00:00",
+        time        = "01:00:00",
         mem_mb      = 24000,
-        partition   = "cpu"
+        partition   = "gpu_devel"
     params:
         out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
         phenotype_name  = PHENOTYPE_NAME
@@ -89,7 +89,7 @@ rule local_datasets:
     resources:
         time        = "00:20:00",
         mem_mb      = 8000,
-        partition   = "cpu"
+        partition   = "gpu_devel"
     params:
         in_prefix   = "genotypes/node_{node}/fold_{fold}_{part}",
         out_prefix  = "genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}"
@@ -106,7 +106,7 @@ rule union_snplists:
     resources:
         time        = "00:05:00",
         mem_mb      = 8000,
-        partition   = "cpu"
+        partition   = "gpu_devel"
     log:
         "logs/union_snplists/{phenotype}/fold_{fold}/top_{snp_count}.log"
     output:
@@ -122,7 +122,7 @@ rule union_datasets:
     resources:
         time        = "00:05:00",
         mem_mb      = 8000,
-        partition   = "cpu"
+        partition   = "gpu_devel"
     params:
         in_prefix   = "genotypes/node_{node}/fold_{fold}_{part}",
         out_prefix  = "genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_{part}"

@@ -1,0 +1,5 @@
+name: qfedavg
+active_nodes: all
+args: 
+  q_param: 0.2
+  qffl_learning_rate: 0.5

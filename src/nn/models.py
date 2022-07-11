@@ -23,14 +23,9 @@ class BaseNet(LightningModule):
             scheduler_params (Dict): Parameters of learning rate scheduler
         """        
         super().__init__()
-        self.layer = Linear(input_size, 1)
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
         self.current_round = 1
-
-    def forward(self, x):
-        out = self.layer(x)
-        return out
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
@@ -160,6 +155,9 @@ class LinearRegressor(BaseNet):
 
     def calculate_loss(self, y_hat, y):
         return mse_loss(y_hat.squeeze(1), y)
+
+    def forward(self, x) -> Any:
+        return self.layer(x)
     
 
 class LinearClassifier(BaseNet):
@@ -173,6 +171,9 @@ class LinearClassifier(BaseNet):
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return binary_cross_entropy_with_logits(y_hat, y)
+
+    def forward(self, x) -> Any:
+        return self.layer(x)
     
     def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
@@ -198,6 +199,7 @@ class MLPRegressor(BaseNet):
         self.l1 = l1
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
+        self.r2_score = R2Score(num_outputs=1, multioutput='uniform_average')
 
     def forward(self, x):
         x = relu(self.input(x))
@@ -209,6 +211,27 @@ class MLPRegressor(BaseNet):
 
     def calculate_loss(self, y_hat, y):
         return mse_loss(y_hat.squeeze(1), y)
+
+    def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
+        mse = mse_loss(y_hat.squeeze(1), y)
+        r2 = self.r2_score(y_hat.squeeze(1), y)
+        return RegLoaderMetrics(prefix, mse.item(), r2.item(), self.fl_current_epoch(), y_hat.shape[0])
+
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
+        train_loader, val_loader, test_loader = datamodule.predict_dataloader()
+        y_train_pred, y_train = self.predict(train_loader)
+        y_val_pred, y_val = self.predict(val_loader)
+        
+        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
+        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
+        
+        if test:
+            y_test_pred, y_test = self.predict(test_loader)
+            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
+        else:
+            test_metrics = None
+        metrics = RegMetrics(train_metrics, val_metrics, test_metrics, epoch=self.fl_current_epoch())
+        return metrics
 
 
 class LassoNetRegressor(BaseNet):
@@ -261,27 +284,21 @@ class LassoNetRegressor(BaseNet):
         r2s = self._unreduced_r2_score(y_pred, y_true)
         return [RegLoaderMetrics(prefix, loss, r2, self.fl_current_epoch(), samples=y_true.shape[0]) for loss, r2 in zip(losses, r2s)]
 
-    def predict_and_eval(self, datamodule: DataModule, test=False, best_col : Optional[int] = None, logger = None) -> Metrics:
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
         train_loader, val_loader, test_loader = datamodule.predict_dataloader()
-        logger.info(f'got predict_dataloaders')
         y_train_pred, y_train = self.predict(train_loader)
-        logger.info(f'predicted train dataloader')
         y_val_pred, y_val = self.predict(val_loader)
-        logger.info(f'predicted val dataloader')
         
         train_metrics = self._unreduced_pred_metrics('train', y_train_pred, y_train)
-        logger.info('got train metrics')
         val_metrics = self._unreduced_pred_metrics('val', y_val_pred, y_val)
-        logger.info(f'got val metrics')
         
         if test:
             y_test_pred, y_test = self.predict(test_loader)
             test_metrics = self._unreduced_pred_metrics('test', y_test_pred, y_test)
-            if best_col is None:
-                best_col = numpy.argmax([vm.r2 for vm in val_metrics])
-            metrics = RegMetrics(train_metrics[best_col], val_metrics[best_col], test_metrics[best_col], epoch=self.fl_current_epoch())
         else:
-            metrics = LassoNetRegMetrics(train_metrics, val_metrics, None, self.fl_current_epoch(), best_col=best_col)
+            test_metrics = None
+        best_col = numpy.argmax([m.r2 for m in val_metrics])
+        metrics = LassoNetRegMetrics(train_metrics, val_metrics, test_metrics, self.fl_current_epoch(), best_col=best_col)
             
         return metrics
 

@@ -1,0 +1,34 @@
+name: 'ethnic_split' 
+path: '/gpfs/gpfs0/ukb_data/test/${.name}'
+nodes: 
+  white_british:
+    name: 'White British'
+    resources:
+      gpus: 0
+    sample_count: 428944
+    index: 0
+  india:
+    name: 'Indian + Pakistani + Bangladeshi'
+    resources:
+      gpus: 0
+    sample_count: 7500
+    index: 1
+  african_caribbean:
+    name: 'African + Caribbean'
+    resources:
+      gpus: 0
+    sample_count: 7510
+    index: 2
+  china:
+    name: 'Chinese'
+    resources:
+      gpus: 0
+    sample_count: 1496
+    index: 3
+  mixed:
+    name: 'Mixed'
+    resources:
+      gpus: 0
+    sample_count: 37709
+    index: 4
+  
