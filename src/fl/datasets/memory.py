@@ -48,10 +48,17 @@ def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, sample_indic
     return array
 
 
-def load_phenotype(phenotype_path: str, out_type = numpy.float32) -> numpy.ndarray:
+def load_phenotype(phenotype_path: str, out_type = numpy.float32, encode_dict = None) -> numpy.ndarray:
+    """
+    :param phenotype_path: Phenotypes location
+    :param out_type: convert to type
+    :param encode_dict: encode if necessary (e.g. if phenotypes are strings and we want to code them as ints)
+    """
     data = pandas.read_table(phenotype_path)
-    return data.iloc[:, -1].values.astype(out_type)
-
+    data = data.iloc[:, -1].values.astype(out_type)
+    if encode_dict is not None:
+        data = numpy.vectorize(encode_dict.get)(data)
+    return data
 
 def load_covariates(covariates_path: str, load_pcs: bool = False) -> numpy.ndarray:
     data = pandas.read_table(covariates_path)

@@ -16,6 +16,7 @@ from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
 
+from configs.split_config import tg_pop_codes
 from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
 from nn.lightning import DataModule
@@ -23,7 +24,6 @@ from nn.train import prepare_trainer
 from nn.models import MLPPredictor, LassoNetRegressor
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT
 from utils.loaders import load_plink_pcs
-
 
 class LocalExperiment(object):
     """
@@ -73,9 +73,9 @@ class LocalExperiment(object):
     def load_data(self):
         self.logger.info("Loading data")
 
-        self.y_train = load_phenotype(self.cfg.data.phenotype.train, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name])
-        self.y_val = load_phenotype(self.cfg.data.phenotype.val, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name])
-        self.y_test = load_phenotype(self.cfg.data.phenotype.test, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name])
+        self.y_train = load_phenotype(self.cfg.data.phenotype.train, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
+        self.y_val = load_phenotype(self.cfg.data.phenotype.val, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
+        self.y_test = load_phenotype(self.cfg.data.phenotype.test, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
 
         # if phenotype is continuous and the base value is provided, subtract it
         if (PHENO_TYPE_DICT[self.cfg.phenotype.name] == 'continuous') & (self.cfg.phenotype.name in MEAN_PHENO_DICT.keys()):
@@ -96,9 +96,9 @@ class LocalExperiment(object):
             else:
                 self.load_covariates_()
         elif self.cfg.study == 'tg':
-            self.X_train = load_plink_pcs(path=self.cfg.data.x_reduced.train)
-            self.X_val = load_plink_pcs(path=self.cfg.data.x_reduced.val)
-            self.X_test = load_plink_pcs(path=self.cfg.data.x_reduced.test)
+            self.X_train = load_plink_pcs(path=self.cfg.data.x_reduced.train).values
+            self.X_val = load_plink_pcs(path=self.cfg.data.x_reduced.val).values
+            self.X_test = load_plink_pcs(path=self.cfg.data.x_reduced.test).values
         else:
             raise ValueError('Please define the study in config! See src/configs/default.yaml')
 
