@@ -39,7 +39,6 @@ class PCAUKB(PCABase):
         """ Visualises eigenvector with scatterplot [matrix] """
         eigenvec = pd.read_table(f'{pca_path}.eigenvec')[['IID', 'PC1', 'PC2']]
         eigenvec.index = eigenvec.IID
-        print(eigenvec.IID)
         eb_df = SplitBase().get_ethnic_background()
         eigenvec['ethnic_background_name'] = eb_df.loc[eigenvec.IID, 'ethnic_background'].map(
             ethnic_background_name_map)  # TODO might not work properly
