@@ -190,12 +190,13 @@ class LinearClassifier(BaseNet):
         self.log('val_accuracy', avg_accuracy)
 
 
-class MLPRegressor(BaseNet):
-    def __init__(self, input_size: int, hidden_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
+class MLPPredictor(BaseNet):
+    def __init__(self, input_size: int, hidden_size: int, l1: float, optim_params: Dict, scheduler_params: Dict, loss = mse_loss) -> None:
         super().__init__(input_size, optim_params, scheduler_params)
         self.input = Linear(input_size, hidden_size)
         self.bn = BatchNorm1d(hidden_size)
         self.hidden = Linear(hidden_size, 1)
+        self.loss = loss
         self.l1 = l1
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
@@ -210,7 +211,7 @@ class MLPRegressor(BaseNet):
         return reg
 
     def calculate_loss(self, y_hat, y):
-        return mse_loss(y_hat.squeeze(1), y)
+        return self.loss(y_hat.squeeze(1), y)
 
     def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
         mse = mse_loss(y_hat.squeeze(1), y)

@@ -1,16 +1,14 @@
 from dataclasses import dataclass
 import logging
 from multiprocessing import Process, Queue
-import subprocess
-from typing import Any, Dict, Tuple, List, Union
+from typing import Any, Dict, List, Union
 import time
 from grpc import RpcError
 import os
 
 from omegaconf import DictConfig, OmegaConf
 import mlflow
-from mlflow.entities import ViewType, RunInfo
-from mlflow import ActiveRun, list_run_infos
+from mlflow import ActiveRun
 from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
@@ -19,9 +17,8 @@ from sklearn.linear_model import LinearRegression
 
 from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates, get_sample_indices
 from nn.lightning import DataModule
-from nn.models import BaseNet, LinearRegressor, MLPRegressor
 from fl.federation.client import FLClient
-from utils.phenotype import MEAN_PHENO_DICT
+from configs.phenotype_config import MEAN_PHENO_DICT
 
 
 @dataclass
@@ -49,7 +46,7 @@ class Node(Process):
             log_dir (str): Logging directory, where node-{node_index}.log file will be created
             mlflow_info (MlflowInfo): Mlflow parent run and experiment IDs
             queue (Queue): Queue for communication between processes
-            cfg_path (str): Path to full yaml config
+            cfg_path (str): Path to full yaml configs
             trainer_info (TrainerInfo): Where to train node
         """        
         Process.__init__(self, **kwargs)

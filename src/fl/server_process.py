@@ -11,7 +11,7 @@ from fl.federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAd
 
 
 def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: int, checkpoint_dir: str) -> FedAvg:
-    """Creates flwr Strategy from strategy config entry
+    """Creates flwr Strategy from strategy configs entry
 
     Args:
         strategy_params (DictConfig): Strategy params with name, node_count and optional args dict
@@ -61,7 +61,7 @@ class Server(Process):
             log_dir (str): Directory where server.log will be created
             queue (Queue): Queue for communication between processes
             params_hash (str): Parameters hash for choosing the directory for saving model checkpoints
-            cfg_path (str): Path to full yaml config file
+            cfg_path (str): Path to full yaml configs file
         """        
         Process.__init__(self, **kwargs)
         self.log_dir = log_dir

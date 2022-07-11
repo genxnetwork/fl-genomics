@@ -1,7 +1,7 @@
 from typing import List
 import subprocess
 
-from config.global_config import PLINK2_BIN
+from configs.global_config import PLINK2_BIN
 
 
 def run_plink(args_list: List[str], args_dict: dict = None):

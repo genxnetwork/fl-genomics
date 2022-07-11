@@ -2,7 +2,7 @@ import numpy
 from typing import Tuple
 
 
-class Int8Dataset:
+class XyCovDataset:
     def __init__(self, X: numpy.ndarray, y: numpy.ndarray, X_cov: numpy.ndarray = None) -> None:
         self.X = X
         self.y = y

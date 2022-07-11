@@ -5,8 +5,8 @@ import pandas as pd
 pd.options.mode.chained_assignment = None # Shush
 import os
 
-from config.global_config import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path
-from config.split_config import non_iid_split_name, split_map, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, random_seed
+from configs.global_config import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path
+from configs.split_config import non_iid_split_name, split_map, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, random_seed
 from utils.plink import run_plink
 
 class SplitBase(object):

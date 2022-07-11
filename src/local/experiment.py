@@ -1,7 +1,10 @@
+from abc import abstractmethod
+
 import hydra
 import logging
 from sys import stdout
 import numpy
+import pandas as pd
 from omegaconf import DictConfig
 import mlflow
 from mlflow.xgboost import autolog
@@ -13,15 +16,16 @@ from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
 
+from configs.split_config import tg_pop_codes
 from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
-from nn.models import MLPRegressor, LassoNetRegressor
-from utils.phenotype import MEAN_PHENO_DICT
+from nn.models import MLPPredictor, LassoNetRegressor
+from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT
+from utils.loaders import load_plink_pcs
 
-
-class LocalExperiment():
+class LocalExperiment(object):
     """
     Base class for experiments in a local setting
     """
@@ -40,40 +44,64 @@ class LocalExperiment():
             
     def start_mlflow_run(self):
         split = self.cfg.split_dir.split('/')[-1]
-        num_samples = node_size_dict[split][self.cfg.node_index]
         mlflow.set_experiment(self.cfg.experiment.name)
-        self.run = mlflow.start_run(tags={
+        universal_tags = {
             'model': self.cfg.model.name,
             'split': split,
             'phenotype': self.cfg.phenotype.name,
-            'node_index': str(self.cfg.node_index),
-            'snp_count': str(self.cfg.experiment.snp_count),
-            'sample_count': str(round(num_samples, -2)),
-            'sample_count_exact': str(num_samples),
-            'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
-            'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas)),
-            'covariates': str(int(self.cfg.experiment.include_covariates)),
-            'snps': str(int(self.cfg.experiment.include_genotype))
-        })
+        }
+        if self.cfg.study == 'tg':
+            study_tags = {
+                'node': self.cfg.node
+            }
+        elif self.cfg.study == 'ukb':
+            num_samples = node_size_dict[split][self.cfg.node_index]
+            study_tags={
+                'node_index': str(self.cfg.node_index),
+                'snp_count': str(self.cfg.experiment.snp_count),
+                'sample_count': str(round(num_samples, -2)),
+                'sample_count_exact': str(num_samples),
+                'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
+                'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas)),
+                'covariates': str(int(self.cfg.experiment.include_covariates)),
+                'snps': str(int(self.cfg.experiment.include_genotype))
+            }
+        else:
+            raise ValueError('Please define the study in config! See src/configs/default.yaml')
+        self.run = mlflow.start_run(tags=universal_tags | study_tags)
 
     def load_data(self):
         self.logger.info("Loading data")
-        
-        self.y_train = load_phenotype(self.cfg.data.phenotype.train) - MEAN_PHENO_DICT[self.cfg.phenotype.name]
-        self.y_val = load_phenotype(self.cfg.data.phenotype.val) - MEAN_PHENO_DICT[self.cfg.phenotype.name]
-        self.y_test = load_phenotype(self.cfg.data.phenotype.test) - MEAN_PHENO_DICT[self.cfg.phenotype.name]
+
+        self.y_train = load_phenotype(self.cfg.data.phenotype.train, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
+        self.y_val = load_phenotype(self.cfg.data.phenotype.val, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
+        self.y_test = load_phenotype(self.cfg.data.phenotype.test, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
+
+        # if phenotype is continuous and the base value is provided, subtract it
+        if (PHENO_TYPE_DICT[self.cfg.phenotype.name] == 'continuous') & (self.cfg.phenotype.name in MEAN_PHENO_DICT.keys()):
+            self.y_train = self.y_train - MEAN_PHENO_DICT[self.cfg.phenotype.name]
+            self.y_val = self.y_val - MEAN_PHENO_DICT[self.cfg.phenotype.name]
+            self.y_test = self.y_test - MEAN_PHENO_DICT[self.cfg.phenotype.name]
+
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         self.y_test = self.y_test[:test_samples_limit]
 
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
-        
-        if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
-            self.load_genotype_and_covariates_()    
-        elif self.cfg.experiment.include_genotype:
-            self.load_genotype_()
+
+        if self.cfg.study == 'ukb':
+            if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
+                self.load_genotype_and_covariates_()
+            elif self.cfg.experiment.include_genotype:
+                self.load_genotype_()
+            else:
+                self.load_covariates_()
+        elif self.cfg.study == 'tg':
+            self.X_train = load_plink_pcs(path=self.cfg.data.x_reduced.train).values
+            self.X_val = load_plink_pcs(path=self.cfg.data.x_reduced.val).values
+            self.X_test = load_plink_pcs(path=self.cfg.data.x_reduced.test).values
         else:
-            self.load_covariates_()
-            
+            raise ValueError('Please define the study in config! See src/configs/default.yaml')
+
         self.logger.info(f"{self.X_train.shape[1]} features loaded")
         
     def load_sample_indices(self):
@@ -107,24 +135,25 @@ class LocalExperiment():
         
     def load_genotype_(self):
         self.X_train = load_from_pgen(self.cfg.data.genotype.train,
-                                      self.cfg.data.gwas,
-                                      snp_count=self.cfg.experiment.snp_count,
+                                      gwas_path=self.cfg.data.get('gwas', None),
+                                      snp_count=self.cfg.experiment.get('snp_count', None),
                                       sample_indices=self.sample_indices_train)
         self.X_val = load_from_pgen(self.cfg.data.genotype.val,
-                                    self.cfg.data.gwas,
-                                    snp_count=self.cfg.experiment.snp_count,
+                                    gwas_path=self.cfg.data.get('gwas', None),
+                                    snp_count=self.cfg.experiment.get('snp_count', None),
                                     sample_indices=self.sample_indices_val)
         self.X_test = load_from_pgen(self.cfg.data.genotype.test,
-                                     self.cfg.data.gwas,
-                                     snp_count=self.cfg.experiment.snp_count,
+                                     gwas_path=self.cfg.data.get('gwas', None),
+                                     snp_count=self.cfg.experiment.get('snp_count', None),
                                      sample_indices=self.sample_indices_test)
-        
+
     def load_covariates_(self):
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         self.X_train = load_covariates(self.cfg.data.covariates.train)
         self.X_val = load_covariates(self.cfg.data.covariates.val)
         self.X_test = load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :]
     
+    @abstractmethod
     def train(self):
         pass
         
@@ -189,14 +218,19 @@ class NNExperiment(LocalExperiment):
 
     def load_data(self):
         LocalExperiment.load_data(self)
-        self.data_module = DataModule(self.X_train, self.X_val, self.X_test, self.y_train.astype(numpy.float32), self.y_val.astype(numpy.float32), self.y_test.astype(numpy.float32), batch_size=self.cfg.model.batch_size)
+        self.data_module = DataModule(self.X_train, self.X_val, self.X_test,
+                                      self.y_train.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
+                                      self.y_val.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
+                                      self.y_test.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
+                                      batch_size=self.cfg.model.batch_size)
     
     def create_model(self):
-        self.model = MLPRegressor(input_size=self.X_train.shape[1],
+        self.model = MLPPredictor(input_size=self.X_train.shape[1],
                                   hidden_size=self.cfg.model.hidden_size,
                                   l1=self.cfg.model.alpha,
                                   optim_params=self.cfg.experiment.optimizer,
-                                  scheduler_params=self.cfg.experiment.scheduler
+                                  scheduler_params=self.cfg.experiment.scheduler,
+                                  loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
                                   )
 
     def train(self):
@@ -205,7 +239,9 @@ class NNExperiment(LocalExperiment):
         mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
         
         self.create_model()
-        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}',
+                                       gpus=self.cfg.experiment.get('gpus', None),
+                                       precision=self.cfg.model.precision,
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")
@@ -215,7 +251,7 @@ class NNExperiment(LocalExperiment):
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
 
     def load_best_model(self):
-        self.model = MLPRegressor.load_from_checkpoint(
+        self.model = MLPPredictor.load_from_checkpoint(
             self.trainer.checkpoint_callback.best_model_path,
             input_size=self.X_train.shape[1],
             hidden_size=self.cfg.model.hidden_size,
@@ -355,7 +391,7 @@ experiment_dict = {
 }
 
             
-@hydra.main(config_path='configs', config_name='default')
+@hydra.main(config_path='configs', config_name='tg')
 def local_experiment(cfg: DictConfig):
     print(cfg)
     assert cfg.model.name in experiment_dict.keys()

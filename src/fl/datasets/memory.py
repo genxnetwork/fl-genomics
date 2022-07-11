@@ -48,10 +48,17 @@ def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, sample_indic
     return array
 
 
-def load_phenotype(phenotype_path: str) -> numpy.ndarray:
+def load_phenotype(phenotype_path: str, out_type = numpy.float32, encode_dict = None) -> numpy.ndarray:
+    """
+    :param phenotype_path: Phenotypes location
+    :param out_type: convert to type
+    :param encode_dict: encode if necessary (e.g. if phenotypes are strings and we want to code them as ints)
+    """
     data = pandas.read_table(phenotype_path)
-    return data.iloc[:, -1].values.astype(numpy.float32)
-
+    data = data.iloc[:, -1].values.astype(out_type)
+    if encode_dict is not None:
+        data = numpy.vectorize(encode_dict.get)(data)
+    return data
 
 def load_covariates(covariates_path: str, load_pcs: bool = False) -> numpy.ndarray:
     data = pandas.read_table(covariates_path)
@@ -75,7 +82,7 @@ def get_sample_indices(pfile_path: str, phenotype_path: str, indices_limit: Opti
         numpy.ndarray: Array with list of indices required to load samples present in
             the phenotype from the genotype file.
     """
-    psam = pandas.read_table(pfile_path + '.psam')
+    psam = pandas.read_table(pfile_path + '.psam').rename(columns={'#IID': 'IID'})
     pheno = pandas.read_table(phenotype_path)
     psam['idx'] = numpy.arange(0, psam.shape[0])
     indices = psam.loc[psam.IID.isin(pheno.IID), 'idx'].values.astype('uint32')

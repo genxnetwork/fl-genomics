@@ -10,7 +10,7 @@ from federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam,
 
 
 def get_strategy(strategy_params: DictConfig, epochs_in_round: int, checkpoint_dir: str) -> FedAvg:
-    """Creates flwr Strategy from strategy config entry
+    """Creates flwr Strategy from strategy configs entry
 
     Args:
         strategy_params (DictConfig): Strategy params with name, node_count and optional args dict
@@ -62,7 +62,7 @@ if __name__ == '__main__':
             log=['test.log']
         )
 
-    config_path = snakemake.input['config'][0]
+    config_path = snakemake.input['configs'][0]
     params_hash = snakemake.wildcards['params_hash']
     checkpoint_dir = snakemake.params['checkpoint_dir']
     os.makedirs(checkpoint_dir, exist_ok=True)

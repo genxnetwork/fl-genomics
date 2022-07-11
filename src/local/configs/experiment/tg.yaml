@@ -1,0 +1,9 @@
+# @package _global_
+
+experiment:
+  name: local-models-tg
+  include_genotype: True
+  include_covariates: False
+  random_state: 0
+  test_samples_limit: null
+  gpus: 0

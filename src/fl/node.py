@@ -16,7 +16,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from datasets.memory import load_from_pgen, load_phenotype, load_covariates
 from datasets.lightning import DataModule
-from nn.models import BaseNet, LinearRegressor, MLPRegressor
+from nn.models import BaseNet, LinearRegressor, MLPPredictor
 from federation.client import FLClient
 
 
@@ -68,12 +68,12 @@ def get_parent_run_id_and_host(mlflow_client: MlflowClient, experiment_name: str
                                 run_view_type=ViewType.ACTIVE_ONLY,
                                 filter_string=f"tags.params_hash='{params_hash}'")
         if len(runs) < 1:
-            logging.info(f'can not found at least one active run with config hash {params_hash}')
+            logging.info(f'can not found at least one active run with configs hash {params_hash}')
             continue
         else:
             break
     else:
-        raise RuntimeError(f'Cant find at least one active run with config hash {params_hash}, found {len(runs)}, waited {12*5} seconds')
+        raise RuntimeError(f'Cant find at least one active run with configs hash {params_hash}, found {len(runs)}, waited {12*5} seconds')
     
     # Default order is START_TIME DESC and we need the most recent active run with {params_hash}
     return runs[0].info.run_id, runs[0].data.tags['hostname'], runs[0].info.experiment_id
@@ -104,8 +104,8 @@ def create_linear_regressor(input_size: int, params: Any) -> LinearRegressor:
         scheduler_params=params['scheduler']
     )
 
-def create_mlp_regressor(input_size: int, params: Any) -> MLPRegressor:
-    return MLPRegressor(
+def create_mlp_regressor(input_size: int, params: Any) -> MLPPredictor:
+    return MLPPredictor(
         input_size=input_size,
         hidden_size=params.model.hidden_size,
         l1=params.model.l1,
@@ -136,7 +136,7 @@ if __name__ == '__main__':
             log=['test.log']
         )
 
-    config_path = snakemake.input['config'][0]
+    config_path = snakemake.input['configs'][0]
     print(f'config_path: {config_path}')
     print(f'config_path type is {type(config_path)}')
     gwas = snakemake.input['gwas']

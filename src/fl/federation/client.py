@@ -8,12 +8,12 @@ from pytorch_lightning.utilities.model_summary import _format_summary_table, sum
 from flwr.client import NumPyClient
 from time import time
 
-from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
+from nn.models import BaseNet, LinearRegressor, MLPPredictor, LassoNetRegressor
 from nn.lightning import DataModule
 
 
 class ModelFactory:
-    """Class for creating models based on model name from config
+    """Class for creating models based on model name from configs
 
     Raises:
         ValueError: If model is not one of the linear_regressor, mlp_regressor
@@ -29,8 +29,8 @@ class ModelFactory:
         )
 
     @staticmethod
-    def _create_mlp_regressor(input_size: int, covariate_count: int, params: Any) -> MLPRegressor:
-        return MLPRegressor(
+    def _create_mlp_regressor(input_size: int, covariate_count: int, params: Any) -> MLPPredictor:
+        return MLPPredictor(
             input_size=input_size,
             hidden_size=params.model.hidden_size,
             l1=params.model.l1,
@@ -72,7 +72,7 @@ class FLClient(NumPyClient):
         Args:
             server (str): Server address with port
             data_module (DataModule): Module with train, val and test dataloaders
-            node_params (Dict): Node config with model, dataset, and training parameters
+            node_params (Dict): Node configs with model, dataset, and training parameters
             logger (Logger): Process-specific logger
         """        
         self.server = server
@@ -97,7 +97,7 @@ class FLClient(NumPyClient):
         self.model.load_state_dict(state_dict, strict=True)
 
     def fit(self, parameters, config):
-        # self.log(f'started fitting with config {config}')
+        # self.log(f'started fitting with configs {configs}')
         try:
             # to catch spurious error "weakly-referenced object no longer exists"
             # probably ref to some model parameter tensor get lost
@@ -122,7 +122,7 @@ class FLClient(NumPyClient):
         return self.get_parameters(), self.data_module.train_len(), {}
 
     def evaluate(self, parameters, config):
-        self.log(f'starting to set parameters in evaluate with config {config}')
+        self.log(f'starting to set parameters in evaluate with configs {config}')
         self.set_parameters(parameters)
         self.log('set parameters in evaluate')
         self.model.eval()
