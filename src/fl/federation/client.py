@@ -3,6 +3,8 @@ import torch
 from logging import Logger
 from typing import Dict, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
+from pytorch_lightning.utilities.model_summary import _format_summary_table, summarize
+
 from flwr.client import NumPyClient
 from time import time
 
@@ -129,9 +131,7 @@ class FLClient(NumPyClient):
         need_test_eval = 'current_round' in config and config['current_round'] == -1
         self.log(f'starting predict and eval with {need_test_eval}')
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
-                                                        test=need_test_eval, 
-                                                        best_col=config.get('best_col', None),
-                                                        logger=self.logger)
+                                                        test=need_test_eval)
         self.log('starting log to mlflow in eval')
         unreduced_metrics.log_to_mlflow()
         self.log(f'calculating val len')

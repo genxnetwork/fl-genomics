@@ -50,7 +50,7 @@ class Node(Process):
             trainer_info (TrainerInfo): Where to train node
         """        
         Process.__init__(self, **kwargs)
-        os.environ['MASTER_PORT'] = str(47000+trainer_info.node_index) 
+        os.environ['MASTER_PORT'] = str(47000+numpy.random.randint(1000)+trainer_info.node_index) 
         self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
         self.trainer_info = trainer_info
@@ -65,7 +65,7 @@ class Node(Process):
         # https://github.com/PyTorchLightning/pytorch-lightning/issues/3431
         # logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
         self.logger = logging.getLogger(f'node-{self.node_index}.log')
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
         self.logger.addHandler(logging.FileHandler(os.path.join(self.log_dir, f'node-{self.node_index}.log')))
 
         # logging.basicConfig(filename=os.path.join(self.log_dir, f'node-{self.node_index}.log'), level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
@@ -108,10 +108,6 @@ class Node(Process):
         sample_indices_test = get_sample_indices(self.cfg.data.genotype.test,
                                                       self.cfg.data.phenotype.test)
 
-        # because for each node we have the exact same test dataset
-        # the idea is that each node will run inference on their part of test dataset with size {test_samples_limit}
-        # sample_indices_test = sample_indices_test[self.node_index*test_samples_limit: (self.node_index+1)*test_samples_limit]
-
         X_train = load_from_pgen(self.cfg.data.genotype.train, 
             self.cfg.data.gwas, 
             snp_count=None,
@@ -151,7 +147,7 @@ class Node(Process):
         self.snp_count = self.feature_count - self.covariate_count
         self.sample_count = X_train.shape[0]
 
-        data_module = DataModule(X_train, X_val, X_test, y_train, y_val, y_test, self.cfg.node.model.batch_size,
+        data_module = DataModule(X_train, X_val, X_test, self.y_train, self.y_val, self.y_test, self.cfg.node.model.batch_size,
                                  X_cov_train, X_cov_val, X_cov_test)
         return data_module
 

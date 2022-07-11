@@ -8,5 +8,4 @@ covariates:
   '31': 'sex'
   '21003': 'age' 
 snp_counts: 
-  - 5000
   - 10000

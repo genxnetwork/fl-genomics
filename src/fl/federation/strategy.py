@@ -2,7 +2,6 @@ import pickle
 import shutil
 from typing import List, Tuple, Optional, Dict
 import logging
-import mlflow
 import numpy
 import os
 
@@ -45,12 +44,6 @@ class MlflowLogger:
 
         self.model_type = model_type
 
-    def _get_reduction_type(self, rnd: int) -> str:
-        if self.model_type == 'lassonet_regressor':
-            return 'mean' if rnd == -1 else 'lassonet_best'
-        else:
-            return 'mean' 
-
     def log_losses(self, rnd: int, results: RESULTS) -> Metrics:
         """Logs val_loss, val and train r^2 to mlflow
 
@@ -65,7 +58,7 @@ class MlflowLogger:
         fed_metrics = RegFederatedMetrics(metric_list, rnd*self.epochs_in_round)
         # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
         # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
-        avg_metrics = fed_metrics.reduce(reduction=self._get_reduction_type(rnd))
+        avg_metrics = fed_metrics.reduce()
         # logging.info(avg_metrics)
         logging.info(f'round {rnd}\t' + str(avg_metrics))
         avg_metrics.log_to_mlflow()
@@ -141,7 +134,7 @@ class MCMixin:
             return None
 
         metrics = self.mlflow_logger.log_losses(rnd, results)
-        reduced_metrics = metrics.reduce(self.mlflow_logger._get_reduction_type(rnd)) 
+        reduced_metrics = metrics.reduce() 
         self.checkpointer.add_loss_to_history(reduced_metrics)
         # unreduced metrics because in case of lassonet_regressor we need best_col attribute
         self.checkpointer.set_best_metrics(metrics)
@@ -168,15 +161,7 @@ class MCMixin:
         return super().configure_evaluate(rnd, parameters, client_manager)
 
     def on_evaluate_config_fn_closure(self, rnd: int):
-        if rnd == -1:
-            return {'current_round': rnd, 'best_col': self.checkpointer.best_metrics.best_col}
-        else:
-            print(f'DEBUG: starting to get best col')
-            if self.checkpointer.last_metrics is not None and isinstance(self.checkpointer.last_metrics, LassoNetRegMetrics):
-                best_col = self.checkpointer.last_metrics.best_col
-                return {'current_round': rnd, 'best_col': best_col}
-            else:
-                return {'current_round': rnd}
+        return {'current_round': rnd}
 
 
 class MCFedAvg(MCMixin,FedAvg):
@@ -196,7 +181,7 @@ class MCQFedAvg(MCMixin,QFedAvg):
         # flwr implementation evaluates old weights in centralized mode using evaluate function impl from fedavg
         # evaluate in fedavg works if and only if eval_fn init parameter was provided
         # instead of centralized evaluation we pull loss from checkpointer loss history
-        return (self.checkpointer.history[-1], {}) if len(self.checkpointer.history) > 0 else (200, {})
+        return (self.checkpointer.history[-1], {}) if len(self.checkpointer.history) > 0 else (100, {})
 
 
 class MCFedAdagrad(MCMixin,FedAdagrad):
@@ -221,6 +206,7 @@ class MCFedAdagrad(MCMixin,FedAdagrad):
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
+
 
 class MCFedAdam(MCMixin,FedAdam):
     def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:

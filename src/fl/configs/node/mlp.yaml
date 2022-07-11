@@ -1,15 +1,13 @@
 index: ???
 model:
-  name: lassonet_regressor
+  name: mlp_regressor
   batch_size: 256
-  hidden_size: 64
-  alpha_start: -3
-  alpha_end: 0.5
-  init_limit: 0.001
+  l1: 0.0
+  hidden_size: 1024
 optimizer:
   name: sgd
-  lr: 5e-3
-  weight_decay: 0.0
+  lr: 1e-4
+  weight_decay: 1e-2
   # momentum: 0.5
 scheduler:
   name: exponential_lr
