@@ -5,10 +5,8 @@ from abc import abstractmethod
 import sys
 sys.path.append('..')
 
-from config.global_config import data_root
 from config.split_config import ethnic_background_name_map
 from config.split_config import TG_SUPERPOP_DICT
-from config.pca_config import pca_config
 from preprocess.splitter import SplitBase
 from preprocess.splitter_tg import SplitTG
 from utils.plink import run_plink
