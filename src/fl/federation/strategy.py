@@ -1,9 +1,12 @@
+import json
 import pickle
 import shutil
 from typing import List, Tuple, Optional, Dict
 import logging
 import numpy
 import os
+import mlflow
+
 
 from flwr.common import (
     EvaluateRes,
@@ -34,7 +37,15 @@ def on_evaluate_config_fn(rnd: int):
 RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 
-class MlflowLogger:
+class StrategyLogger:
+    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+        pass
+
+    def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
+        pass
+
+
+class MlflowLogger(StrategyLogger):
     def __init__(self, epochs_in_round: int, model_type: str) -> None:
         """Logs server-side per-round metrics to mlflow
         """        
@@ -44,27 +55,23 @@ class MlflowLogger:
 
         self.model_type = model_type
 
-    def log_losses(self, rnd: int, results: RESULTS) -> Metrics:
-        """Logs val_loss, val and train r^2 to mlflow
+    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+        """Logs val_loss, val and train r^2 or auc to mlflow
 
         Args:
             rnd (int): current FL round
-            results (RESULTS): Central model evaluation results from server
+            metrics (Metrics): Metrics to log to mlflow
 
         Returns:
             Metrics: Metrics reduced over clients
         """       
-        metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
-        fed_metrics = RegFederatedMetrics(metric_list, rnd*self.epochs_in_round)
-        # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
-        # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
-        avg_metrics = fed_metrics.reduce()
         # logging.info(avg_metrics)
-        logging.info(f'round {rnd}\t' + str(avg_metrics))
-        avg_metrics.log_to_mlflow()
+        logging.info(f'round {rnd}\t' + str(metrics))
+        metrics.log_to_mlflow()
 
-        return avg_metrics
-
+    def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
+        pass
+        
 
 class Checkpointer:
     def __init__(self, checkpoint_dir: str) -> None:
@@ -111,17 +118,26 @@ class Checkpointer:
 
 
 class MCMixin:
-    def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
+    def __init__(self, strategy_logger: StrategyLogger, checkpointer: Checkpointer, **kwargs) -> None:
         """Mixin for strategies which can log metrics and save checkpoints
 
         Args:
-            mlflow_logger (MlflowLogger): Mlflow Logger
+            strategy_logger (StrategyLogger): Logger for logging metrics to mlflow, neptune or stdout
             checkpointer (Checkpointer): Model checkpoint saver
         """        
-        self.mlflow_logger = mlflow_logger
+        self.strategy_logger = strategy_logger
         self.checkpointer = checkpointer
         kwargs['on_evaluate_config_fn'] = self.on_evaluate_config_fn_closure
         super().__init__(**kwargs)
+
+    def _aggregate_metrics(self, rnd: int, results: RESULTS) -> Metrics:
+
+        metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
+        fed_metrics = RegFederatedMetrics(metric_list, rnd*self.strategy_logger.epochs_in_round)
+        # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
+        # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
+        avg_metrics = fed_metrics.reduce()
+        return avg_metrics
 
     def aggregate_evaluate(
         self,
@@ -133,7 +149,8 @@ class MCMixin:
         if not results:
             return None
 
-        metrics = self.mlflow_logger.log_losses(rnd, results)
+        metrics = self._aggregate_metrics(rnd, results)
+        self.strategy_logger.log_losses(rnd, metrics)
         reduced_metrics = metrics.reduce() 
         self.checkpointer.add_loss_to_history(reduced_metrics)
         # unreduced metrics because in case of lassonet_regressor we need best_col attribute
@@ -141,14 +158,25 @@ class MCMixin:
         self.checkpointer.last_metrics = metrics
         return super().aggregate_evaluate(rnd, results, failures)
     
+    def _metrics_to_layer_names(self, results: List[Tuple[ClientProxy, FitRes]]) -> List[str]:
+        metrics = results[0][1].metrics
+        return json.loads(str(metrics['layers'], encoding='utf-8'))
+
     def aggregate_fit(
         self,
         rnd: int,
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[BaseException],
-    ) -> Optional[Weights]:
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(rnd, results, failures)
         self.checkpointer.save_checkpoint(rnd, aggregated_parameters)
+
+        client_weights = [parameters_to_weights(res[1].parameters) for res in results]
+        # layer_names = self._metrics_to_layer_names(results)
+        aggregated_weights = parameters_to_weights(aggregated_parameters)
+        # self.strategy_logger.log_weights(rnd, layer_names, client_weights, aggregated_weights)
+
         return aggregated_parameters, aggregated_metrics
 
     def configure_evaluate(
@@ -230,3 +258,6 @@ class MCFedAdam(MCMixin,FedAdam):
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
+
+
+# class MCScaffold(MCMixin,FedAvg):

@@ -1,15 +1,20 @@
+import json
+import numpy
 from omegaconf import DictConfig
+from time import time
 import torch
 from logging import Logger
-from typing import Dict, OrderedDict, Tuple, Any
+import mlflow
+from typing import Dict, List, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.utilities.model_summary import _format_summary_table, summarize
 
 from flwr.client import NumPyClient
-from time import time
+from flwr.common.typing import Weights
 
 from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
 from nn.lightning import DataModule
+from nn.utils import Metrics
 
 
 class ModelFactory:
@@ -65,15 +70,36 @@ class ModelFactory:
         return create_func(input_size, covariate_count, params)
 
 
+class MetricsLogger:
+    def log_eval_metric(self, metric: Metrics):
+        pass
+
+    def log_weights(self, rnd: int, layers: List[str], old_weights: Weights, new_weights: Weights):
+        pass
+
+
+class MLFlowMetricsLogger(MetricsLogger):
+    def log_eval_metric(self, metric: Metrics):
+        metric.log_to_mlflow()
+
+    def log_weights(self, rnd: int, layers: List[str], old_weights: Weights, new_weights: Weights):
+        # logging.info(f'weights shape: {[w.shape for w in new_weights]}')
+        
+        client_diffs = {layer: numpy.linalg.norm(cw - aw).item() for layer, cw, aw in zip(layers, old_weights, new_weights)}
+        for layer, diff in client_diffs.items():
+            mlflow.log_metric(f'{layer}.l2', diff, rnd)
+
+
 class FLClient(NumPyClient):
-    def __init__(self, server: str, data_module: DataModule, node_params: DictConfig, logger: Logger):
+    def __init__(self, server: str, data_module: DataModule, node_params: DictConfig, logger: Logger, metrics_logger: MetricsLogger):
         """Trains {model} in federated setting
 
         Args:
             server (str): Server address with port
             data_module (DataModule): Module with train, val and test dataloaders
             node_params (Dict): Node config with model, dataset, and training parameters
-            logger (Logger): Process-specific logger
+            logger (Logger): Process-specific logger of text messages
+            metrics_logger (MetricsLogger): Process-specific logger of metrics and weights (mlflow, neptune, etc)
         """        
         self.server = server
         self.model = ModelFactory.create_model(data_module.feature_count(), data_module.covariate_count(), node_params)
@@ -81,6 +107,7 @@ class FLClient(NumPyClient):
         self.best_model_path = None
         self.node_params = node_params
         self.logger = logger
+        self.metrics_logger = metrics_logger
         self.log(f'cuda device count: {torch.cuda.device_count()}')
         self.log(f'training params are: {self.node_params.training}')
 
@@ -95,6 +122,9 @@ class FLClient(NumPyClient):
         params_dict = zip(self.model.state_dict().keys(), parameters)
         state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict if v.shape != ()})
         self.model.load_state_dict(state_dict, strict=True)
+
+    def _get_layer_names(self) -> List[str]:
+        return [key for key, _ in self.model.state_dict().items()]
 
     def fit(self, parameters, config):
         # self.log(f'started fitting with config {config}')
@@ -123,6 +153,8 @@ class FLClient(NumPyClient):
 
     def evaluate(self, parameters, config):
         self.log(f'starting to set parameters in evaluate with config {config}')
+        old_weights = self.get_parameters()
+        self.metrics_logger.log_weights(self.model.fl_current_epoch(), self._get_layer_names(), old_weights, parameters)
         self.set_parameters(parameters)
         self.log('set parameters in evaluate')
         self.model.eval()
@@ -132,9 +164,8 @@ class FLClient(NumPyClient):
         self.log(f'starting predict and eval with {need_test_eval}')
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
                                                         test=need_test_eval)
-        self.log('starting log to mlflow in eval')
-        unreduced_metrics.log_to_mlflow()
-        self.log(f'calculating val len')
+
+        self.metrics_logger.log_eval_metric(unreduced_metrics)
         val_len = self.data_module.val_len()
         end = time()
         self.log(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')

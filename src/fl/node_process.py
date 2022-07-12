@@ -20,7 +20,7 @@ from sklearn.linear_model import LinearRegression
 from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates, get_sample_indices
 from nn.lightning import DataModule
 from nn.models import BaseNet, LinearRegressor, MLPRegressor
-from fl.federation.client import FLClient
+from fl.federation.client import FLClient, MLFlowMetricsLogger
 from utils.phenotype import MEAN_PHENO_DICT
 
 
@@ -199,8 +199,8 @@ class Node(Process):
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
         data_module = self._load_data()
-
-        client = FLClient(self.server_url, data_module, self.cfg.node, self.logger)
+        metrics_logger = MLFlowMetricsLogger()
+        client = FLClient(self.server_url, data_module, self.cfg.node, self.logger, metrics_logger)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
