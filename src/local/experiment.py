@@ -16,13 +16,14 @@ from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
 
-from configs.split_config import tg_pop_codes
+from configs.split_config import tg_pop_codes, TG_SUPERPOP_DICT
 from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
-from nn.models import MLPPredictor, LassoNetRegressor
-from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT
+from nn.models import MLPPredictor, LassoNetRegressor, MLPClassifier
+from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
+    TYPE_METRIC_DICT
 from utils.loaders import load_plink_pcs
 
 class LocalExperiment(object):
@@ -179,7 +180,7 @@ class LocalExperiment(object):
         self.load_data()
         self.start_mlflow_run()
         self.train()
-        self.eval_and_log()
+        self.eval_and_log(**TYPE_METRIC_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]])
     
 
 def simple_estimator_factory(model):
@@ -222,26 +223,33 @@ class NNExperiment(LocalExperiment):
                                       self.y_train.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
                                       self.y_val.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
                                       self.y_test.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
-                                      batch_size=self.cfg.model.batch_size)
+                                      batch_size=self.cfg.model.get('batch_size', len(self.X_train)))
     
     def create_model(self):
-        self.model = MLPPredictor(input_size=self.X_train.shape[1],
-                                  hidden_size=self.cfg.model.hidden_size,
-                                  l1=self.cfg.model.alpha,
-                                  optim_params=self.cfg.experiment.optimizer,
-                                  scheduler_params=self.cfg.experiment.scheduler,
-                                  loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
-                                  )
+        if self.cfg.study == 'tg':
+            self.model = MLPClassifier(nclass=len(TG_SUPERPOP_DICT), nfeat=self.X_train.shape[1],
+                                      optim_params=self.cfg.experiment.optimizer,
+                                      scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
+                                      )
+        else:
+            self.model = MLPPredictor(input_size=self.X_train.shape[1],
+                                      hidden_size=self.cfg.model.hidden_size,
+                                      l1=self.cfg.model.alpha,
+                                      optim_params=self.cfg.experiment.optimizer,
+                                      scheduler_params=self.cfg.experiment.scheduler,
+                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
+                                      )
 
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
         mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
-        mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
+        mlflow.log_params({'scheduler': self.cfg.experiment.get('scheduler', None)})
         
         self.create_model()
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}',
                                        gpus=self.cfg.experiment.get('gpus', None),
-                                       precision=self.cfg.model.precision,
+                                       precision=self.cfg.model.get('precision', None),
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")
@@ -251,16 +259,25 @@ class NNExperiment(LocalExperiment):
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
 
     def load_best_model(self):
-        self.model = MLPPredictor.load_from_checkpoint(
-            self.trainer.checkpoint_callback.best_model_path,
-            input_size=self.X_train.shape[1],
-            hidden_size=self.cfg.model.hidden_size,
-            l1=self.cfg.model.alpha,
-            optim_params=self.cfg.experiment.optimizer,
-            scheduler_params=self.cfg.experiment.scheduler
-        )
+        if self.cfg.study == 'tg':
+            self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                            nclass=len(TG_SUPERPOP_DICT), nfeat=self.X_train.shape[1],
+                                                            optim_params=self.cfg.experiment.optimizer,
+                                                            scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                                            loss=TYPE_LOSS_DICT[
+                                                                PHENO_TYPE_DICT[self.cfg.phenotype.name]]
+                                                            )
+        else:
+            self.model = MLPPredictor.load_from_checkpoint(
+                self.trainer.checkpoint_callback.best_model_path,
+                input_size=self.X_train.shape[1],
+                hidden_size=self.cfg.model.hidden_size,
+                l1=self.cfg.model.alpha,
+                optim_params=self.cfg.experiment.optimizer,
+                scheduler_params=self.cfg.experiment.scheduler
+            )
         
-    def eval_and_log(self):
+    def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
         self.model.eval()
         train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
         
@@ -268,16 +285,16 @@ class NNExperiment(LocalExperiment):
         val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
         test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
                 
-        r2_train = r2_score(self.y_train, train_preds)
-        r2_val = r2_score(self.y_val, val_preds)
-        r2_test = r2_score(self.y_test, test_preds)
+        metric_train = metric_fun(y_true=self.y_train, y_pred=train_preds)
+        metric_val = metric_fun(y_true=self.y_val, y_pred=val_preds)
+        metric_test = metric_fun(y_true=self.y_test, y_pred=test_preds)
         
-        print(f"Train r2: {r2_train}")
-        mlflow.log_metric('train_r2', r2_train)
-        print(f"Val r2: {r2_val}")
-        mlflow.log_metric('val_r2', r2_val)
-        print(f"Test r2: {r2_test}")
-        mlflow.log_metric('test_r2', r2_test)
+        print(f"Train {metric_name}: {metric_train}")
+        mlflow.log_metric(f'train_{metric_name}', metric_train)
+        print(f"Val {metric_name}: {metric_val}")
+        mlflow.log_metric(f'val_{metric_name}', metric_val)
+        print(f"Test {metric_name}: {metric_test}")
+        mlflow.log_metric(f'test_{metric_name}', metric_test)
 
 
 class LassoNetExperiment(NNExperiment):

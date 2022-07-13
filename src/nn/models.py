@@ -30,12 +30,14 @@ class BaseNet(LightningModule):
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
         y_hat = self(x)
+
+        raise ValueError("The fact that all samples eventually yield the same prediction probably means that all sample weights are set to 0 and only an intercept plays a role")
         raw_loss = self.calculate_loss(y_hat, y)
         reg = self.regularization()
         loss = raw_loss + reg
         return {'loss': loss, 'raw_loss': raw_loss.detach(), 'reg': reg.detach(), 'batch_len': x.shape[0]}
 
-    def calculate_loss(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError('subclasses of BaseNet should implement loss calculation')
 
     def regularization(self) -> torch.Tensor:
@@ -104,18 +106,17 @@ class BaseNet(LightningModule):
 
 
     def _configure_sgd(self):
-        last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
         optimizer = torch.optim.SGD([
             {
-                'params': self.parameters(), 
-                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**last_epoch,
-                'initial_lr': self.optim_params['lr'], 
-            }], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
+                'params': self.parameters(),
+                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**self.current_round*self.scheduler_params['epochs_in_round'] if self.scheduler_params is not None else self.optim_params['lr'],
+                'initial_lr': self.optim_params['lr'],
+            }], lr=self.optim_params['lr'], weight_decay=self.optim_params.get('weight_decay', 0))
 
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(
+        schedulers = [torch.optim.lr_scheduler.ExponentialLR(
             optimizer, gamma=self.scheduler_params['gamma'], last_epoch=self.current_round*self.scheduler_params['epochs_in_round']
-        )
-        return [optimizer], [scheduler]
+        )] if self.scheduler_params is not None else None
+        return [optimizer], schedulers
 
     def configure_optimizers(self):
         optim_init = {
@@ -233,6 +234,27 @@ class MLPPredictor(BaseNet):
             test_metrics = None
         metrics = RegMetrics(train_metrics, val_metrics, test_metrics, epoch=self.fl_current_epoch())
         return metrics
+
+
+class MLPClassifier(BaseNet):
+    def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss) -> None:
+        super().__init__(input_size=None, optim_params=optim_params, scheduler_params=scheduler_params)
+        self.fc1 = Linear(nfeat, 200)
+        self.fc2 = Linear(200, 100)
+        self.fc3 = Linear(100, nclass)
+        self.loss = loss
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = relu(self.fc1(x))
+        x = relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
+
+    def regularization(self):
+        return torch.tensor(0)
+
+    def calculate_loss(self, y_hat, y):
+        return self.loss(y_hat.squeeze(1), y)
 
 
 class LassoNetRegressor(BaseNet):
