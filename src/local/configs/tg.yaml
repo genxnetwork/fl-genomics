@@ -5,7 +5,7 @@ defaults:
 
 study: tg
 split_dir: /media/storage/TG/data/chip/superpop_split
-node: EUR
+node: ALL
 fold_index: 0
 
 phenotype:

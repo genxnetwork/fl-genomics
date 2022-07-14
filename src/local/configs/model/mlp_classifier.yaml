@@ -2,8 +2,8 @@
 model:
   name: mlp
   precision: 32
-  max_epochs: 100
-  patience: 1000
+  max_epochs: 10000
+  patience: 100
 
 experiment:
   gpus: 1

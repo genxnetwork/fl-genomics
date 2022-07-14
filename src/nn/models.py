@@ -4,7 +4,7 @@ from pytorch_lightning import LightningModule
 import torch
 from torch.nn import Linear, BatchNorm1d
 from torch.nn.init import uniform_ as init_uniform_
-from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu
+from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu, softmax
 from torch.utils.data import DataLoader
 from torchmetrics import R2Score
 import mlflow
@@ -30,8 +30,6 @@ class BaseNet(LightningModule):
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
         y_hat = self(x)
-
-        raise ValueError("The fact that all samples eventually yield the same prediction probably means that all sample weights are set to 0 and only an intercept plays a role")
         raw_loss = self.calculate_loss(y_hat, y)
         reg = self.regularization()
         loss = raw_loss + reg
@@ -247,7 +245,7 @@ class MLPClassifier(BaseNet):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = relu(self.fc1(x))
         x = relu(self.fc2(x))
-        x = self.fc3(x)
+        x = softmax(self.fc3(x), dim=1)
         return x
 
     def regularization(self):

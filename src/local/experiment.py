@@ -97,9 +97,9 @@ class LocalExperiment(object):
             else:
                 self.load_covariates_()
         elif self.cfg.study == 'tg':
-            self.X_train = load_plink_pcs(path=self.cfg.data.x_reduced.train).values
-            self.X_val = load_plink_pcs(path=self.cfg.data.x_reduced.val).values
-            self.X_test = load_plink_pcs(path=self.cfg.data.x_reduced.test).values
+            self.X_train = load_plink_pcs(path=self.cfg.data.x_reduced.train, order_as_in_file=self.cfg.data.phenotype.train).values
+            self.X_val = load_plink_pcs(path=self.cfg.data.x_reduced.val, order_as_in_file=self.cfg.data.phenotype.val).values
+            self.X_test = load_plink_pcs(path=self.cfg.data.x_reduced.test, order_as_in_file=self.cfg.data.phenotype.test).values
         else:
             raise ValueError('Please define the study in config! See src/configs/default.yaml')
 
