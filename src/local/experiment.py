@@ -16,7 +16,7 @@ from xgboost import XGBRegressor
 from sklearn.metrics import r2_score
 import torch
 
-from configs.split_config import tg_pop_codes, TG_SUPERPOP_DICT
+from configs.split_config import TG_SUPERPOP_DICT
 from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
 from nn.lightning import DataModule
@@ -75,9 +75,9 @@ class LocalExperiment(object):
     def load_data(self):
         self.logger.info("Loading data")
 
-        self.y_train = load_phenotype(self.cfg.data.phenotype.train, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
-        self.y_val = load_phenotype(self.cfg.data.phenotype.val, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
-        self.y_test = load_phenotype(self.cfg.data.phenotype.test, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode_dict=tg_pop_codes if self.cfg.study == 'tg' else None)
+        self.y_train = load_phenotype(self.cfg.data.phenotype.train, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode=(self.cfg.study == 'tg'))
+        self.y_val = load_phenotype(self.cfg.data.phenotype.val, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode=(self.cfg.study == 'tg'))
+        self.y_test = load_phenotype(self.cfg.data.phenotype.test, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode=(self.cfg.study == 'tg'))
 
         # if phenotype is continuous and the base value is provided, subtract it
         if (PHENO_TYPE_DICT[self.cfg.phenotype.name] == 'continuous') & (self.cfg.phenotype.name in MEAN_PHENO_DICT.keys()):
@@ -101,6 +101,8 @@ class LocalExperiment(object):
             self.X_train = load_plink_pcs(path=self.cfg.data.x_reduced.train, order_as_in_file=self.cfg.data.phenotype.train).values
             self.X_val = load_plink_pcs(path=self.cfg.data.x_reduced.val, order_as_in_file=self.cfg.data.phenotype.val).values
             self.X_test = load_plink_pcs(path=self.cfg.data.x_reduced.test, order_as_in_file=self.cfg.data.phenotype.test).values
+
+            numpy.savez('/home/genxadmin/tmp.npz', X_train=self.X_train, y_train=self.y_train, X_test=self.X_test, y_test=self.y_test)
         else:
             raise ValueError('Please define the study in config! See src/configs/default.yaml')
 
@@ -228,7 +230,7 @@ class NNExperiment(LocalExperiment):
     
     def create_model(self):
         if self.cfg.study == 'tg':
-            self.model = MLPClassifier(nclass=len(TG_SUPERPOP_DICT), nfeat=self.X_train.shape[1],
+            self.model = MLPClassifier(nclass=len(set(self.y_train)), nfeat=self.X_train.shape[1],
                                       optim_params=self.cfg.experiment.optimizer,
                                       scheduler_params=self.cfg.experiment.get('scheduler', None),
                                       loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
@@ -262,7 +264,7 @@ class NNExperiment(LocalExperiment):
     def load_best_model(self):
         if self.cfg.study == 'tg':
             self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
-                                                            nclass=len(TG_SUPERPOP_DICT), nfeat=self.X_train.shape[1],
+                                                            nclass=len(set(self.y_train)), nfeat=self.X_train.shape[1],
                                                             optim_params=self.cfg.experiment.optimizer,
                                                             scheduler_params=self.cfg.experiment.get('scheduler', None),
                                                             loss=TYPE_LOSS_DICT[
