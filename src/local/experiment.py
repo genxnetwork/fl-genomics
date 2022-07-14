@@ -26,6 +26,7 @@ from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUM
     TYPE_METRIC_DICT
 from utils.loaders import load_plink_pcs
 
+
 class LocalExperiment(object):
     """
     Base class for experiments in a local setting

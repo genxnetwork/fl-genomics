@@ -44,4 +44,10 @@ class SplitTG(SplitBase):
             if make_pgen:
                 self.make_split_pgen(split_id_path, prefix=os.path.join(SPLIT_GENO_DIR, prefix), bin_file_type='--pfile', bin_file=TG_BFILE_PATH)
 
-        return list(set(TG_SUPERPOP_DICT.values()))
+        # create the folder ALL with all data to make runs easier
+        split_id_path = os.path.join(SPLIT_ID_DIR, f"ALL.tsv")
+        df.loc[:, 'IID'].to_csv(split_id_path, index=False, sep='\t', header=False)
+        if make_pgen:
+            self.make_split_pgen(split_id_path, prefix=os.path.join(SPLIT_GENO_DIR, 'ALL'), bin_file_type='--pfile',
+                                 bin_file=TG_BFILE_PATH)
+        return list(set(TG_SUPERPOP_DICT.values())) + ['ALL']
