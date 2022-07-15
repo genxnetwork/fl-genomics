@@ -1,11 +1,11 @@
 defaults:
   - _self_
-  - model: mlp
+  - model: mlp_classifier
   - experiment: tg
 
 study: tg
 split_dir: /media/storage/TG/data/chip/superpop_split
-node: EUR
+node: ALL
 fold_index: 0
 
 phenotype:
@@ -20,9 +20,9 @@ data:
 
   x_reduced:
     root: ${split_dir}/pca/${node}/fold_${fold_index}
-    train: ${.root}_train_projections.sscore
-    val: ${.root}_val_projections.sscore
-    test: ${.root}_test_projections.sscore
+    train: ${.root}_train_projections.csv.eigenvec.sscore
+    val: ${.root}_val_projections.csv.eigenvec.sscore
+    test: ${.root}_test_projections.csv.eigenvec.sscore
 
   phenotype:
     root: ${split_dir}/only_phenotypes/ancestry/${node}/fold_${fold_index}

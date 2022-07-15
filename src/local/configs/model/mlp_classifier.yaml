@@ -1,0 +1,17 @@
+# @package _global_
+model:
+  name: mlp
+  precision: 32
+  max_epochs: 10000
+  patience: 1000
+
+experiment:
+  gpus: 1
+  optimizer:
+    name: sgd
+    lr: 0.1
+  scheduler:
+    rounds: ${model.max_epochs}
+    epochs_in_round: 1
+    name: exponential_lr
+    gamma: 0.999
