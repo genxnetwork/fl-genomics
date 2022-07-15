@@ -237,16 +237,18 @@ class MLPPredictor(BaseNet):
 class MLPClassifier(BaseNet):
     def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss) -> None:
         super().__init__(input_size=None, optim_params=optim_params, scheduler_params=scheduler_params)
+        self.bn = BatchNorm1d(nfeat)
         self.fc1 = Linear(nfeat, 200)
         self.fc2 = Linear(200, 100)
         self.fc3 = Linear(100, nclass)
         self.loss = loss
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.bn(x)
         x = relu(self.fc1(x))
         x = relu(self.fc2(x))
-        x = softmax(self.fc3(x), dim=1)
-        return x
+        # x = softmax(, dim=1)
+        return self.fc3(x)
 
     def regularization(self):
         return torch.tensor(0)

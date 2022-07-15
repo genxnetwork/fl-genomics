@@ -3,7 +3,7 @@ model:
   name: mlp
   precision: 32
   max_epochs: 10000
-  patience: 100
+  patience: 1000
 
 experiment:
   gpus: 1
@@ -11,9 +11,7 @@ experiment:
     name: sgd
     lr: 0.1
   scheduler:
-    name: one_cycle_lr
     rounds: ${model.max_epochs}
     epochs_in_round: 1
-    div_factor: 25
-    final_div_factor: 1e+5
-    gamma: 0.98
+    name: exponential_lr
+    gamma: 0.999
