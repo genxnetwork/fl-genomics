@@ -1,5 +1,6 @@
+import sys
 from abc import abstractmethod
-
+sys.path.append('..')
 import hydra
 import logging
 from sys import stdout
@@ -404,10 +405,7 @@ class LassoNetExperiment(NNExperiment):
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
-    'lasso': simple_estimator_factory(LassoCV),
-    'xgboost': XGBExperiment,
-    'mlp': NNExperiment,
-    'lassonet': LassoNetExperiment
+    'xgboost': XGBExperiment
 }
 
             
