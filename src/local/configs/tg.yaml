@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - model: xgboost
+  - model: xgb_classifier
   - experiment: tg
 
 study: tg

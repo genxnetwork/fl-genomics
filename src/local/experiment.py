@@ -1,6 +1,7 @@
-import sys
 from abc import abstractmethod
+import sys
 sys.path.append('..')
+
 import hydra
 import logging
 from sys import stdout
@@ -13,8 +14,9 @@ from mlflow.types import Schema, TensorSpec
 from mlflow.models.signature import ModelSignature
 from numpy import hstack, argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
-from xgboost import XGBRegressor
+from xgboost import XGBRegressor, XGBClassifier
 from sklearn.metrics import r2_score
+
 import torch
 
 from configs.split_config import TG_SUPERPOP_DICT
@@ -26,6 +28,7 @@ from nn.models import MLPPredictor, LassoNetRegressor, MLPClassifier
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.loaders import load_plink_pcs
+from sklearn.metrics import accuracy_score
 
 
 class LocalExperiment(object):
@@ -217,6 +220,34 @@ class XGBExperiment(LocalExperiment):
         self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)],
                        early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
 
+class XGBExperiment_classifier(LocalExperiment):
+    def __init__(self, cfg):
+        LocalExperiment.__init__(self, cfg)
+        self.model = XGBClassifier(**self.cfg.model.params)
+
+    def train(self):
+        self.logger.info("Training")
+        autolog()
+        self.model.fit(self.X_train, self.y_train, eval_set=[(self.X_val, self.y_val)],
+                       early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
+
+    def eval_and_log(self, metric_fun=accuracy_score, metric_name='accuracy'):
+        metric_fun = accuracy_score # TODO Make this func receive metric_fun through this func params properly
+        self.logger.info("Evaluating model")
+        preds_train = self.model.predict(self.X_train)
+        preds_val = self.model.predict(self.X_val)
+        preds_test = self.model.predict(self.X_test)
+        metric_train = metric_fun(self.y_train, preds_train)
+        metric_val = metric_fun(self.y_val, preds_val)
+        metric_test = metric_fun(self.y_test, preds_test)
+
+        print(f"Train {metric_name}: {metric_train}")
+        mlflow.log_metric('train_r2', metric_train)
+        print(f"Val {metric_name}: {metric_val}")
+        mlflow.log_metric('val_r2', metric_val)
+        print(f"Test {metric_name}: {metric_test}")
+        mlflow.log_metric('test_r2', metric_test)
+
 class NNExperiment(LocalExperiment):
     def __init__(self, cfg):
         LocalExperiment.__init__(self, cfg)
@@ -405,7 +436,11 @@ class LassoNetExperiment(NNExperiment):
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
-    'xgboost': XGBExperiment
+    'lasso': simple_estimator_factory(LassoCV),
+    'xgboost': XGBExperiment,
+    'xgb_classifier': XGBExperiment_classifier,
+    'mlp': NNExperiment,
+    'lassonet': LassoNetExperiment
 }
 
             
