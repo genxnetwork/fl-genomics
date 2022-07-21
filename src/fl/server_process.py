@@ -7,7 +7,7 @@ import numpy
 from flwr.server import start_server
 from flwr.server.strategy import FedAvg
 
-from fl.federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, MlflowLogger, fit_round, on_evaluate_config_fn
+from fl.federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, MCScaffold, MlflowLogger, fit_round, on_evaluate_config_fn
 
 
 def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: int, checkpoint_dir: str) -> FedAvg:
@@ -44,13 +44,15 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: 
     if strategy_params.name == 'fedavg':
         return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     elif strategy_params.name == 'qfedavg':
-        return MCQFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
+        return MCQFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     elif strategy_params.name ==  'fedadam':
-        return MCFedAdam(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
+        return MCFedAdam(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     elif strategy_params.name == 'fedadagrad':
-        return MCFedAdagrad(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, on_evaluate_config_fn=on_evaluate_config_fn, **args)
+        return MCFedAdagrad(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
+    elif strategy_params.name == 'scaffold':
+        return MCScaffold(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
     else:
-        raise ValueError(f'Strategy name {strategy_params.name} should be one of the ["fedavg", "qfedavg", "fedadam", "fedadagrad"]')
+        raise ValueError(f'Strategy name {strategy_params.name} should be one of the ["fedavg", "qfedavg", "fedadam", "fedadagrad", "scaffold"]')
 
 
 class Server(Process):

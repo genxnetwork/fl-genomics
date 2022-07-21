@@ -2,26 +2,30 @@ import json
 import numpy
 from omegaconf import DictConfig
 from time import time
+from pytorch_lightning import Callback
 import torch
 from logging import Logger
 import mlflow
 from typing import Dict, List, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.utilities.model_summary import _format_summary_table, summarize
+from abc import ABC, abstractmethod
 
 from flwr.client import NumPyClient
-from flwr.common.typing import Weights
+from flwr.common import Weights, parameters_to_weights
 
 from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
 from nn.lightning import DataModule
 from nn.utils import Metrics
+from fl.federation.callbacks import ScaffoldCallback
+from fl.federation.utils import weights_to_module_params, bytes_to_weights
 
 
 class ModelFactory:
     """Class for creating models based on model name from config
 
     Raises:
-        ValueError: If model is not one of the linear_regressor, mlp_regressor
+        ValueError: If model is not one of the linear_regressor, mlp_regressor, lassonet_regressor
 
     """    
     @staticmethod
@@ -70,10 +74,19 @@ class ModelFactory:
         return create_func(input_size, covariate_count, params)
 
 
-class MetricsLogger:
+class CallbackFactory:
+    @staticmethod
+    def create_callbacks(params: DictConfig) -> List[Callback]:
+        if params.strategy.name == 'scaffold':
+            return [ScaffoldCallback(params.strategy.args.K, log_grad=True, log_diff=True)]
+
+
+class MetricsLogger(ABC):
+    @abstractmethod
     def log_eval_metric(self, metric: Metrics):
         pass
-
+    
+    @abstractmethod
     def log_weights(self, rnd: int, layers: List[str], old_weights: Weights, new_weights: Weights):
         pass
 
@@ -91,21 +104,22 @@ class MLFlowMetricsLogger(MetricsLogger):
 
 
 class FLClient(NumPyClient):
-    def __init__(self, server: str, data_module: DataModule, node_params: DictConfig, logger: Logger, metrics_logger: MetricsLogger):
+    def __init__(self, server: str, data_module: DataModule, params: DictConfig, logger: Logger, metrics_logger: MetricsLogger):
         """Trains {model} in federated setting
 
         Args:
             server (str): Server address with port
             data_module (DataModule): Module with train, val and test dataloaders
-            node_params (Dict): Node config with model, dataset, and training parameters
+            params (DictConfig): OmegaConf DictConfig with subnodes strategy and node. `node` should have `model`, and `training` parameters
             logger (Logger): Process-specific logger of text messages
             metrics_logger (MetricsLogger): Process-specific logger of metrics and weights (mlflow, neptune, etc)
         """        
         self.server = server
-        self.model = ModelFactory.create_model(data_module.feature_count(), data_module.covariate_count(), node_params)
+        self.model = ModelFactory.create_model(data_module.feature_count(), data_module.covariate_count(), params.node)
+        self.callbacks = CallbackFactory.create_callbacks(params)
         self.data_module = data_module
         self.best_model_path = None
-        self.node_params = node_params
+        self.node_params = params.node
         self.logger = logger
         self.metrics_logger = metrics_logger
         self.log(f'cuda device count: {torch.cuda.device_count()}')
@@ -115,19 +129,36 @@ class FLClient(NumPyClient):
     def log(self, msg):
         self.logger.info(msg)
 
-    def get_parameters(self):
+    def get_parameters(self) -> Weights:
         return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
 
-    def set_parameters(self, parameters):
-        params_dict = zip(self.model.state_dict().keys(), parameters)
-        state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict if v.shape != ()})
+    def set_parameters(self, weights: Weights):
+        state_dict = weights_to_module_params(self._get_layer_names(), weights)
         self.model.load_state_dict(state_dict, strict=True)
 
     def _get_layer_names(self) -> List[str]:
-        return [key for key, _ in self.model.state_dict().items()]
+        return list(self.model.state_dict().keys())
 
-    def fit(self, parameters, config):
+    def update_callbacks(self, update_params: Dict, **kwargs):
+        if self.callbacks is None:
+            return
+        for callback in self.callbacks:
+            if isinstance(callback, ScaffoldCallback):
+                callback.c_global = weights_to_module_params(self._get_layer_names(), bytes_to_weights(update_params['c_global']))
+                callback.update_c_local(
+                    kwargs['eta'], callback.c_global, 
+                    new_params=self.model.state_dict(),
+                    old_params=weights_to_module_params(self._get_layer_names(), kwargs['old_params'])
+                )
+    
+    def _reseed_torch(self):
+        torch.manual_seed(self.node_params.index*100 + self.model.current_round)
+
+
+    def fit(self, parameters: Weights, config):
         # self.log(f'started fitting with config {config}')
+        self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=parameters)
+
         try:
             # to catch spurious error "weakly-referenced object no longer exists"
             # probably ref to some model parameter tensor get lost
@@ -143,7 +174,10 @@ class FLClient(NumPyClient):
         self.model.train()
         # self.log('set model to train')
         self.model.current_round = config['current_round']
-        trainer = Trainer(logger=False, **self.node_params.training)
+        # because train_dataloader will get the same seed and return the same permutation of training samples each federated round
+        self._reseed_torch()
+        trainer = Trainer(logger=False, **{**self.node_params.training, **{'callbacks': self.callbacks}})
+        
         # self.log('trainer created')
         trainer.fit(self.model, datamodule=self.data_module)
         # self.log('model fitted by trainer')
@@ -151,7 +185,7 @@ class FLClient(NumPyClient):
         self.log(f'node: {self.node_params.index}\tfit elapsed: {end-start:.2f}s')
         return self.get_parameters(), self.data_module.train_len(), {}
 
-    def evaluate(self, parameters, config):
+    def evaluate(self, parameters: Weights, config):
         self.log(f'starting to set parameters in evaluate with config {config}')
         old_weights = self.get_parameters()
         self.metrics_logger.log_weights(self.model.fl_current_epoch(), self._get_layer_names(), old_weights, parameters)

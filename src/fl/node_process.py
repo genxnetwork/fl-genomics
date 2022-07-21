@@ -188,7 +188,6 @@ class Node(Process):
                 continue
             except Exception as e:
                 self.logger.error(e)
-                self.logger.error(e.with_traceback())
                 raise e
         return False
 
@@ -200,7 +199,7 @@ class Node(Process):
         mlflow_client = MlflowClient()
         data_module = self._load_data()
         metrics_logger = MLFlowMetricsLogger()
-        client = FLClient(self.server_url, data_module, self.cfg.node, self.logger, metrics_logger)
+        client = FLClient(self.server_url, data_module, self.cfg, self.logger, metrics_logger)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(

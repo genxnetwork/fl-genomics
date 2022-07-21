@@ -59,7 +59,7 @@ class BaseNet(LightningModule):
         mlflow.log_metric('train_loss', avg_loss, self.fl_current_epoch())
         mlflow.log_metric('raw_loss', avg_raw_loss, self.fl_current_epoch())
         mlflow.log_metric('reg', avg_reg, self.fl_current_epoch())
-        mlflow.log_metric('lr', self._get_current_lr(), self.fl_current_epoch())
+        mlflow.log_metric('lr', self.get_current_lr(), self.fl_current_epoch())
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
@@ -70,9 +70,12 @@ class BaseNet(LightningModule):
     def fl_current_epoch(self):
         return (self.current_round - 1) * self.scheduler_params['epochs_in_round'] + self.current_epoch
 
-    def _get_current_lr(self):
-        optim = self.trainer.optimizers[0] 
-        lr = optim.param_groups[0]['lr']
+    def get_current_lr(self):
+        if self.trainer is not None:
+            optim = self.trainer.optimizers[0] 
+            lr = optim.param_groups[0]['lr']
+        else:
+            return self.optim_params['lr']
         return lr
     
     def _configure_adamw(self):

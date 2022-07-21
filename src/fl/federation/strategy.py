@@ -1,12 +1,12 @@
 import json
 import pickle
 import shutil
-from typing import List, Tuple, Optional, Dict
+from threading import local
+from typing import List, Tuple, Optional, Dict, cast
 import logging
 import numpy
 import os
 import mlflow
-
 
 from flwr.common import (
     EvaluateRes,
@@ -15,14 +15,17 @@ from flwr.common import (
     Weights,
     Parameters,
     FitRes,
+    FitIns,
     parameters_to_weights,
     weights_to_parameters
 )
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
+from flwr.server.strategy.aggregate import aggregate
 from flwr.server.client_manager import ClientManager
 
 from nn.utils import LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from fl.federation.utils import weights_to_bytes, bytes_to_weights
 
 
 def fit_round(rnd: int):
@@ -260,4 +263,71 @@ class MCFedAdam(MCMixin,FedAdam):
         return None
 
 
-# class MCScaffold(MCMixin,FedAvg):
+class Scaffold(FedAvg):
+    def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, **kwargs) -> None:
+        self.K = K
+        self.local_lr = local_lr
+        self.global_lr = global_lr
+        self.c_global = None
+        self.old_weights = None
+        super().__init__(**kwargs)
+
+    def aggregate_fit(
+        self, rnd: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[BaseException]
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        
+        # List[List[numpy.ndarray]]
+        client_weights = [parameters_to_weights(fit_res.parameters) for _, fit_res in results]
+
+        for layer_index, old_layer_weight in enumerate(self.old_weights):
+            layer_diff = sum([(1/(self.K*self.local_lr))*(old_layer_weight - cw[layer_index]) for cw in client_weights])
+            cg_layer = self.c_global[layer_index]
+            # print(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {cg_layer.shape}\tlayer_diff: {layer_diff.shape}')
+            self.c_global[layer_index] = cg_layer + 1/len(client_weights)*(-cg_layer + layer_diff)
+
+        new_weights = aggregate([(cw, 1) for cw in client_weights])
+        for layer_index, (old_layer_weight, new_layer_weight) in enumerate(zip(self.old_weights, new_weights)):
+            # print('weights aggregation: ', layer_index, type(old_layer_weight), type(new_layer_weight))
+            # print(old_layer_weight.shape, new_layer_weight.shape)
+            # if layer_index == 6:
+            #     print(f'new_layer_weight is {new_layer_weight}')
+            if not isinstance(new_layer_weight, numpy.ndarray):
+                continue
+                # new_layer_weight = numpy.array([new_layer_weight])
+            self.old_weights[layer_index] += self.global_lr * (new_layer_weight - old_layer_weight)
+
+        return weights_to_parameters(self.old_weights), {}
+
+    def configure_fit(
+        self, rnd: int, parameters: Parameters, client_manager: ClientManager
+    ) -> List[Tuple[ClientProxy, FitIns]]:
+
+        client_configs = super().configure_fit(rnd, parameters, client_manager)
+        for client_proxy, fit_ins in client_configs:
+            fit_ins.config['c_global'] = weights_to_bytes(self.c_global)
+        return client_configs
+
+
+class MCScaffold(MCMixin, Scaffold):
+    def __init__(self, strategy_logger: StrategyLogger, checkpointer: Checkpointer, **kwargs) -> None:
+        initial_parameters = weights_to_parameters([numpy.zeros((1,1))])
+        self.weights_inited_properly = False
+        super().__init__(strategy_logger, checkpointer, initial_parameters=initial_parameters, **kwargs)
+
+    def evaluate(self, parameters: Parameters) -> Optional[Tuple[float, Dict[str, Scalar]]]:
+        cen_ev = super().evaluate(parameters)
+        # scaffold calculates updates using old and new weights
+        # we need to set initial weights
+        # evaluate called by server after getting random initial parameters from one of the clients
+        # we set those parameters as initial weights
+        if not self.weights_inited_properly:
+            print(f'initializing weights!!!')
+            self.old_weights = parameters_to_weights(parameters)
+            self.c_global = [numpy.zeros_like(ow) for ow in self.old_weights]
+            self.weights_inited_properly = True
+        else:
+            print(f'we do not need to initialize weights')
+        return cen_ev
+
+    def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
+        return None
