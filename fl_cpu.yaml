@@ -1,0 +1,30 @@
+name: fl
+channels:
+    - pytorch
+    - conda-forge
+    - bioconda
+dependencies:
+    - python==3.9.9
+    - pandas
+    - matplotlib
+    - numpy
+    - pytorch
+    - scikit-learn
+    - cython
+    - plink2
+    - snakemake
+    - zarr
+    - omegaconf
+    - pip
+    - pip:
+      - pytorch-lightning
+      - mlflow
+      - flwr==0.17.0
+      - hydra-core
+      - ukb-loader
+      - qmplot
+      # for https://github.com/pytorch/pytorch/pull/69904
+      - setuptools==59.5.0
+      - plotly==5.7.0
+      - dash==2.3.1
+
