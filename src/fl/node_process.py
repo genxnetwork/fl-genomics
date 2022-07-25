@@ -15,10 +15,9 @@ import numpy
 import flwr
 from sklearn.linear_model import LinearRegression
 
-from fl.datasets.memory import load_from_pgen, load_phenotype, load_covariates, get_sample_indices
 from nn.lightning import DataModule
 from fl.federation.client import FLClient
-from configs.phenotype_config import MEAN_PHENO_DICT
+from local.experiment import NNExperiment
 
 
 @dataclass
@@ -59,6 +58,7 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
+        self.experiment = NNExperiment(cfg)
     
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step
@@ -93,62 +93,21 @@ class Node(Process):
         Returns:
             DataModule: Subclass of LightningDataModule for loading data during training
         """        
-        test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
-
-        self.log(f'loading train sample indices from pfile {self.cfg.data.genotype.train} and phenotype {self.cfg.data.phenotype.train}')
-        self.log(f'loading val sample indices from pfile {self.cfg.data.genotype.val} and phenotype {self.cfg.data.phenotype.val}')
-        self.log(f'loading test sample indices from pfile {self.cfg.data.genotype.test} and phenotype {self.cfg.data.phenotype.test}')
-
-        sample_indices_train = get_sample_indices(self.cfg.data.genotype.train,
-                                                       self.cfg.data.phenotype.train)
-        sample_indices_val = get_sample_indices(self.cfg.data.genotype.val,
-                                                     self.cfg.data.phenotype.val)
-
-        
-        sample_indices_test = get_sample_indices(self.cfg.data.genotype.test,
-                                                      self.cfg.data.phenotype.test)
-
-        X_train = load_from_pgen(self.cfg.data.genotype.train, 
-            self.cfg.data.gwas, 
-            snp_count=None,
-            sample_indices=sample_indices_train, 
-            missing=self.cfg.experiment.missing) 
-        X_val = load_from_pgen(
-            self.cfg.data.genotype.val, 
-            self.cfg.data.gwas, 
-            snp_count=None, 
-            sample_indices=sample_indices_val,
-            missing=self.cfg.experiment.missing) 
-        X_test = load_from_pgen(
-            self.cfg.data.genotype.test, 
-            self.cfg.data.gwas,
-            snp_count=None, 
-            sample_indices=sample_indices_test, 
-            missing=self.cfg.experiment.missing) 
-
-        self.log(f'We have {X_train.shape[1]} snps, {X_train.shape[0]} train samples and {X_val.shape[0]} val samples')
-        
-        X_cov_train = load_covariates(self.cfg.data.covariates.train).astype(numpy.float16)
-        X_cov_val = load_covariates(self.cfg.data.covariates.val).astype(numpy.float16)
-        X_cov_test = load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :].astype(numpy.float16)
-
-        self.log(f'dtypes are : {X_train.dtype}, {X_val.dtype}, {X_test.dtype}, {X_cov_train.dtype}, {X_cov_val.dtype}, {X_cov_test.dtype}')
-        self.log(f'We added {X_cov_train.shape[1]} covariates and got {X_train.shape[1] + X_cov_train.shape[1]} total features')
-        
-        y_train, y_val, y_test = load_phenotype(self.cfg.data.phenotype.train), load_phenotype(self.cfg.data.phenotype.val), load_phenotype(self.cfg.data.phenotype.test)
-        self.log(f'phenotypes dtypes are : {y_train.dtype}, {y_val.dtype}, {y_test.dtype}')
-
-        self.log(f'We have {y_train.shape[0]} train, {y_val.shape[0]} val, {y_test.shape[0]} test phenotypes')
-        self.y_train = y_train - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
-        self.y_val = y_val - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
-        self.y_test = y_test - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
-        self.feature_count = X_train.shape[1]
-        self.covariate_count = X_cov_train.shape[1]
+        self.feature_count = self.experiment.x.train.shape[1]
+        self.covariate_count = self.experiment.x_cov.train.shape[1]
         self.snp_count = self.feature_count - self.covariate_count
-        self.sample_count = X_train.shape[0]
+        self.sample_count = self.experiment.x.train.shape[0]
 
-        data_module = DataModule(X_train, X_val, X_test, self.y_train, self.y_val, self.y_test, self.cfg.node.model.batch_size,
-                                 X_cov_train, X_cov_val, X_cov_test)
+        data_module = DataModule(self.experiment.x.train, 
+                                 self.experiment.x.val, 
+                                 self.experiment.x.test, 
+                                 self.experiment.y.train, 
+                                 self.experiment.y.val, 
+                                 self.experiment.y.test, 
+                                 self.cfg.node.model.batch_size,
+                                 self.experiment.x_cov.train, 
+                                 self.experiment.x_cov.val, 
+                                 self.experiment.x_cov.test)
         return data_module
 
     def _pretrain(self) -> numpy.ndarray:
@@ -158,13 +117,11 @@ class Node(Process):
             numpy.ndarray: Coefficients of covarites without intercept
         """        
         lr = LinearRegression()
-        cov_train = load_covariates(self.cfg.data.covariates.train)
-        cov_val = load_covariates(self.cfg.data.covariates.val)
-        lr.fit(cov_train, self.y_train)
-        val_r2 = lr.score(cov_val, self.y_val)
-        train_r2 = lr.score(cov_train, self.y_train)
-        cov_count = cov_train.shape[1]
-        self.log(f'pretraining on {cov_train.shape[0]} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+        lr.fit(self.experiment.x_cov.train, self.experiment.y.train)
+        val_r2 = lr.score(self.experiment.x_cov.val, self.experiment.y.val)
+        train_r2 = lr.score(self.experiment.x_cov.train, self.y_train)
+        samples, cov_count = self.experiment.x_cov.train.shape
+        self.log(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
         return lr.coef_
         
     def _train_model(self, client: FLClient) -> bool:
