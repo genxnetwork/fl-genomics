@@ -19,7 +19,7 @@ dependencies:
     - pip:
       - pytorch-lightning
       - mlflow
-      - flwr
+      - flwr==0.17.0
       - hydra-core
       - ukb-loader
       - qmplot
