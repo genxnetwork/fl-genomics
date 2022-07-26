@@ -43,6 +43,19 @@ def get_active_nodes(cfg: DictConfig):
     return active_nodes
 
 
+def get_log_dir():
+    if 'SLURM_JOB_ID' in os.environ:
+        # we are on a slurm cluster
+        return f'logs/job-{os.environ["SLURM_JOB_ID"]}'
+    else:
+        old_dirs = []
+        for dirname in os.listdir('logs'):
+            dr = os.path.join('logs', dirname)
+            if os.path.isdir(dr) and dirname.startswith('job-'):
+                old_dirs.append(int(dirname[4:]))
+            return f'logs/job-{max(old_dirs) + 1}'
+        
+
 @hydra.main(config_path='configs', config_name='default')
 def run(cfg: DictConfig):
     
@@ -51,7 +64,7 @@ def run(cfg: DictConfig):
     # parse command-line runner.py arguments
     queue = multiprocessing.Queue()
     server_url = f'{gethostname()}:8080'
-    log_dir = f'logs/job-{os.environ["SLURM_JOB_ID"]}'
+    log_dir = get_log_dir()
     os.makedirs(log_dir, exist_ok=True)
 
     mlflow_url = os.environ.get('MLFLOW_TRACKING_URI', './mlruns')
@@ -67,7 +80,6 @@ def run(cfg: DictConfig):
             'params_hash': params_hash,
             'description': cfg.experiment.description,
             'phenotype': cfg.data.phenotype.name,
-            #TODO: make it a parameter
             'split': cfg.split.name,
         }
     ) as run:

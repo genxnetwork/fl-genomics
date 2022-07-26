@@ -75,7 +75,11 @@ class LocalExperiment(object):
     def load_data(self):
         self.logger.info("Loading data")
         self.x, self.y = self.loader.load()
-        self.x_cov, self.y_cov = self.loader.load_covariates()
+        
+        if self.cfg.study == 'ukb':
+            self.x_cov, self.y_cov = self.loader.load_covariates()
+            self.logger.info(f"{self.x_cov.train.shape[1]} covariates loaded")
+
         self.logger.info(f"{self.x.train.shape[1]} features loaded")
     
     @abstractmethod
@@ -220,6 +224,20 @@ class NNExperiment(LocalExperiment):
         mlflow.log_metric(f'val_{metric_name}', metric_val)
         print(f"Test {metric_name}: {metric_test}")
         mlflow.log_metric(f'test_{metric_name}', metric_test)
+
+    def pretrain(self):
+        """Pretrains linear regression on phenotype and covariates
+
+        Returns:
+            numpy.ndarray: Coefficients of covarites without intercept
+        """        
+        lr = LinearRegression()
+        lr.fit(self.x_cov.train, self.y.train)
+        val_r2 = lr.score(self.x_cov.val, self.y.val)
+        train_r2 = lr.score(self.x_cov.train, self.y.train)
+        samples, cov_count = self.x_cov.train.shape
+        self.log(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+        return lr.coef_
 
 
 class LassoNetExperiment(NNExperiment):

@@ -131,7 +131,6 @@ class ExperimentDataLoader:
         return SampleIndex(si_train, si_val, si_test)
 
 
-
 def load_plink_pcs(path, order_as_in_file=None):
     """ Loads PLINK's eigenvector matrix (e.g. to be used as X for TG). If @order_as_in_file is not None,
      reorder rows of the matrix to match (IID-wise) rows of the file """

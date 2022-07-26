@@ -1,0 +1,33 @@
+name: 'superpop_split' 
+path: '/media/storage/TG/data/chip/${.name}'
+nodes: 
+  AMR:
+    name: 'North America'
+    resources:
+      gpus: 0
+    sample_count: 368
+    index: 0
+  SAS:
+    name: 'South America'
+    resources:
+      gpus: 0
+    sample_count: 531
+    index: 1
+  EUR:
+    name: 'Europe'
+    resources:
+      gpus: 0
+    sample_count: 543
+    index: 2
+  EAS:
+    name: 'East Asia'
+    resources:
+      gpus: 0
+    sample_count: 512
+    index: 3
+  AFR:
+    name: 'Africa'
+    resources:
+      gpus: 0
+    sample_count: 685
+    index: 4

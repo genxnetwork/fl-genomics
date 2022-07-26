@@ -86,44 +86,7 @@ class Node(Process):
         self.log(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
         # logging.info(f'run info id in _start_client_run is {run.info.run_id}')
         return mlflow.start_run(run.info.run_id, nested=True)
-
-    def _load_data(self) -> DataModule:
-        """Loads genotypes, covariates and phenotypes into DataModule
-
-        Returns:
-            DataModule: Subclass of LightningDataModule for loading data during training
-        """        
-        self.feature_count = self.experiment.x.train.shape[1]
-        self.covariate_count = self.experiment.x_cov.train.shape[1]
-        self.snp_count = self.feature_count - self.covariate_count
-        self.sample_count = self.experiment.x.train.shape[0]
-
-        data_module = DataModule(self.experiment.x.train, 
-                                 self.experiment.x.val, 
-                                 self.experiment.x.test, 
-                                 self.experiment.y.train, 
-                                 self.experiment.y.val, 
-                                 self.experiment.y.test, 
-                                 self.cfg.node.model.batch_size,
-                                 self.experiment.x_cov.train, 
-                                 self.experiment.x_cov.val, 
-                                 self.experiment.x_cov.test)
-        return data_module
-
-    def _pretrain(self) -> numpy.ndarray:
-        """Pretrains linear regression on phenotype and covariates
-
-        Returns:
-            numpy.ndarray: Coefficients of covarites without intercept
-        """        
-        lr = LinearRegression()
-        lr.fit(self.experiment.x_cov.train, self.experiment.y.train)
-        val_r2 = lr.score(self.experiment.x_cov.val, self.experiment.y.val)
-        train_r2 = lr.score(self.experiment.x_cov.train, self.y_train)
-        samples, cov_count = self.experiment.x_cov.train.shape
-        self.log(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
-        return lr.coef_
-        
+      
     def _train_model(self, client: FLClient) -> bool:
         """
         Trains a model using {client} for FL 
@@ -152,9 +115,9 @@ class Node(Process):
         self._configure_logging()
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
-        data_module = self._load_data()
+        self.experiment.load_data()
 
-        client = FLClient(self.server_url, data_module, self.cfg.node, self.logger)
+        client = FLClient(self.server_url, self.experiment.data_module, self.cfg.node, self.logger)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
@@ -174,7 +137,7 @@ class Node(Process):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
             if self.cfg.experiment.pretrain_on_cov:
-                cov_weights = self._pretrain() 
+                cov_weights = self.experiment.pretrain()
                 client.model.set_covariate_weights(cov_weights)
             self._train_model(client)
             
