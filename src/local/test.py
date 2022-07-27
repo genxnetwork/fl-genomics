@@ -11,6 +11,10 @@ from local.experiment import LassoNetExperiment
 
 @hydra.main(config_path='configs', config_name='test')
 def test(cfg: DictConfig):
+    '''
+    Load a lassonet model from the specified node of a train experiment, then test it on a different node
+    and log the results.
+    '''
     print(cfg)
     
     experiment = LassoNetExperiment(cfg)
