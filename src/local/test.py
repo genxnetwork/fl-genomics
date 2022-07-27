@@ -18,12 +18,13 @@ def test(cfg: DictConfig):
     experiment.load_data()
     
     print("Loading train experiment")
-    train_experiment = mlflow.get_experiment_by_name('ethnic-split-all-snps-train')
+    train_experiment = mlflow.get_experiment_by_name(cfg.experiment.train_name)
     runs = mlflow.list_run_infos(train_experiment.experiment_id)
     df = mlflow.search_runs(experiment_ids=[train_experiment.experiment_id])
 
+    # Check that the selected training run exists and is unique
     assert(sum(df['tags.node_index'] == str(cfg.train_node_index)) == 1)
-    mlflow_run_id = df.loc[(df['tags.node_index'] == str(cfg.train_node_index)) and (df['tags.snp_count'] == '200000'), 'run_id'].values[0]
+    mlflow_run_id = df.loc[(df['tags.node_index'] == str(cfg.train_node_index)) and (df['tags.snp_count'] == str(cfg.experiment.snp_count)), 'run_id'].values[0]
     run = mlflow.get_run(mlflow_run_id)
     loaded = mlflow.pytorch.load_model(f"runs:/{mlflow_run_id}/lassonet-model")
     loaded.eval()
