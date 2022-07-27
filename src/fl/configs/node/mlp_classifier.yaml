@@ -1,4 +1,5 @@
 index: ???
+name: ???
 model:
   name: mlp_classifier
   batch_size: 128

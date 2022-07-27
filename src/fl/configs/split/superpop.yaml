@@ -6,28 +6,28 @@ nodes:
     resources:
       gpus: 0
     sample_count: 368
-    index: 0
+    index: AMR
   SAS:
     name: 'South America'
     resources:
       gpus: 0
     sample_count: 531
-    index: 1
+    index: SAS
   EUR:
     name: 'Europe'
     resources:
       gpus: 0
     sample_count: 543
-    index: 2
+    index: EUR
   EAS:
     name: 'East Asia'
     resources:
       gpus: 0
     sample_count: 512
-    index: 3
+    index: EAS
   AFR:
     name: 'Africa'
     resources:
       gpus: 0
     sample_count: 685
-    index: 4
+    index: AFR

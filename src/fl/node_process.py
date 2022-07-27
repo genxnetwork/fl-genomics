@@ -29,10 +29,14 @@ class MlflowInfo:
 class TrainerInfo:
     devices: Union[List[int], int]
     accelerator: str
-    node_index: int
+    node_name: str
+    node_index: str
 
     def to_dotlist(self) -> List[str]:
-        return [f'node.index={self.node_index}', f'node.training.devices={self.devices}', f'node.training.accelerator={self.accelerator}']
+        return [f'node.name={self.node_name}', 
+                f'node.index={self.node_index}', 
+                f'training.devices={self.devices}', 
+                f'training.accelerator={self.accelerator}']
 
 
 class Node(Process):
@@ -45,11 +49,11 @@ class Node(Process):
             log_dir (str): Logging directory, where node-{node_index}.log file will be created
             mlflow_info (MlflowInfo): Mlflow parent run and experiment IDs
             queue (Queue): Queue for communication between processes
-            cfg_path (str): Path to full yaml configs
+            cfg (DictConfig): Full config with fields model, optimizer, scheduler, experiment, data
             trainer_info (TrainerInfo): Where to train node
         """        
         Process.__init__(self, **kwargs)
-        os.environ['MASTER_PORT'] = str(47000+numpy.random.randint(1000)+trainer_info.node_index) 
+        os.environ['MASTER_PORT'] = str(47000+numpy.random.randint(1000)+hash(trainer_info.node_index) % 100)
         self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
         self.trainer_info = trainer_info
@@ -58,7 +62,7 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
-        self.experiment = NNExperiment(cfg)
+        self.experiment = NNExperiment(self.cfg)
     
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step
@@ -117,7 +121,7 @@ class Node(Process):
         mlflow_client = MlflowClient()
         self.experiment.load_data()
 
-        client = FLClient(self.server_url, self.experiment.data_module, self.cfg.node, self.logger)
+        client = FLClient(self.server_url, self.experiment.data_module, self.cfg, self.logger)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
@@ -130,8 +134,8 @@ class Node(Process):
                 'phenotype': self.cfg.data.phenotype.name,
                 #TODO: make it a parameter
                 'split': self.cfg.split.name,
-                'snp_count': str(self.snp_count),
-                'sample_count': str(self.sample_count)
+                # 'snp_count': str(self.snp_count),
+                # 'sample_count': str(self.sample_count)
             }
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))

@@ -10,7 +10,7 @@ from flwr.server.strategy import FedAvg
 from fl.federation.strategy import Checkpointer, MCFedAvg, MCFedAdagrad, MCFedAdam, MCQFedAvg, MlflowLogger, fit_round, on_evaluate_config_fn
 
 
-def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: int, checkpoint_dir: str) -> FedAvg:
+def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: int, checkpoint_dir: str, model_type: str) -> FedAvg:
     """Creates flwr Strategy from strategy configs entry
 
     Args:
@@ -39,7 +39,7 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: 
 
     logging.info(f'strategy args: {args}')
 
-    mlflow_logger = MlflowLogger(epochs_in_round, 'lassonet_regressor')
+    mlflow_logger = MlflowLogger(epochs_in_round, model_type)
     checkpointer = Checkpointer(checkpoint_dir)
     if strategy_params.name == 'fedavg':
         return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
@@ -79,9 +79,10 @@ class Server(Process):
         self._configure_logging()
         node_count = len(self.cfg.split.nodes) if self.cfg.strategy.active_nodes == 'all' else len(self.cfg.strategy.active_nodes)
         strategy = get_strategy(self.cfg.strategy, 
-                                self.cfg.node.scheduler.epochs_in_round, 
+                                self.cfg.scheduler.epochs_in_round, 
                                 node_count,
-                                os.path.join(self.cfg.server.checkpoint_dir, self.params_hash))
+                                os.path.join(self.cfg.server.checkpoint_dir, self.params_hash),
+                                self.cfg.model.name)
         start_server(
                     server_address="[::]:8080",
                     strategy=strategy,

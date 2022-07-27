@@ -3,7 +3,8 @@ from typing import Tuple, Any
 from omegaconf import DictConfig
 import numpy
 import logging
-from numpy.typing import NDArray 
+from numpy.typing import NDArray
+import omegaconf 
 import pandas as pd
 
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
@@ -36,13 +37,14 @@ class ExperimentDataLoader:
         self.logger = logging.getLogger()
 
     def _load_phenotype(self, path: str) -> numpy.ndarray:
-        phenotype = load_phenotype(path, out_type=PHENO_NUMPY_DICT[self.cfg.phenotype.name], encode=(self.cfg.study == 'tg'))
-        if (PHENO_TYPE_DICT[self.cfg.phenotype.name] == 'continuous') & (self.cfg.phenotype.name in MEAN_PHENO_DICT.keys()):
-            return phenotype - MEAN_PHENO_DICT[self.cfg.phenotype.name]
+        phenotype = load_phenotype(path, out_type=PHENO_NUMPY_DICT[self.cfg.data.phenotype.name], encode=(self.cfg.study == 'tg'))
+        if (PHENO_TYPE_DICT[self.cfg.data.phenotype.name] == 'continuous') & (self.cfg.data.phenotype.name in MEAN_PHENO_DICT.keys()):
+            return phenotype - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
         else:
             return phenotype
         
     def load(self) -> Tuple[X, Y]:
+
         y_train = self._load_phenotype(self.cfg.data.phenotype.train)
         y_val = self._load_phenotype(self.cfg.data.phenotype.val)
         y_test = self._load_phenotype(self.cfg.data.phenotype.test)

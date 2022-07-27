@@ -19,7 +19,7 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
 from flwr.server.client_manager import ClientManager
 
-from nn.utils import LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from nn.utils import ClfFederatedMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
 
 
 def fit_round(rnd: int):
@@ -39,7 +39,7 @@ class MlflowLogger:
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
-        if model_type not in ['lassonet_regressor', 'mlp_regressor']:
+        if model_type not in ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier']:
             raise ValueError(f'model_type should be one of the lassonet_regressor, mlp_regressor and not {model_type}')
 
         self.model_type = model_type
@@ -55,7 +55,10 @@ class MlflowLogger:
             Metrics: Metrics reduced over clients
         """       
         metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
-        fed_metrics = RegFederatedMetrics(metric_list, rnd*self.epochs_in_round)
+        if self.model_type == 'mlp_classifier':
+            fed_metrics = ClfFederatedMetrics(metric_list, rnd*self.epochs_in_round)
+        else:
+            fed_metrics = RegFederatedMetrics(metric_list, rnd*self.epochs_in_round)
         # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
         # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
         avg_metrics = fed_metrics.reduce()

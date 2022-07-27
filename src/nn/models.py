@@ -6,11 +6,11 @@ from torch.nn import Linear, BatchNorm1d
 from torch.nn.init import uniform_ as init_uniform_
 from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu, softmax
 from torch.utils.data import DataLoader
-from torchmetrics import R2Score
+from torchmetrics import Accuracy, R2Score
 import mlflow
 
 from nn.lightning import DataModule
-from nn.utils import LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
+from nn.utils import ClfLoaderMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
 
 
 class BaseNet(LightningModule):
@@ -238,6 +238,7 @@ class MLPClassifier(BaseNet):
     def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss) -> None:
         super().__init__(input_size=None, optim_params=optim_params, scheduler_params=scheduler_params)
         self.bn = BatchNorm1d(nfeat)
+        self.nclass = nclass
         self.fc1 = Linear(nfeat, 200)
         self.fc2 = Linear(200, 100)
         self.fc3 = Linear(100, nclass)
@@ -255,6 +256,29 @@ class MLPClassifier(BaseNet):
 
     def calculate_loss(self, y_hat, y):
         return self.loss(y_hat.squeeze(1), y)
+
+    def _pred_metrics(self, prefix: str, y_pred: torch.Tensor, y_true: torch.Tensor) -> Metrics:
+        loss = self.calculate_loss(y_pred, y_true)
+        accuracy = Accuracy(num_classes=self.nclass)
+        return ClfLoaderMetrics(prefix, loss.item(), accuracy(y_pred, y_true).item(), 
+                                epoch=self.fl_current_epoch(), samples=y_pred.shape[0])
+    
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
+        train_loader, val_loader, test_loader = datamodule.predict_dataloader()
+        y_train_pred, y_train = self.predict(train_loader)
+        y_val_pred, y_val = self.predict(val_loader)
+        
+        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
+        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
+        
+        if test:
+            y_test_pred, y_test = self.predict(test_loader)
+            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
+        else:
+            test_metrics = None
+            
+        metrics = ClfMetrics(train_metrics, val_metrics, test_metrics, self.fl_current_epoch())
+        return metrics
 
 
 class LassoNetRegressor(BaseNet):

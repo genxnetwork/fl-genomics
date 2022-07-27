@@ -149,9 +149,9 @@ class NNExperiment(LocalExperiment):
     def load_data(self):
         LocalExperiment.load_data(self)
         self.data_module = DataModule(self.x.train, self.x.val, self.x.test,
-                                      self.y.train.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
-                                      self.y.val.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
-                                      self.y.test.astype(PHENO_NUMPY_DICT[self.cfg.phenotype.name]),
+                                      self.y.train.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+                                      self.y.val.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+                                      self.y.test.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
                                       batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
     
     def create_model(self):
@@ -159,7 +159,7 @@ class NNExperiment(LocalExperiment):
             self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
                                       optim_params=self.cfg.experiment.optimizer,
                                       scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
+                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
                                       )
         else:
             self.model = MLPPredictor(input_size=self.x.train.shape[1],
@@ -167,7 +167,7 @@ class NNExperiment(LocalExperiment):
                                       l1=self.cfg.model.alpha,
                                       optim_params=self.cfg.experiment.optimizer,
                                       scheduler_params=self.cfg.experiment.scheduler,
-                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]]
+                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
                                       )
 
     def train(self):
@@ -176,7 +176,7 @@ class NNExperiment(LocalExperiment):
         mlflow.log_params({'scheduler': self.cfg.experiment.get('scheduler', None)})
         
         self.create_model()
-        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}',
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
                                        gpus=self.cfg.experiment.get('gpus', None),
                                        precision=self.cfg.model.get('precision', None),
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
@@ -194,7 +194,7 @@ class NNExperiment(LocalExperiment):
                                                             optim_params=self.cfg.experiment.optimizer,
                                                             scheduler_params=self.cfg.experiment.get('scheduler', None),
                                                             loss=TYPE_LOSS_DICT[
-                                                                PHENO_TYPE_DICT[self.cfg.phenotype.name]]
+                                                                PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
                                                             )
         else:
             self.model = MLPPredictor.load_from_checkpoint(
@@ -290,7 +290,7 @@ class LassoNetExperiment(NNExperiment):
         weight = self.model.layer.weight.data
         weight[:, snp_count:] = cov_weights
         self.model.layer.weight = torch.nn.Parameter(weight)
-        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")

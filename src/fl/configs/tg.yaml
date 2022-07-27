@@ -1,18 +1,19 @@
 defaults:
   - _self_
   - experiment: tg
-  - node: mlp_classifier
-  - split: region
+  - model: mlp_classifier
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
+  - split: superpop
   - strategy: fedavg
 
 study: tg
-split_dir: /media/storage/TG/data/chip/superpop_split
-node: ALL
 fold:
   index: 0
-
-phenotype:
-  name: ancestry
+node:
+  index: ???
+  name: ???
 
 server:
   rounds: 8
@@ -20,19 +21,20 @@ server:
 
 data:
   genotype:
-    root: ${split_dir}/genotypes/${node}/fold_${fold_index}
+    root: ${split.path}/genotypes/${node.index}/fold_${fold.index}
     train: ${.root}_train
     val: ${.root}_val
     test: ${.root}_test
 
   x_reduced:
-    root: ${split_dir}/pca/${node}/fold_${fold_index}
+    root: ${split.path}/pca/${node.index}/fold_${fold.index}
     train: ${.root}_train_projections.csv.eigenvec.sscore
     val: ${.root}_val_projections.csv.eigenvec.sscore
     test: ${.root}_test_projections.csv.eigenvec.sscore
 
   phenotype:
-    root: ${split_dir}/only_phenotypes/ancestry/${node}/fold_${fold_index}
+    name: ancestry
+    root: ${split.path}/only_phenotypes/ancestry/${node.index}/fold_${fold.index}
     train: ${.root}_train.tsv
     val: ${.root}_val.tsv
     test: ${.root}_test.tsv
