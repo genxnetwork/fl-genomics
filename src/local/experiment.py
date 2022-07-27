@@ -154,22 +154,6 @@ class NNExperiment(LocalExperiment):
                                       self.y.test.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
                                       batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
     
-    def create_model(self):
-        if self.cfg.study == 'tg':
-            self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                      optim_params=self.cfg.experiment.optimizer,
-                                      scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
-                                      )
-        else:
-            self.model = MLPPredictor(input_size=self.x.train.shape[1],
-                                      hidden_size=self.cfg.model.hidden_size,
-                                      l1=self.cfg.model.alpha,
-                                      optim_params=self.cfg.experiment.optimizer,
-                                      scheduler_params=self.cfg.experiment.scheduler,
-                                      loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
-                                      )
-
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
         mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
@@ -179,33 +163,14 @@ class NNExperiment(LocalExperiment):
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
                                        gpus=self.cfg.experiment.get('gpus', None),
                                        precision=self.cfg.model.get('precision', None),
-                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
+                                       max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
         print("Fitted")
         self.load_best_model()
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
-
-    def load_best_model(self):
-        if self.cfg.study == 'tg':
-            self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
-                                                            nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                                            optim_params=self.cfg.experiment.optimizer,
-                                                            scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                                            loss=TYPE_LOSS_DICT[
-                                                                PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
-                                                            )
-        else:
-            self.model = MLPPredictor.load_from_checkpoint(
-                self.trainer.checkpoint_callback.best_model_path,
-                input_size=self.x.train.shape[1],
-                hidden_size=self.cfg.model.hidden_size,
-                l1=self.cfg.model.alpha,
-                optim_params=self.cfg.experiment.optimizer,
-                scheduler_params=self.cfg.experiment.scheduler
-            )
-        
+       
     def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
         self.model.eval()
         train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
@@ -238,6 +203,44 @@ class NNExperiment(LocalExperiment):
         samples, cov_count = self.x_cov.train.shape
         self.log(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
         return lr.coef_
+
+
+class TGNNExperiment(NNExperiment):
+    def create_model(self):
+        self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                   optim_params=self.cfg.experiment.optimizer,
+                                   scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                   loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
+                                   )
+
+
+    def load_best_model(self):
+        self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                        nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                                        optim_params=self.cfg.experiment.optimizer,
+                                                        scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                                        loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
+                                                        )
+
+class ClfNNExperiment(NNExperiment):
+    def create_model(self):
+        self.model = MLPPredictor(input_size=self.x.train.shape[1],
+                                  hidden_size=self.cfg.model.hidden_size,
+                                  l1=self.cfg.model.alpha,
+                                  optim_params=self.cfg.experiment.optimizer,
+                                  scheduler_params=self.cfg.experiment.scheduler,
+                                  loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
+                                  )
+
+    def load_best_model(self):
+        self.model = MLPPredictor.load_from_checkpoint(
+                self.trainer.checkpoint_callback.best_model_path,
+                input_size=self.x.train.shape[1],
+                hidden_size=self.cfg.model.hidden_size,
+                l1=self.cfg.model.alpha,
+                optim_params=self.cfg.experiment.optimizer,
+                scheduler_params=self.cfg.experiment.scheduler
+            )
 
 
 class LassoNetExperiment(NNExperiment):
@@ -343,20 +346,31 @@ class LassoNetExperiment(NNExperiment):
         
         
 # Dict of possible experiment types and their corresponding classes
-experiment_dict = {
+ukb_experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
     'xgboost': XGBExperiment,
-    'mlp': NNExperiment,
+    'mlp_regressor': NNExperiment,
     'lassonet': LassoNetExperiment
+}
+
+tg_experiment_dict = {
+    'mlp_classifier': TGNNExperiment
 }
 
             
 @hydra.main(config_path='configs', config_name='tg')
 def local_experiment(cfg: DictConfig):
     print(cfg)
-    assert cfg.model.name in experiment_dict.keys()
-    experiment = experiment_dict[cfg.model.name](cfg)
+    assert cfg.study in ['tg', 'ukb']
+    if cfg.study == 'ukb':
+        assert cfg.model.name in ukb_experiment_dict.keys()
+        experiment = ukb_experiment_dict[cfg.model.name](cfg)
+    else:
+        assert cfg.model.name in tg_experiment_dict.keys()
+        experiment = tg_experiment_dict[cfg.model.name](cfg)
+
     experiment.run()   
+    
     
 if __name__ == '__main__':
     local_experiment()
