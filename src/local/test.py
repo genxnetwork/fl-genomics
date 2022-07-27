@@ -1,6 +1,5 @@
 import hydra
-from omegaconf import DictConfig
-
+from omegaconf import OmegaConf
 import mlflow
 import numpy as np
 from pytorch_lightning import Trainer
