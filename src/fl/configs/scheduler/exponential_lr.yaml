@@ -1,0 +1,4 @@
+name: exponential_lr
+rounds: ${server.rounds}
+epochs_in_round: 4
+gamma: 0.999

@@ -25,6 +25,7 @@ data:
     test: ${.root}_test_projections.csv.eigenvec.sscore
 
   phenotype:
+    name: ancestry
     root: ${split_dir}/only_phenotypes/ancestry/${node}/fold_${fold_index}
     train: ${.root}_train.tsv
     val: ${.root}_val.tsv

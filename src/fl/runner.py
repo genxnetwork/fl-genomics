@@ -26,8 +26,8 @@ def get_cfg_hash(cfg: DictConfig):
 def configure_logging():
     # loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
     all_names = [name for name in logging.root.manager.loggerDict]
-    print('logger names:')
-    print(all_names)
+    # print('logger names:')
+    # print(all_names)
     names = ['flower', 'pytorch_lightning']
     for name in names:
         logger = logging.getLogger(name)
@@ -43,6 +43,21 @@ def get_active_nodes(cfg: DictConfig):
     return active_nodes
 
 
+def get_log_dir():
+    os.makedirs('logs', exist_ok=True)
+    if 'SLURM_JOB_ID' in os.environ:
+        # we are on a slurm cluster
+        return f'logs/job-{os.environ["SLURM_JOB_ID"]}'
+    else:
+        old_dirs = []
+        for dirname in os.listdir('logs'):
+            dr = os.path.join('logs', dirname)
+            if os.path.isdir(dr) and dirname.startswith('job-'):
+                old_dirs.append(int(dirname[4:]))
+            return f'logs/job-{max(old_dirs) + 1}'
+        return f'logs/job-1'
+        
+
 @hydra.main(config_path='configs', config_name='default')
 def run(cfg: DictConfig):
     
@@ -51,7 +66,7 @@ def run(cfg: DictConfig):
     # parse command-line runner.py arguments
     queue = multiprocessing.Queue()
     server_url = f'{gethostname()}:8080'
-    log_dir = f'logs/job-{os.environ["SLURM_JOB_ID"]}'
+    log_dir = get_log_dir()
     os.makedirs(log_dir, exist_ok=True)
 
     mlflow_url = os.environ.get('MLFLOW_TRACKING_URI', './mlruns')
@@ -67,7 +82,6 @@ def run(cfg: DictConfig):
             'params_hash': params_hash,
             'description': cfg.experiment.description,
             'phenotype': cfg.data.phenotype.name,
-            #TODO: make it a parameter
             'split': cfg.split.name,
         }
     ) as run:
@@ -83,9 +97,9 @@ def run(cfg: DictConfig):
             need_gpu = node_info.resources.get('gpus', 0)
             if need_gpu:
                 gpu_index += 1
-                trainer_info = TrainerInfo([gpu_index], 'gpu', node_info.index)
+                trainer_info = TrainerInfo([gpu_index], 'gpu', node_info.name, node_info.index)
             else:
-                trainer_info = TrainerInfo(1, 'cpu', node_info.index)
+                trainer_info = TrainerInfo(1, 'cpu', node_info.name, node_info.index)
             node = Node(server_url, log_dir, info, queue, cfg, trainer_info)
             node.start()
             print(f'starting node {node_info.index}, name: {node_info.name}')
