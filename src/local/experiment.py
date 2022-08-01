@@ -13,8 +13,10 @@ from mlflow.models.signature import ModelSignature
 from numpy import argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
 from xgboost import XGBRegressor
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, accuracy_score
 import torch
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_validate
 
 from configs.split_config import TG_SUPERPOP_DICT
 from local.config import node_size_dict, node_name_dict
@@ -140,6 +142,25 @@ class XGBExperiment(LocalExperiment):
         autolog()
         self.model.fit(self.x.train, self.y.train, eval_set=[(self.x.val, self.x.val)],
                        early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
+
+
+class RandomForestExperiment(LocalExperiment):
+    def __init__(self, cfg):
+        LocalExperiment.__init__(self, cfg)
+        self.model = RandomForestClassifier(**self.cfg.model.params)
+
+    def train(self):
+        self.logger.info("Training")
+        autolog()
+        self.y_test = numpy.concatenate((self.y_val, self.y_test, self.y_train), axis=0)
+        self.X_test = numpy.concatenate((self.X_val, self.X_test, self.X_train), axis=0)
+        scores = cross_validate(self.model, self.X_test, self.y_test, cv=10, return_train_score=True)
+        print(scores)
+        #self.model.fit(self.X_train.values, self.y_train.values)
+
+    def eval_and_log(self, metric_fun=accuracy_score, metric_name='accuracy'):
+    	pass
+
 
 
 class NNExperiment(LocalExperiment):
@@ -355,11 +376,12 @@ ukb_experiment_dict = {
 }
 
 tg_experiment_dict = {
-    'mlp_classifier': TGNNExperiment
+    'mlp_classifier': TGNNExperiment,
+    'random_forest': RandomForestExperiment
 }
 
             
-@hydra.main(config_path='configs', config_name='tg')
+@hydra.main(config_path='configs', config_name='rf_compare')
 def local_experiment(cfg: DictConfig):
     print(cfg)
     assert cfg.study in ['tg', 'ukb']
