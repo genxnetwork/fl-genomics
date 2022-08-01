@@ -1,0 +1,32 @@
+defaults:
+  - _self_
+  - model: random_forest
+  - experiment: tg
+
+study: tg
+split_dir: /media/storage/TG/data_compare
+node: ALL
+fold_index: 0
+
+phenotype:
+  name: ancestry
+
+data:
+  genotype:
+    root: ${split_dir}/genotypes/${node}/fold_${fold_index}
+    train: ${.root}_train
+    val: ${.root}_val
+    test: ${.root}_test
+
+  x_reduced:
+    root: ${split_dir}/new_data/x_filtered/fold_${fold_index}
+    train: ${.root}_train_projections.csv.eigenvec.sscore
+    val: ${.root}_val_projections.csv.eigenvec.sscore
+    test: ${.root}_test_projections.csv.eigenvec.sscore
+
+  phenotype:
+    name: ancestry
+    root: ${split_dir}/new_data/y_filtered/fold_${fold_index}
+    train: ${.root}_train.tsv
+    val: ${.root}_val.tsv
+    test: ${.root}_test.tsv
