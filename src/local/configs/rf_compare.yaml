@@ -13,7 +13,7 @@ phenotype:
 
 data:
   genotype:
-    root: ${split_dir}/genotypes/${node}/fold_${fold_index}
+    root: /media/storage/TG/data/chip/superpop_split/genotypes/${node}/fold_${fold_index}
     train: ${.root}_train
     val: ${.root}_val
     test: ${.root}_test
