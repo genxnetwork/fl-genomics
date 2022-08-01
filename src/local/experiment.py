@@ -1,4 +1,7 @@
 from abc import abstractmethod
+import sys
+
+sys.path.append('..')
 
 import hydra
 import logging
@@ -13,8 +16,10 @@ from mlflow.models.signature import ModelSignature
 from numpy import argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
 from xgboost import XGBRegressor
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, accuracy_score
 import torch
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import cross_validate
 
 from configs.split_config import TG_SUPERPOP_DICT
 from local.config import node_size_dict, node_name_dict
@@ -140,6 +145,25 @@ class XGBExperiment(LocalExperiment):
         autolog()
         self.model.fit(self.x.train, self.y.train, eval_set=[(self.x.val, self.x.val)],
                        early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
+
+
+class RandomForestExperiment(LocalExperiment):
+    def __init__(self, cfg):
+        LocalExperiment.__init__(self, cfg)
+        self.model = RandomForestClassifier(**self.cfg.model.params)
+
+    def train(self):
+        self.logger.info("Training")
+        autolog()
+        self.y.test = numpy.concatenate((self.y.val, self.y.test, self.y.train), axis=0)
+        self.x.test = numpy.concatenate((self.x.val, self.x.test, self.x.train), axis=0)
+        scores = cross_validate(self.model, self.x.test, self.y.test, cv=10, return_train_score=True)
+        print(scores)
+        #self.model.fit(self.X_train.values, self.y_train.values)
+
+    def eval_and_log(self, metric_fun=accuracy_score, metric_name='accuracy'):
+    	pass
+
 
 
 class NNExperiment(LocalExperiment):
@@ -355,11 +379,12 @@ ukb_experiment_dict = {
 }
 
 tg_experiment_dict = {
-    'mlp_classifier': TGNNExperiment
+    'mlp_classifier': TGNNExperiment,
+    'random_forest': RandomForestExperiment
 }
 
             
-@hydra.main(config_path='configs', config_name='tg')
+@hydra.main(config_path='configs', config_name='rf_compare')
 def local_experiment(cfg: DictConfig):
     print(cfg)
     assert cfg.study in ['tg', 'ukb']
@@ -367,6 +392,7 @@ def local_experiment(cfg: DictConfig):
         assert cfg.model.name in ukb_experiment_dict.keys()
         experiment = ukb_experiment_dict[cfg.model.name](cfg)
     else:
+        print(tg_experiment_dict.keys())
         assert cfg.model.name in tg_experiment_dict.keys()
         experiment = tg_experiment_dict[cfg.model.name](cfg)
 
