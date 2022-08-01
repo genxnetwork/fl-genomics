@@ -9,7 +9,7 @@ from mlflow.tracking import MlflowClient
 
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 
-CURRENT_EXPERIMENT_NAME = "local"
+CURRENT_EXPERIMENT_NAME = "federated-tg-avg-epochs-rounds"
 
 SELECTED_TAGS = ['tags.phenotype', 'tags.model', 'tags.dataset', 'tags.snp_count',
                  'tags.full_WB_gwas', 'tags.sample_count', 'tags.ethnicity']
