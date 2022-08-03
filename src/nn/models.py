@@ -104,15 +104,17 @@ class BaseNet(LightningModule):
 
 
     def _configure_sgd(self):
+        last_epoch = (self.current_round - 1) * self.scheduler_params['epochs_in_round'] if self.scheduler_params is not None else 0
+        
         optimizer = torch.optim.SGD([
             {
                 'params': self.parameters(),
-                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**self.current_round*self.scheduler_params['epochs_in_round'] if self.scheduler_params is not None else self.optim_params['lr'],
+                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**last_epoch if self.scheduler_params is not None else self.optim_params['lr'],
                 'initial_lr': self.optim_params['lr'],
             }], lr=self.optim_params['lr'], weight_decay=self.optim_params.get('weight_decay', 0))
 
         schedulers = [torch.optim.lr_scheduler.ExponentialLR(
-            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=self.current_round*self.scheduler_params['epochs_in_round']
+            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=last_epoch
         )] if self.scheduler_params is not None else None
         return [optimizer], schedulers
 
