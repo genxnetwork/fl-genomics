@@ -98,16 +98,18 @@ class Node(Process):
         Args:
             client (FLClient): Federation Learning client which should implement weights exchange procedures.
         """
-        for i in range(20):
+        for i in range(2):
             try:
                 print(f'starting numpy client with server {client.server}')
                 flwr.client.start_numpy_client(f'{client.server}', client)
                 return True
             except RpcError as re:
                 # probably server slurm job have not started yet
-                time.sleep(5)
+                print(re)
+                time.sleep(20)
                 continue
             except Exception as e:
+                print(e)
                 self.logger.error(e)
                 self.logger.error(e.with_traceback())
                 raise e

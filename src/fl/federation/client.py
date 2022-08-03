@@ -132,19 +132,14 @@ class FLClient(NumPyClient):
         return self.get_parameters(), self.data_module.train_len(), {}
 
     def evaluate(self, parameters, config):
-        self.log(f'starting to set parameters in evaluate with configs {config}')
         self.set_parameters(parameters)
-        self.log('set parameters in evaluate')
         self.model.eval()
 
         start = time()                
         need_test_eval = 'current_round' in config and config['current_round'] == -1
-        self.log(f'starting predict and eval with {need_test_eval}')
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
                                                         test=need_test_eval)
-        self.log('starting log to mlflow in eval')
         unreduced_metrics.log_to_mlflow()
-        self.log(f'calculating val len')
         val_len = self.data_module.val_len()
         end = time()
         self.log(f'node: {self.params.node.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')

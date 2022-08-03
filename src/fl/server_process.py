@@ -83,6 +83,8 @@ class Server(Process):
                                 node_count,
                                 os.path.join(self.cfg.server.checkpoint_dir, self.params_hash),
                                 self.cfg.model.name)
+        print(f'SERVER LOGGING CONFIGURED')
+        logging.info(f'SERVER LOGGING CONFIGURED')
         start_server(
                     server_address="[::]:8080",
                     strategy=strategy,
