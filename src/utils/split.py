@@ -70,11 +70,11 @@ class Split:
     def get_cov_pheno_path(self, node_index: int, fold_index: int, part: str) -> str:
         return os.path.join(self.cov_pheno_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
 
-    def get_phenotype_path(self, node_index: int, fold_index: int, part: str, adjusted: bool = False) -> str:
+    def get_phenotype_path(self, fold_index: int, part: str, adjusted: bool = False, node_index: int = None, node: str = None) -> str:
         if adjusted:
             return os.path.join(self.phenotypes_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.adjusted.tsv')
         else:
-            return os.path.join(self.phenotypes_dir, self.phenotype, f'node_{node_index}', f'fold_{fold_index}_{part}.tsv')
+            return os.path.join(self.phenotypes_dir, self.phenotype, f'node_{node_index}' if node_index is not None else node, f'fold_{fold_index}_{part}.tsv')
 
     def get_source_pca_path(self, node_index: int = None, node: str = None) -> str:
         return os.path.join(self.pca_dir, f'{node_index}_projections.csv.eigenvec' if node_index is not None else f'{node}_projections.csv.eigenvec')

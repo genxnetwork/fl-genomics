@@ -3,7 +3,7 @@ import numpy
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import TensorDataset, DataLoader
 
-from .memory import Int8Dataset
+from .memory import XyCovDataset
 
 
 NArr = numpy.ndarray
@@ -14,9 +14,9 @@ class DataModule(LightningDataModule):
                  y_train: NArr, y_val: NArr, y_test: NArr, batch_size: int,
                  X_cov_train: NArr = None, X_cov_val: NArr = None, X_cov_test: NArr = None):
         super().__init__()
-        self.train_dataset = Int8Dataset(X_train, y_train, X_cov_train)
-        self.val_dataset = Int8Dataset(X_val, y_val, X_cov_val)
-        self.test_dataset = Int8Dataset(X_test, y_test, X_cov_test)
+        self.train_dataset = XyCovDataset(X_train, y_train, X_cov_train)
+        self.val_dataset = XyCovDataset(X_val, y_val, X_cov_val)
+        self.test_dataset = XyCovDataset(X_test, y_test, X_cov_test)
         self.batch_size = batch_size
 
     def train_dataloader(self) -> DataLoader:

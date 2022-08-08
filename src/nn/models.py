@@ -4,13 +4,13 @@ from pytorch_lightning import LightningModule
 import torch
 from torch.nn import Linear, BatchNorm1d
 from torch.nn.init import uniform_ as init_uniform_
-from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu
+from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu, softmax
 from torch.utils.data import DataLoader
-from torchmetrics import R2Score
+from torchmetrics import Accuracy, R2Score
 import mlflow
 
 from nn.lightning import DataModule
-from nn.utils import LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
+from nn.utils import ClfLoaderMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
 
 
 class BaseNet(LightningModule):
@@ -35,7 +35,7 @@ class BaseNet(LightningModule):
         loss = raw_loss + reg
         return {'loss': loss, 'raw_loss': raw_loss.detach(), 'reg': reg.detach(), 'batch_len': x.shape[0]}
 
-    def calculate_loss(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError('subclasses of BaseNet should implement loss calculation')
 
     def regularization(self) -> torch.Tensor:
@@ -107,18 +107,19 @@ class BaseNet(LightningModule):
 
 
     def _configure_sgd(self):
-        last_epoch = self.current_round*self.scheduler_params['epochs_in_round']
+        last_epoch = (self.current_round - 1) * self.scheduler_params['epochs_in_round'] if self.scheduler_params is not None else 0
+        
         optimizer = torch.optim.SGD([
             {
-                'params': self.parameters(), 
-                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**last_epoch,
-                'initial_lr': self.optim_params['lr'], 
-            }], lr=self.optim_params['lr'], weight_decay=self.optim_params['weight_decay'])
+                'params': self.parameters(),
+                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**last_epoch if self.scheduler_params is not None else self.optim_params['lr'],
+                'initial_lr': self.optim_params['lr'],
+            }], lr=self.optim_params['lr'], weight_decay=self.optim_params.get('weight_decay', 0))
 
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=self.current_round*self.scheduler_params['epochs_in_round']
-        )
-        return [optimizer], [scheduler]
+        schedulers = [torch.optim.lr_scheduler.ExponentialLR(
+            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=last_epoch
+        )] if self.scheduler_params is not None else None
+        return [optimizer], schedulers
 
     def configure_optimizers(self):
         optim_init = {
@@ -193,12 +194,13 @@ class LinearClassifier(BaseNet):
         self.log('val_accuracy', avg_accuracy)
 
 
-class MLPRegressor(BaseNet):
-    def __init__(self, input_size: int, hidden_size: int, l1: float, optim_params: Dict, scheduler_params: Dict) -> None:
+class MLPPredictor(BaseNet):
+    def __init__(self, input_size: int, hidden_size: int, l1: float, optim_params: Dict, scheduler_params: Dict, loss = mse_loss) -> None:
         super().__init__(input_size, optim_params, scheduler_params)
         self.input = Linear(input_size, hidden_size)
         self.bn = BatchNorm1d(hidden_size)
         self.hidden = Linear(hidden_size, 1)
+        self.loss = loss
         self.l1 = l1
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
@@ -213,7 +215,7 @@ class MLPRegressor(BaseNet):
         return reg
 
     def calculate_loss(self, y_hat, y):
-        return mse_loss(y_hat.squeeze(1), y)
+        return self.loss(y_hat.squeeze(1), y)
 
     def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
         mse = mse_loss(y_hat.squeeze(1), y)
@@ -234,6 +236,55 @@ class MLPRegressor(BaseNet):
         else:
             test_metrics = None
         metrics = RegMetrics(train_metrics, val_metrics, test_metrics, epoch=self.fl_current_epoch())
+        return metrics
+
+
+class MLPClassifier(BaseNet):
+    def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss, hidden_size=800, hidden_size2=200) -> None:
+        super().__init__(input_size=None, optim_params=optim_params, scheduler_params=scheduler_params)
+        # self.bn = BatchNorm1d(nfeat)
+        self.nclass = nclass
+        self.fc1 = Linear(nfeat, hidden_size)
+        # self.bn2 = BatchNorm1d(40)
+        self.fc2 = Linear(hidden_size, hidden_size2)
+        # self.bn3 = BatchNorm1d(40)
+        self.fc3 = Linear(hidden_size2, nclass)
+        self.loss = loss
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x = self.bn(x)
+        x = relu(self.fc1(x))
+        x = relu(self.fc2(x))
+        # x = softmax(, dim=1)
+        return self.fc3(x)
+
+    def regularization(self):
+        return torch.tensor(0)
+
+    def calculate_loss(self, y_hat, y):
+        return self.loss(y_hat.squeeze(1), y)
+
+    def _pred_metrics(self, prefix: str, y_pred: torch.Tensor, y_true: torch.Tensor) -> Metrics:
+        loss = self.calculate_loss(y_pred, y_true)
+        accuracy = Accuracy(num_classes=self.nclass)
+        return ClfLoaderMetrics(prefix, loss.item(), accuracy(y_pred, y_true).item(), 
+                                epoch=self.fl_current_epoch(), samples=y_pred.shape[0])
+    
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
+        train_loader, val_loader, test_loader = datamodule.predict_dataloader()
+        y_train_pred, y_train = self.predict(train_loader)
+        y_val_pred, y_val = self.predict(val_loader)
+        
+        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
+        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
+        
+        if test:
+            y_test_pred, y_test = self.predict(test_loader)
+            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
+        else:
+            test_metrics = None
+            
+        metrics = ClfMetrics(train_metrics, val_metrics, test_metrics, self.fl_current_epoch())
         return metrics
 
 

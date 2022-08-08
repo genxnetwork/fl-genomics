@@ -24,8 +24,8 @@ from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
 from flwr.server.strategy.aggregate import aggregate
 from flwr.server.client_manager import ClientManager
 
-from nn.utils import LassoNetRegMetrics, Metrics, RegFederatedMetrics
 from fl.federation.utils import weights_to_bytes, bytes_to_weights
+from nn.utils import ClfFederatedMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
 
 
 def fit_round(rnd: int):
@@ -53,7 +53,7 @@ class MlflowLogger(StrategyLogger):
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
-        if model_type not in ['lassonet_regressor', 'mlp_regressor']:
+        if model_type not in ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier']:
             raise ValueError(f'model_type should be one of the lassonet_regressor, mlp_regressor and not {model_type}')
 
         self.model_type = model_type

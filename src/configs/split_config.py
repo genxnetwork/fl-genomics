@@ -73,3 +73,4 @@ random_seed = 32
 #                      'PEL': 'America', 'PUR': 'America', # america, hopefully native
 #                      'BEB': 'SAsia', 'PJL': 'SAsia', 'STU': 'SAsia'} # india
 TG_SUPERPOP_DICT = {'ACB': 'AFR', 'ASW': 'AFR', 'ESN': 'AFR', 'GWD': 'AFR', 'LWK': 'AFR', 'MSL': 'AFR', 'YRI': 'AFR', 'CLM': 'AMR', 'MXL': 'AMR', 'PEL': 'AMR', 'PUR': 'AMR', 'CDX': 'EAS', 'CHB': 'EAS', 'CHS': 'EAS', 'JPT': 'EAS', 'KHV': 'EAS', 'CEU': 'EUR', 'FIN': 'EUR', 'GBR': 'EUR', 'IBS': 'EUR', 'TSI': 'EUR', 'BEB': 'SAS', 'GIH': 'SAS', 'ITU': 'SAS', 'PJL': 'SAS', 'STU': 'SAS'}
+# tg_pop_codes = {k: i for i, k in enumerate(TG_SUPERPOP_DICT.keys())}  # pops to numbers for the classifier

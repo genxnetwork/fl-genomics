@@ -1,0 +1,33 @@
+defaults:
+  - _self_
+  - model: mlp_classifier
+  - experiment: tg
+
+study: tg
+split_dir: /media/storage/TG/data/chip/superpop_split
+node: ALL
+fold_index: 0
+
+phenotype:
+  name: ancestry
+
+data:
+  genotype:
+    root: ${split_dir}/genotypes/${node}/fold_${fold_index}
+    train: ${.root}_train
+    val: ${.root}_val
+    test: ${.root}_test
+
+  x_reduced:
+    root: ${split_dir}/pca/${node}/fold_${fold_index}
+    train: ${.root}_train_projections.csv.eigenvec.sscore
+    val: ${.root}_val_projections.csv.eigenvec.sscore
+    test: ${.root}_test_projections.csv.eigenvec.sscore
+
+  phenotype:
+    name: ancestry
+    root: ${split_dir}/only_phenotypes/ancestry/${node}/fold_${fold_index}
+    train: ${.root}_train.tsv
+    val: ${.root}_val.tsv
+    test: ${.root}_test.tsv
+

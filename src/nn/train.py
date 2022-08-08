@@ -33,10 +33,15 @@ def prepare_trainer(model_dir, log_dir, nn_type_name, version, gpus=1, max_epoch
 
     lr_callback = LearningRateMonitor(logging_interval='step')
 
-    trainer = Trainer(gpus=gpus, num_nodes=1,
-                      max_epochs=max_epochs,
-                      strategy='dp',
-                      callbacks=[early_stop, checkpoint_callback, lr_callback],
-                      logger=logger, **kwargs)
+    if gpus > 0:
+        trainer = Trainer(gpus=gpus, num_nodes=1,
+                          strategy='dp',
+                          max_epochs=max_epochs,
+                          callbacks=[early_stop, checkpoint_callback, lr_callback],
+                          logger=logger, **kwargs)
+    else:
+        trainer = Trainer(max_epochs=max_epochs,
+                          callbacks=[early_stop, checkpoint_callback, lr_callback],
+                          logger=logger, **kwargs)
 
     return trainer

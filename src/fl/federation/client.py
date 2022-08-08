@@ -14,15 +14,16 @@ from abc import ABC, abstractmethod
 from flwr.client import NumPyClient
 from flwr.common import Weights, parameters_to_weights
 
-from nn.models import BaseNet, LinearRegressor, MLPRegressor, LassoNetRegressor
+from nn.models import BaseNet, LinearRegressor, MLPClassifier, MLPPredictor, LassoNetRegressor
 from nn.lightning import DataModule
 from nn.utils import Metrics
 from fl.federation.callbacks import ScaffoldCallback
 from fl.federation.utils import weights_to_module_params, bytes_to_weights
+from configs.phenotype_config import PHENO_TYPE_DICT, TYPE_LOSS_DICT
 
 
 class ModelFactory:
-    """Class for creating models based on model name from config
+    """Class for creating models based on model name from configs
 
     Raises:
         ValueError: If model is not one of the linear_regressor, mlp_regressor, lassonet_regressor
@@ -38,13 +39,25 @@ class ModelFactory:
         )
 
     @staticmethod
-    def _create_mlp_regressor(input_size: int, covariate_count: int, params: Any) -> MLPRegressor:
-        return MLPRegressor(
+    def _create_mlp_regressor(input_size: int, covariate_count: int, params: Any) -> MLPPredictor:
+        return MLPPredictor(
             input_size=input_size,
             hidden_size=params.model.hidden_size,
             l1=params.model.l1,
             optim_params=params['optimizer'],
             scheduler_params=params['scheduler']
+        )
+
+    @staticmethod
+    def _create_mlp_classifier(input_size: int, covariate_count: int, params: Any) -> MLPPredictor:
+        return MLPClassifier(
+            nclass=params.model.nclass,
+            nfeat=params.model.nfeat,
+            optim_params=params['optimizer'],
+            scheduler_params=params['scheduler'],
+            loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[params.data.phenotype.name]],
+            hidden_size=params.model.hidden_size,
+            hidden_size2=params.model.hidden_size2
         )
 
     @staticmethod
@@ -65,7 +78,8 @@ class ModelFactory:
         model_dict = {
             'linear_regressor': ModelFactory._create_linear_regressor,
             'mlp_regressor': ModelFactory._create_mlp_regressor,
-            'lassonet_regressor': ModelFactory._create_lassonet_regressor
+            'lassonet_regressor': ModelFactory._create_lassonet_regressor,
+            'mlp_classifier': ModelFactory._create_mlp_classifier
         }
 
         create_func = model_dict.get(params.model.name, None)
@@ -123,8 +137,6 @@ class FLClient(NumPyClient):
         self.logger = logger
         self.metrics_logger = metrics_logger
         self.log(f'cuda device count: {torch.cuda.device_count()}')
-        self.log(f'training params are: {self.node_params.training}')
-
 
     def log(self, msg):
         self.logger.info(msg)
@@ -166,7 +178,7 @@ class FLClient(NumPyClient):
         except ReferenceError as re:
             self.logger.error(re)
             # we recreate a model and set parameters again
-            self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.node_params)
+            self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.params)
             self.set_parameters(parameters)
         
         start = time()    
@@ -182,7 +194,7 @@ class FLClient(NumPyClient):
         trainer.fit(self.model, datamodule=self.data_module)
         # self.log('model fitted by trainer')
         end = time()
-        self.log(f'node: {self.node_params.index}\tfit elapsed: {end-start:.2f}s')
+        self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
         return self.get_parameters(), self.data_module.train_len(), {}
 
     def evaluate(self, parameters: Weights, config):
@@ -190,19 +202,17 @@ class FLClient(NumPyClient):
         old_weights = self.get_parameters()
         self.metrics_logger.log_weights(self.model.fl_current_epoch(), self._get_layer_names(), old_weights, parameters)
         self.set_parameters(parameters)
-        self.log('set parameters in evaluate')
         self.model.eval()
 
         start = time()                
         need_test_eval = 'current_round' in config and config['current_round'] == -1
-        self.log(f'starting predict and eval with {need_test_eval}')
         unreduced_metrics = self.model.predict_and_eval(self.data_module, 
                                                         test=need_test_eval)
 
         self.metrics_logger.log_eval_metric(unreduced_metrics)
         val_len = self.data_module.val_len()
         end = time()
-        self.log(f'node: {self.node_params.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
+        self.log(f'node: {self.params.node.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
         # print(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
         
         results = unreduced_metrics.to_result_dict()

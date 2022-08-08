@@ -1,0 +1,8 @@
+description: MLP on TG to predict ancestry
+name: federated-tg-fedavg
+include_genotype: True
+include_covariates: False
+random_state: 40
+test_samples_limit: null
+pretrain_on_cov: False
+missing: zero

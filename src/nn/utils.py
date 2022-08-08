@@ -73,6 +73,50 @@ class RegMetrics(Metrics):
 
 
 @dataclass
+class ClfLoaderMetrics(LoaderMetrics):
+    # type of dataset, one of the {train, val, test}
+    prefix: str
+    # loss value
+    loss: float
+    # accuracy of binary\multiclass classification
+    accuracy: float
+    # epoch number
+    epoch: int
+    # count of samples
+    samples: int
+
+    def log_to_mlflow(self) -> None:
+        mlflow.log_metric(f'{self.prefix}_loss', self.loss, self.epoch)
+        mlflow.log_metric(f'{self.prefix}_accuracy', self.accuracy, self.epoch)
+
+    def to_result_dict(self) -> Dict:
+        return {f'{self.prefix}_loss': self.loss, f'{self.prefix}_accuracy': self.accuracy}
+
+
+@dataclass
+class ClfMetrics(Metrics):
+    train: ClfLoaderMetrics
+    val: ClfLoaderMetrics
+    test: ClfLoaderMetrics
+    epoch: int
+
+    @property
+    def val_loss(self) -> float:
+        return self.val.loss
+
+    def log_to_mlflow(self) -> None:
+        self.train.log_to_mlflow()
+        self.val.log_to_mlflow()
+        if self.test is not None:
+            self.test.log_to_mlflow()
+
+    def to_result_dict(self) -> Dict:
+        # train_dict, val_dict, test_dict = [m.to_result_dict() for m in [self.train, self.val, self.test]]
+        # return train_dict | val_dict | test_dict
+        return {'metrics' : pickle.dumps(self)}
+
+
+@dataclass
 class LassoNetRegMetrics(Metrics):
     train: List[RegLoaderMetrics]
     val: List[RegLoaderMetrics]
@@ -217,4 +261,60 @@ class RegFederatedMetrics(Metrics):
         return self.reduce().to_result_dict()
 
 
+@dataclass
+class ClfFederatedMetrics(Metrics):
+    
+    clients: List[Metrics]
+    epoch: int
+    
+    def _weighted_mean_metrics(self, metric_list: List[LoaderMetrics]) -> Metrics:
+        if metric_list[0] is None:
+            return None
+        samples = sum([m.samples for m in metric_list])
+        mean_weighted_loss = sum([m.loss*m.samples/samples for m in metric_list])
+        mean_weighted_accuracy = sum([m.accuracy*m.samples/samples for m in metric_list])
+        return ClfLoaderMetrics(metric_list[0].prefix, mean_weighted_loss, mean_weighted_accuracy, self.epoch, samples)
 
+    @property
+    def val_loss(self) -> float:
+        return self._weighted_mean_metrics('val', [client.val for client in self.clients]).val_loss
+
+    def reduce(self, reduction='mean'):
+        """Reduces metrics from all clients into one metrics aggregated over all clients
+
+        Args:
+            reduction (str, optional): If 'mean' then it calculates a weighed mean over clients. 
+                If 'lassonet_best', then it averages each lasso model from all clients independently 
+                and then it chooses the best model based on aggregated val loss. Defaults to 'mean'.
+
+        Returns:
+            RegMetrics | LassoNetRegMetrics: Standard aggregated metrics or lassonet multioutput metrics with best_col attribute set.
+        """        
+        if not isinstance(self.clients[0].train, List):
+            reduced_clients = [
+                [m.reduce().train for m in self.clients], 
+                [m.reduce().val for m in self.clients], 
+                [m.reduce().test for m in self.clients]
+            ]
+            train, val, test = map(self._weighted_mean_metrics, reduced_clients)
+            return ClfMetrics(train, val, test, self.epoch)
+        else:
+            lassonet_metrics = LassoNetRegMetrics([], [], [], epoch=self.epoch)
+            for col in range(len(self.clients[0].train)):
+                train_col_list = [m.train[col] for m in self.clients]
+                val_col_list = [m.val[col] for m in self.clients]
+                train, val = map(self._weighted_mean_metrics, [train_col_list, val_col_list])
+                lassonet_metrics.train.append(train)
+                lassonet_metrics.val.append(val)
+                if self.clients[0].test is not None:
+                    test_col_list = [m.test[col] for m in self.clients]
+                    test = self._weighted_mean_metrics(test_col_list)
+                    lassonet_metrics.test.append(test)
+            lassonet_metrics.best_col = numpy.argmax([vm.r2 for vm in lassonet_metrics.val])
+            return lassonet_metrics
+
+    def log_to_mlflow(self) -> None:
+        return self.reduce().log_to_mlflow()
+
+    def to_result_dict(self) -> Dict:
+        return self.reduce().to_result_dict()
