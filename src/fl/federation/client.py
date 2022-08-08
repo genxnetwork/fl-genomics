@@ -46,7 +46,9 @@ class ModelFactory:
             nfeat=params.model.nfeat,
             optim_params=params['optimizer'],
             scheduler_params=params['scheduler'],
-            loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[params.data.phenotype.name]]
+            loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[params.data.phenotype.name]],
+            hidden_size=params.model.hidden_size,
+            hidden_size2=params.model.hidden_size2
         )
 
     @staticmethod

@@ -2,3 +2,5 @@ name: mlp_classifier
 batch_size: 128
 nclass: 26
 nfeat: 20
+hidden_size: 800
+hidden_size2: 200
