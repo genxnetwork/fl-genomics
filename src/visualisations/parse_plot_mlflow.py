@@ -8,7 +8,6 @@ from mlflow.tracking import MlflowClient
 # access the tracking server using environmental variables
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 
-
 class ParsePlotMLFlow(object):
     """ Parses and plots different metrics from mlflow tracking server """
     def __init__(self):
