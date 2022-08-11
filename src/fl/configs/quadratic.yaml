@@ -1,0 +1,26 @@
+defaults:
+  - _self_
+  - experiment: quadratic
+  - model: linear_regressor
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
+  - split: quadratic
+  - strategy: fedavg
+
+study: simulation
+log_weights: False
+log_grad: False
+fold:
+  index: 0
+node:
+  index: ???
+  name: ???
+
+server:
+  rounds: 8
+  checkpoint_dir: 'models/${data.random_state.name}/fold_${fold.index}'
+
+data:
+  samples: 1000
+  random_state: 2

@@ -1,0 +1,14 @@
+name: 'quadratic' 
+nodes: 
+  first:
+    name: 'first'
+    resources:
+      gpus: 0
+    sample_count: 1000
+    index: 1
+  second:
+    name: 'second'
+    resources:
+      gpus: 0
+    sample_count: 1000
+    index: 2

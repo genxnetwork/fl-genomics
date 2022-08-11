@@ -27,7 +27,7 @@ class ScaffoldCallback(Callback):
         params = pl_module.named_parameters()
         for name, v in params:
             # print(f'on_after_backward: {name}: {v.shape}, {v.grad}')
-            if v.grad is not None:
+            if v.grad is not None and self.c_local is not None:
                 v.grad.data += (self.c_global[name].to(v.grad.data.device) - self.c_local[name].to(v.grad.data.device))
                 global_fl_step = trainer.max_steps*pl_module.fl_current_epoch()+trainer.global_step
                 if global_fl_step % 10 == 0 and self.log_grad:

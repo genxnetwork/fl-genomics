@@ -148,6 +148,8 @@ class LinearRegressor(BaseNet):
         super().__init__(input_size, optim_params, scheduler_params)
         self.layer = Linear(input_size, 1)
         self.l1 = l1
+        # TODO: move to callback
+        self.beta_history = []
 
     def regularization(self) -> torch.Tensor:
         """Calculates l1 regularization of input layer by default
@@ -163,6 +165,12 @@ class LinearRegressor(BaseNet):
     def forward(self, x) -> Any:
         return self.layer(x)
     
+    def on_after_backward(self) -> None:
+        w = self.layer.weight.detach().cpu().numpy()
+        # print(w)
+        self.beta_history.append(self.layer.weight.detach().cpu().numpy().copy())
+        return super().on_after_backward()
+        
 
 class LinearClassifier(BaseNet):
     def __init__(self, input_size: int, l1: float, lr: float, momentum: float, epochs: float) -> None:

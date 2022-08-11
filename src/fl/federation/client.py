@@ -92,7 +92,7 @@ class CallbackFactory:
     @staticmethod
     def create_callbacks(params: DictConfig) -> List[Callback]:
         if params.strategy.name == 'scaffold':
-            return [ScaffoldCallback(params.strategy.args.K, log_grad=True, log_diff=True)]
+            return [ScaffoldCallback(params.strategy.args.K, log_grad=params.log_grad, log_diff=params.log_weights)]
 
 
 class MetricsLogger(ABC):
@@ -129,11 +129,11 @@ class FLClient(NumPyClient):
             metrics_logger (MetricsLogger): Process-specific logger of metrics and weights (mlflow, neptune, etc)
         """        
         self.server = server
-        self.model = ModelFactory.create_model(data_module.feature_count(), data_module.covariate_count(), params.node)
+        self.model = ModelFactory.create_model(data_module.feature_count(), data_module.covariate_count(), params)
         self.callbacks = CallbackFactory.create_callbacks(params)
         self.data_module = data_module
         self.best_model_path = None
-        self.node_params = params.node
+        self.params = params
         self.logger = logger
         self.metrics_logger = metrics_logger
         self.log(f'cuda device count: {torch.cuda.device_count()}')
@@ -159,17 +159,16 @@ class FLClient(NumPyClient):
                 callback.c_global = weights_to_module_params(self._get_layer_names(), bytes_to_weights(update_params['c_global']))
                 callback.update_c_local(
                     kwargs['eta'], callback.c_global, 
-                    new_params=self.model.state_dict(),
-                    old_params=weights_to_module_params(self._get_layer_names(), kwargs['old_params'])
+                    old_params=self.model.state_dict(),
+                    new_params=weights_to_module_params(self._get_layer_names(), kwargs['new_params'])
                 )
     
     def _reseed_torch(self):
-        torch.manual_seed(self.node_params.index*100 + self.model.current_round)
+        torch.manual_seed(hash(self.params.node.index) + self.model.current_round)
 
 
     def fit(self, parameters: Weights, config):
         # self.log(f'started fitting with config {config}')
-        self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=parameters)
 
         try:
             # to catch spurious error "weakly-referenced object no longer exists"
@@ -188,19 +187,23 @@ class FLClient(NumPyClient):
         self.model.current_round = config['current_round']
         # because train_dataloader will get the same seed and return the same permutation of training samples each federated round
         self._reseed_torch()
-        trainer = Trainer(logger=False, **{**self.node_params.training, **{'callbacks': self.callbacks}})
+        trainer = Trainer(logger=False, **{**self.params.training, **{'callbacks': self.callbacks}})
         
         # self.log('trainer created')
         trainer.fit(self.model, datamodule=self.data_module)
         # self.log('model fitted by trainer')
         end = time()
         self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
-        return self.get_parameters(), self.data_module.train_len(), {}
+        new_params = self.get_parameters()
+        self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=parameters, new_params=new_params)
+
+        return new_params, self.data_module.train_len(), {}
 
     def evaluate(self, parameters: Weights, config):
         self.log(f'starting to set parameters in evaluate with config {config}')
         old_weights = self.get_parameters()
-        self.metrics_logger.log_weights(self.model.fl_current_epoch(), self._get_layer_names(), old_weights, parameters)
+        if self.params.log_weights:
+            self.metrics_logger.log_weights(self.model.fl_current_epoch(), self._get_layer_names(), old_weights, parameters)
         self.set_parameters(parameters)
         self.model.eval()
 

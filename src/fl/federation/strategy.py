@@ -5,6 +5,7 @@ from threading import local
 from typing import List, Tuple, Optional, Dict, cast
 import logging
 import numpy
+from numpy.linalg import norm
 import os
 import mlflow
 
@@ -25,7 +26,7 @@ from flwr.server.strategy.aggregate import aggregate
 from flwr.server.client_manager import ClientManager
 
 from fl.federation.utils import weights_to_bytes, bytes_to_weights
-from nn.utils import ClfFederatedMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
 
 
 def fit_round(rnd: int):
@@ -130,13 +131,17 @@ class MCMixin:
         """        
         self.strategy_logger = strategy_logger
         self.checkpointer = checkpointer
+        
         kwargs['on_evaluate_config_fn'] = self.on_evaluate_config_fn_closure
         super().__init__(**kwargs)
 
     def _aggregate_metrics(self, rnd: int, results: RESULTS) -> Metrics:
 
         metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
-        fed_metrics = RegFederatedMetrics(metric_list, rnd*self.strategy_logger.epochs_in_round)
+        if isinstance(metric_list[0], ClfMetrics):
+            fed_metrics = ClfFederatedMetrics(metric_list, rnd)
+        else:
+            fed_metrics = RegFederatedMetrics(metric_list, rnd)
         # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
         # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
         avg_metrics = fed_metrics.reduce()
@@ -280,10 +285,14 @@ class Scaffold(FedAvg):
         client_weights = [parameters_to_weights(fit_res.parameters) for _, fit_res in results]
 
         for layer_index, old_layer_weight in enumerate(self.old_weights):
-            layer_diff = sum([(1/(self.K*self.local_lr))*(old_layer_weight - cw[layer_index]) for cw in client_weights])
             cg_layer = self.c_global[layer_index]
-            # print(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {cg_layer.shape}\tlayer_diff: {layer_diff.shape}')
-            self.c_global[layer_index] = cg_layer + 1/len(client_weights)*(-cg_layer + layer_diff)
+            c_deltas = [-cg_layer + (1/(self.K*self.local_lr))*(old_layer_weight - cw[layer_index]) for cw in client_weights]
+            c_avg_delta = sum(c_deltas)/len(client_weights)
+            print(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
+            for i, cw in enumerate(client_weights):
+                print(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
+            
+            self.c_global[layer_index] = cg_layer + c_avg_delta
 
         new_weights = aggregate([(cw, 1) for cw in client_weights])
         for layer_index, (old_layer_weight, new_layer_weight) in enumerate(zip(self.old_weights, new_weights)):

@@ -16,7 +16,7 @@ import flwr
 from sklearn.linear_model import LinearRegression
 
 from nn.lightning import DataModule
-from fl.federation.client import FLClient
+from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
 from local.experiment import NNExperiment
 
 
@@ -121,8 +121,8 @@ class Node(Process):
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
         self.experiment.load_data()
-
-        client = FLClient(self.server_url, self.experiment.data_module, self.cfg, self.logger)
+        metrics_logger = MLFlowMetricsLogger()
+        client = FLClient(self.server_url, self.experiment.data_module, self.cfg, self.logger, metrics_logger)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(

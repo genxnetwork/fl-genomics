@@ -9,6 +9,8 @@ defaults:
   - strategy: fedavg
 
 study: tg
+log_weights: False
+log_grad: False
 fold:
   index: 0
 node:

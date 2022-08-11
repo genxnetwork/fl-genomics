@@ -7,6 +7,7 @@ MEAN_PHENO_DICT = {'standing_height': 170.0}
 
 PHENO_TYPE_DICT = {'standing height': 'continuous',
                    'ancestry': 'discrete',
+                   'quantitative': 'continuous',
                    'asthma': 'binary'}
 
 TYPE_LOSS_DICT = {'continuous': mse_loss,
