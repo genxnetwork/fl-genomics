@@ -11,6 +11,7 @@ PLINK2_EXT = ['pgen', 'pvar', 'psam']
 
 PHENOTYPE_NAME = config['phenotype']['name']
 PHENOTYPE_CODE = config['phenotype']['code']
+PHENOTYPE_TYPE = config['phenotype']['type']
 COVARIATES = config['covariates'] 
 SNP_COUNTS = config['snp_counts']
 
@@ -41,6 +42,7 @@ rule prepare_phenotypes_and_covariates:
     params:
         phenotype_name  = PHENOTYPE_NAME,
         phenotype_code  = PHENOTYPE_CODE,
+        phenotype_type  = PHENOTYPE_TYPE,
         covariates      = COVARIATES
     log:
         "logs/prepare_phenotypes_and_covariates/{phenotype}/node_{node}/fold_{fold}_{part}.log"
@@ -68,12 +70,13 @@ rule gwas:
         covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
     threads: 4
     resources:
-        time        = "01:00:00",
+        time        = "1:00:00",
         mem_mb      = 24000,
         partition   = "gpu_devel"
     params:
         out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
-        phenotype_name  = PHENOTYPE_NAME
+        phenotype_name  = PHENOTYPE_NAME,
+        phenotype_type  = PHENOTYPE_TYPE
     log: "logs/gwas/{phenotype}/node_{node}/fold_{fold}.log"
     output:
         results     = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv"

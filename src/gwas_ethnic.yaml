@@ -2,8 +2,9 @@ fold_count: 1
 ethnicities: ['WB', 'SA', 'AC', 'CN', 'Others']
 ukb_dataset: '/gpfs/gpfs0/ukb_data/processed_data/fml'
 phenotype: 
-  name: 'standing_height'
-  code: 50
+  name: 'asthma'
+  code: 1111
+  type: 'binary'
 covariates: 
   '31': 'sex'
   '21003': 'age' 
