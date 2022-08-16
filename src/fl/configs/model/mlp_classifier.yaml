@@ -1,0 +1,4 @@
+name: mlp_classifier
+batch_size: 128
+nclass: 26
+nfeat: 20

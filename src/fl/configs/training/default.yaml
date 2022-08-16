@@ -1,0 +1,8 @@
+max_epochs: ${scheduler.epochs_in_round}
+enable_progress_bar: False
+enable_model_summary: False
+num_sanity_val_steps: 0
+strategy: ddp
+devices: ???
+accelerator: ???
+enable_checkpointing: False

@@ -1,0 +1,8 @@
+# @package _global_
+
+model:
+  name: random_forest
+  params:
+    max_depth: 
+    min_samples_leaf: 1
+    n_estimators: 100

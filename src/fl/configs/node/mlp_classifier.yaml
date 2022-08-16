@@ -1,0 +1,25 @@
+index: ???
+name: ???
+model:
+  name: mlp_classifier
+  batch_size: 128
+  l1: 0.0
+  hidden_size: 1024
+optimizer:
+  name: sgd
+  lr: 1e-1
+  weight_decay: 0.0
+  # momentum: 0.5
+scheduler:
+  name: exponential_lr
+  rounds: ${server.rounds}
+  epochs_in_round: 4
+  gamma: 0.999
+training:
+  max_epochs: ${node.scheduler.epochs_in_round}
+  enable_progress_bar: False
+  enable_model_summary: False
+  num_sanity_val_steps: 0
+  strategy: ddp
+  devices: ???
+  accelerator: ???

@@ -1,6 +1,6 @@
 # @package _global_
 model:
-  name: mlp
+  name: mlp_classifier
   precision: 32
   max_epochs: 10000
   patience: 1000
