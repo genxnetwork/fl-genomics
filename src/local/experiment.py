@@ -13,7 +13,7 @@ from mlflow.models.signature import ModelSignature
 from numpy import hstack, argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
 from xgboost import XGBRegressor
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, roc_auc_score
 import torch
 
 from configs.split_config import TG_SUPERPOP_DICT
@@ -21,7 +21,7 @@ from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
-from nn.models import MLPPredictor, LassoNetRegressor, MLPClassifier
+from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.loaders import load_plink_pcs
@@ -161,29 +161,29 @@ class LocalExperiment(object):
     def train(self):
         pass
         
-    def eval_and_log(self):
+    def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
         self.logger.info("Evaluating model")
         preds_train = self.model.predict(self.X_train)
         preds_val = self.model.predict(self.X_val)
         preds_test = self.model.predict(self.X_test)
 
-        r2_train = r2_score(self.y_train, preds_train)
-        r2_val = r2_score(self.y_val, preds_val)
-        r2_test = r2_score(self.y_test, preds_test)
+        metric_train = metric_fun(self.y_train, preds_train)
+        metric_val = metric_fun(self.y_val, preds_val)
+        metric_test = metric_fun(self.y_test, preds_test)
         
-        print(f"Train r2: {r2_train}")
-        mlflow.log_metric('train_r2', r2_train)
-        print(f"Val r2: {r2_val}")
-        mlflow.log_metric('val_r2', r2_val)
-        print(f"Test r2: {r2_test}")
-        mlflow.log_metric('test_r2', r2_test)
+        print(f"Train {metric_name}: {metric_train}")
+        mlflow.log_metric(f'train_{metric_name}', metric_train)
+        print(f"Val {metric_name}: {metric_val}")
+        mlflow.log_metric(f'val_{metric_name}', metric_val)
+        print(f"Test {metric_name}: {metric_test}")
+        mlflow.log_metric(f'test_{metric_name}', metric_test)
     
     def run(self):
         self.load_sample_indices()
         self.load_data()
         self.start_mlflow_run()
         self.train()
-        self.eval_and_log(**TYPE_METRIC_DICT[PHENO_TYPE_DICT[self.cfg.phenotype.name]])
+        self.eval_and_log()
     
 
 def simple_estimator_factory(model):
@@ -402,17 +402,102 @@ class LassoNetExperiment(NNExperiment):
         print(f"Test r2: {best_test_r2:.4f}")
         mlflow.log_metric('test_r2', best_test_r2)
         
+class LassoNetClassifierExperiment(NNExperiment):
+
+    def create_model(self):
+        self.model = LassoNetClassifier(
+            input_size=self.X_train.shape[1],
+            hidden_size=self.cfg.model.hidden_size,
+            optim_params=self.cfg.experiment.optimizer,
+            scheduler_params=self.cfg.experiment.scheduler,
+            cov_count=2,
+            alpha_start=self.cfg.model.alpha_start,
+            alpha_end=self.cfg.model.alpha_end,
+            init_limit=self.cfg.model.init_limit
+        )
+
+    def load_best_model(self):
+        self.model = LassoNetClassifier.load_from_checkpoint(
+            self.trainer.checkpoint_callback.best_model_path,
+            input_size=self.X_train.shape[1],
+            hidden_size=self.cfg.model.hidden_size,
+            optim_params=self.cfg.experiment.optimizer,
+            scheduler_params=self.cfg.experiment.scheduler,
+            cov_count=2,
+            alpha_start=self.cfg.model.alpha_start,
+            alpha_end=self.cfg.model.alpha_end,
+            init_limit=self.cfg.model.init_limit
+        )
+
+    def train(self):
+        mlflow.log_params({'model': self.cfg.model})
+        mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
+        mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
+        
+        self.create_model()
+        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
+                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
+        
+        print("Fitting")
+        self.trainer.fit(self.model, self.data_module)
+        print("Fitted")
+        self.load_best_model()
+        print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
+
+    
+    def eval_and_log(self):
+#         if self.cfg.experiment.get('log_model', None):
+#             self.logger.info("Logging model")
+#             input_schema = Schema([
+#                 TensorSpec(numpy.dtype(numpy.float32), (-1, self.X_train.shape[1])),
+#             ])
+#             output_schema = Schema([TensorSpec(numpy.dtype(numpy.float32), (-1, self.cfg.model.batch_size))])
+#             signature = ModelSignature(inputs=input_schema, outputs=output_schema)
+#             mlflow.pytorch.log_model(self.model,
+#                                      artifact_path='lassonet-model',
+#                                      registered_model_name=f"lassonet_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node_index}",
+#                                      signature=signature,
+#                                      pickle_protocol=4)
+
+#             self.logger.info("Model logged")
+        
+        self.logger.info("Evaluating model and logging metrics")
+        self.model.eval()
+        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
+        
+        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
+        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
+        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+        
+        print(train_preds.shape, val_preds.shape, test_preds.shape)
+        # each preds column correspond to different alpha l1 reg parameter
+        # we select column which gives the best val_r2 and use this column to make test predictions
+        roc_auc_val_list = [roc_auc_score(self.y_val, val_preds[:, col]) for col in range(val_preds.shape[1])]
+        best_col = argmax(roc_auc_val_list)
+        best_val_r2 = amax(roc_auc_val_list)
+        best_train_r2 = roc_auc_score(self.y_train, train_preds[:, best_col])
+        best_test_r2 = roc_auc_score(self.y_test, test_preds[:, best_col])
+        
+        print(f'Best alpha: {self.model.alphas[best_col]:.6f}')
+        mlflow.log_metric('best_alpha', self.model.alphas[best_col])
+        print(f"Train r2: {best_train_r2:.4f}")
+        mlflow.log_metric('train_r2', best_train_r2)
+        print(f"Val r2: {best_val_r2:.4f}")
+        mlflow.log_metric('val_r2', best_val_r2)
+        print(f"Test r2: {best_test_r2:.4f}")
+        mlflow.log_metric('test_r2', best_test_r2)
         
 # Dict of possible experiment types and their corresponding classes
 experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
     'xgboost': XGBExperiment,
     'mlp': NNExperiment,
-    'lassonet': LassoNetExperiment
+    'lassonet': LassoNetExperiment,
+    'lassonet_classifier': LassoNetClassifierExperiment
 }
 
             
-@hydra.main(config_path='configs', config_name='tg')
+@hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
     print(cfg)
     assert cfg.model.name in experiment_dict.keys()
