@@ -337,4 +337,13 @@ class LassoNetRegressor(BaseNet):
         #('covariate weight shapes are ', weight.shape, snp_count, cov_weights.shape, weight[:, snp_count:].shape)
         weight[:, snp_count:] = cov_weights
         self.layer.weight = torch.nn.Parameter(weight)
-    
+
+class LassoNetClassifier(LassoNetRegressor):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        
+    def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
+        y -= 1 # BCE expects targets in the range [0, 1]
+        y_hat -= 1
+        return binary_cross_entropy_with_logits(y_hat, y)
