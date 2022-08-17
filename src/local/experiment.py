@@ -203,9 +203,9 @@ class NNExperiment(LocalExperiment):
         val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
         test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
                 
-        metric_train = metric_fun(y_true=self.y.train, y_pred=train_preds)
-        metric_val = metric_fun(y_true=self.y.val, y_pred=val_preds)
-        metric_test = metric_fun(y_true=self.y.test, y_pred=test_preds)
+        metric_train = metric_fun(self.y.train, train_preds)
+        metric_val = metric_fun(self.y.val, val_preds)
+        metric_test = metric_fun(self.y.test, test_preds)
         
         print(f"Train {metric_name}: {metric_train}")
         mlflow.log_metric(f'train_{metric_name}', metric_train)
@@ -228,6 +228,30 @@ class NNExperiment(LocalExperiment):
         self.log(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
         return lr.coef_
 
+class MlpClfExperiment(NNExperiment):
+    def create_model(self):
+        self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                   optim_params=self.cfg.experiment.optimizer,
+                                   scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                   loss=torch.nn.functional.binary_cross_entropy_with_logits,
+                                   binary=True
+                                   )
+
+
+    def load_best_model(self):
+        self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                        nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                                        optim_params=self.cfg.experiment.optimizer,
+                                                        scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                                        loss=torch.nn.functional.binary_cross_entropy_with_logits,
+                                                        binary=True
+                                                        )
+
+    def run(self):
+        self.load_data()
+        self.start_mlflow_run()
+        self.train()
+        self.eval_and_log(metric_fun=roc_auc_score, metric_name='roc_auc')
 
 class TGNNExperiment(NNExperiment):
     def create_model(self):
@@ -399,7 +423,8 @@ ukb_experiment_dict = {
     'xgboost': XGBExperiment,
     'lassonet': LassoNetExperiment,
     'lassonet_classifier': LassoNetClassifierExperiment,
-    'mlp_regressor': NNExperiment
+    'mlp_regressor': NNExperiment,
+    'mlp_classifier_ukb': MlpClfExperiment
 }
 
 tg_experiment_dict = {
