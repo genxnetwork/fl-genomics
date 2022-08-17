@@ -26,6 +26,7 @@ if __name__ == '__main__':
     covariates = snakemake.input['covariates'] 
     out_prefix = snakemake.params['out_prefix']
     phenotype_name = snakemake.params['phenotype_name']
+    phenotype_type = snakemake.params['phenotype_type']
     threads = str(snakemake.threads)
     mem_mb = str(snakemake.resources['mem_mb'])
     output_path = snakemake.output['results']
@@ -44,6 +45,6 @@ if __name__ == '__main__':
     print()
     run_plink(args)
     
-    shutil.move(get_gwas_output_path(out_prefix, phenotype_name, 'real'), output_path)
+    shutil.move(get_gwas_output_path(out_prefix, phenotype_name, phenotype_type), output_path)
 
     logging.info(f'GWAS for genotype {genotype} and phenotype {phenotype_name} finished')

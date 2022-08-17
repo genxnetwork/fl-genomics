@@ -56,7 +56,7 @@ def load_phenotype(phenotype_path: str, out_type = numpy.float32, encode = False
     """
     data = pandas.read_table(phenotype_path)
     data = data.iloc[:, -1].values.astype(out_type)
-    if encode is not None:
+    if encode:
         _, data = numpy.unique(data, return_inverse=True)
     return data
 

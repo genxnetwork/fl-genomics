@@ -22,6 +22,6 @@ def run_plink(args_list: List[str], args_dict: dict = None):
 
 def get_gwas_output_path(output_path: str, phenotype_name: str, phenotype_type: str):
     if phenotype_type == 'binary':
-        return f'{output_path}.{phenotype_name}.glm.logistic.firth'
+        return f'{output_path}.{phenotype_name}.glm.logistic'
     else:
         return f'{output_path}.{phenotype_name}.glm.linear'

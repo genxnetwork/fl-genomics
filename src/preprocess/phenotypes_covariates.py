@@ -2,18 +2,31 @@ from collections import namedtuple
 from typing import Dict, List
 import logging
 import pandas
-from ukb_loader import UKBDataLoader
+from ukb_loader import UKBDataLoader, BinarySDLoader
 
 
 def load_pheno_cov(split_ids_path: str, 
                    ukb_dataset_path: str, 
                    covariates: Dict[str, str], 
                    phenotype_name: str, 
-                   phenotype_code: int) -> pandas.DataFrame:
+                   phenotype_code: int,
+                   phenotype_type: str) -> pandas.DataFrame:
                    
-    loader = UKBDataLoader(ukb_dataset_path, 'split', str(phenotype_code), list(covariates.keys()))
-    pheno_cov = pandas.concat((loader.load_train(), loader.load_val(), loader.load_test()))
-    pheno_cov.rename({str(phenotype_code) : phenotype_name}, axis='columns', inplace=True)
+    if phenotype_type == 'real':
+        loader = UKBDataLoader(ukb_dataset_path, 'split', str(phenotype_code), list(covariates.keys()))
+        pheno_cov = pandas.concat((loader.load_train(), loader.load_val(), loader.load_test()))
+        pheno_cov.rename({str(phenotype_code) : phenotype_name}, axis='columns', inplace=True)
+    
+    elif phenotype_type == 'binary':
+        sd_field_code = '20002'
+        loader = BinarySDLoader(ukb_dataset_path, 'split', sd_field_code, list(covariates.keys()), phenotype_code, na_as_false=False)
+        pheno_cov = pandas.concat((loader.load_train(), loader.load_val(), loader.load_test()))
+        pheno_cov.rename({str(sd_field_code) : phenotype_name}, axis='columns', inplace=True)
+        pheno_cov.loc[:, phenotype_name] += 1 # Compatibility with PLINK's coding of case/control as 2/1
+    
+    else:
+        raise NotImpementedError('Implemented: real and binary self-reported phenotypes')
+    
     pheno_cov.rename(covariates, axis='columns', inplace=True)
     
     pheno_cov.loc[:, 'FID'] = pheno_cov.index
@@ -54,8 +67,9 @@ if __name__ == '__main__':
     covariate_cols = snakemake.params['covariates']
     phenotype_name = snakemake.params['phenotype_name']
     phenotype_code = snakemake.params['phenotype_code']
+    phenotype_type = snakemake.params['phenotype_type']
 
-    pheno_cov = load_pheno_cov(split_ids_path, ukb_dataset_path, covariate_cols, phenotype_name, phenotype_code)
+    pheno_cov = load_pheno_cov(split_ids_path, ukb_dataset_path, covariate_cols, phenotype_name, phenotype_code, phenotype_type)
     logging.info(f'loaded {pheno_cov.shape[0]} phenotypes for {phenotype_name} and covariates {covariate_cols}')
     pcs = load_pcs(pcs_path)
     logging.info(f'loaded {pcs.shape[0]} PCs from {pcs_path}')
