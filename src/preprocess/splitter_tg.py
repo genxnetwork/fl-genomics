@@ -29,7 +29,7 @@ class SplitTG(SplitBase):
         y = y[y['ancestry'].isin(pop_val_counts[pop_val_counts >= min_samples_in_pop].index)]
         return y[['IID', 'ancestry', 'split', 'Population name', 'Superpopulation name']]
 
-    def split(self, make_pgen=True):
+    def split(self, input_prefix: str, make_pgen=True):
         df = self.get_ethnic_background()
 
         # Map ethnic backgrounds to our defined splits
@@ -42,12 +42,13 @@ class SplitTG(SplitBase):
             split_id_path = os.path.join(SPLIT_ID_DIR, f"{prefix}.tsv")
             df.loc[df['split'] == prefix, 'IID'].to_csv(split_id_path, index=False, sep='\t', header=False)
             if make_pgen:
-                self.make_split_pgen(split_id_path, prefix=os.path.join(SPLIT_GENO_DIR, prefix), bin_file_type='--pfile', bin_file=TG_BFILE_PATH)
+                os.makedirs(SPLIT_GENO_DIR, exist_ok=True)
+                self.make_split_pgen(split_id_path, out_prefix=os.path.join(SPLIT_GENO_DIR, prefix), bin_file_type='--pfile', bin_file=input_prefix)
 
         # create the folder ALL with all data to make runs easier
         split_id_path = os.path.join(SPLIT_ID_DIR, f"ALL.tsv")
         df.loc[:, 'IID'].to_csv(split_id_path, index=False, sep='\t', header=False)
         if make_pgen:
-            self.make_split_pgen(split_id_path, prefix=os.path.join(SPLIT_GENO_DIR, 'ALL'), bin_file_type='--pfile',
-                                 bin_file=TG_BFILE_PATH)
+            self.make_split_pgen(split_id_path, out_prefix=os.path.join(SPLIT_GENO_DIR, 'ALL'), bin_file_type='--pfile',
+                                 bin_file=input_prefix)
         return list(set(TG_SUPERPOP_DICT.values())) + ['ALL']
