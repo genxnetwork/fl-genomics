@@ -38,7 +38,8 @@ if __name__ == '__main__':
 
     for local_prefix in prefix_splits:
         logger.info(f'Running local QC for {local_prefix}')
-        local_prefix_qc = QC.qc(input_prefix=local_prefix, qc_config=variant_qc_config)
+        local_prefix_qc = local_prefix + '_filtered'
+        QC.qc(input_prefix=local_prefix, output_prefix=local_prefix_qc, qc_config=variant_qc_config)
         
     logger.info("making k-fold split for ethnic dataset")    
     num_ethnic_nodes = max(list(split_map.values()))+1

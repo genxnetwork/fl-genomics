@@ -38,9 +38,9 @@ class SplitBase(object):
         
         return df
     
-    def make_split_pgen(self, split_id_path: str, prefix: str, bin_file_type='--pfile', bin_file=ukb_pfile_path) -> None:
+    def make_split_pgen(self, split_id_path: str, out_prefix: str, bin_file_type='--pfile', bin_file=ukb_pfile_path) -> None:
         run_plink(args_dict={bin_file_type: bin_file,
-                             '--out': prefix,
+                             '--out': out_prefix,
                              '--keep': split_id_path},
                   args_list=['--make-pgen'])
         
