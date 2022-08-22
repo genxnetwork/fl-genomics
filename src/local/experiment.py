@@ -1,5 +1,4 @@
 from abc import abstractmethod
-import itertools
 
 import hydra
 import logging
@@ -14,13 +13,10 @@ from mlflow.models.signature import ModelSignature
 from numpy import argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import PolynomialFeatures
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score, mean_squared_error
 import torch
-import plotly.graph_objects as go
 
-from configs.split_config import TG_SUPERPOP_DICT
 from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates
 from nn.lightning import DataModule
@@ -29,6 +25,7 @@ from nn.models import LinearRegressor, MLPPredictor, LassoNetRegressor, MLPClass
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.loaders import ExperimentDataLoader
+from local.utils import plot_loss_landscape
 
 
 class LocalExperiment(object):
@@ -267,7 +264,7 @@ class QuadraticNNExperiment(NNExperiment):
 
     
     def load_data(self):
-        seed = self.cfg.data.random_state if not 'node' in self.cfg else hash(self.cfg.node_index) + self.cfg.data.random_state
+        seed = self.cfg.data.random_state if not 'node' in self.cfg else hash(self.cfg.node.index) + self.cfg.data.random_state
         rng = numpy.random.default_rng(seed)
         self.data = rng.normal(0, 1.0, size=(self.cfg.data.samples, 2))
         # data = PolynomialFeatures(degree=2).transform(data)
@@ -295,44 +292,6 @@ class QuadraticNNExperiment(NNExperiment):
                                                           optim_params=self.cfg.optimizer,
                                                           scheduler_params=self.cfg.scheduler)
 
-    def plot_loss_landscape(self):
-        
-        points_num = 100
-        beta_space = numpy.linspace(-2, 2, num=points_num, endpoint=True)
-        Z = numpy.zeros((points_num, points_num))
-        for i, j in itertools.product(range(points_num), range(points_num)):
-            beta_i, beta_j = beta_space[i], beta_space[j]
-            y_pred = self.data.dot(numpy.array([beta_i, beta_j]).reshape(-1, 1))
-            mse = mean_squared_error(self.y, y_pred[:, 0])
-            # if abs(beta_i - self.beta[0]) < 0.01 and abs(beta_j - self.beta[1]) < 0.01:
-            #     print(f'we have mse on contour plot: {mse:.5f} for {beta_i} and {beta_j}')
-            Z[i, j] = mse
-
-        # print(Z[90:, 20:30])
-        fig = go.Figure()
-        fig.add_trace(go.Contour(
-                z=Z.T, # I don't know why we need T to work
-                x=beta_space, # horizontal axis
-                y=beta_space, # vertical axis,
-                contours=dict(start=numpy.nanmin(Z), end=numpy.nanmax(Z), size=0.5)
-        ))
-        beta_history = numpy.array(self.model.beta_history).squeeze()
-        # print(f'beta_history[0] shape is {self.model.beta_history[0].shape}')
-        # print(f'beta_history shape is {beta_history.shape}')
-        print(f'last betas: {beta_history[-1, :]}\ttrue betas: {self.beta}')
-        # print(beta_history)
-        print()
-        fig.add_trace(go.Scatter(x=beta_history[:, 0], y=beta_history[:, 1], mode='markers+lines', name='SGD'))
-        fig.add_trace(go.Scatter(x=self.beta[0], y=self.beta[1], mode='markers', name='True beta'))
-        fig.update_layout(legend=dict(
-            yanchor="top",
-            y=0.99,
-            xanchor="left",
-            x=0.01
-        ))
-        mlflow.log_figure(fig, 'loss_landscape.png')
-
-
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
         mlflow.log_params({'optimizer': self.cfg.optimizer})
@@ -353,7 +312,7 @@ class QuadraticNNExperiment(NNExperiment):
             val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
             test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
 
-        self.plot_loss_landscape()
+        plot_loss_landscape(self.model, self.data, self.y, self.beta)
         self.load_best_model()
 
        

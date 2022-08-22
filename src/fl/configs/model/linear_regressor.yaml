@@ -1,0 +1,4 @@
+name: linear_regressor
+batch_size: 64
+l1: 0.0
+  

@@ -17,7 +17,7 @@ from flwr.common import Weights, parameters_to_weights
 from nn.models import BaseNet, LinearRegressor, MLPClassifier, MLPPredictor, LassoNetRegressor
 from nn.lightning import DataModule
 from nn.utils import Metrics
-from fl.federation.callbacks import ScaffoldCallback
+from fl.federation.callbacks import ClientCallback, ScaffoldCallback
 from fl.federation.utils import weights_to_module_params, bytes_to_weights
 from configs.phenotype_config import PHENO_TYPE_DICT, TYPE_LOSS_DICT
 
@@ -118,7 +118,7 @@ class MLFlowMetricsLogger(MetricsLogger):
 
 
 class FLClient(NumPyClient):
-    def __init__(self, server: str, data_module: DataModule, params: DictConfig, logger: Logger, metrics_logger: MetricsLogger):
+    def __init__(self, server: str, data_module: DataModule, params: DictConfig, logger: Logger, metrics_logger: MetricsLogger, callbacks: List[ClientCallback] = None):
         """Trains {model} in federated setting
 
         Args:
@@ -136,6 +136,7 @@ class FLClient(NumPyClient):
         self.params = params
         self.logger = logger
         self.metrics_logger = metrics_logger
+        self.client_callbacks = callbacks
         self.log(f'cuda device count: {torch.cuda.device_count()}')
 
     def log(self, msg):
@@ -166,6 +167,16 @@ class FLClient(NumPyClient):
     def _reseed_torch(self):
         torch.manual_seed(hash(self.params.node.index) + self.model.current_round)
 
+    def on_before_fit(self):
+        if self.client_callbacks is not None:
+            for callback in self.client_callbacks:
+                callback.on_before_fit(self.model)
+
+    def on_after_fit(self):
+        fit_result = {}
+        if self.client_callbacks is not None:
+            for callback in self.client_callbacks:
+                fit_result |= callback.on_after_fit(self.model)
 
     def fit(self, parameters: Weights, config):
         # self.log(f'started fitting with config {config}')
@@ -179,6 +190,8 @@ class FLClient(NumPyClient):
             # we recreate a model and set parameters again
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.params)
             self.set_parameters(parameters)
+
+        self.on_before_fit()
         
         old_parameters = [p.copy() for p in parameters]
         start = time()    
@@ -197,8 +210,8 @@ class FLClient(NumPyClient):
         self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
         new_params = self.get_parameters()
         self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=old_parameters, new_params=new_params)
-
-        return new_params, self.data_module.train_len(), {}
+        fit_result = self.on_after_fit()
+        return new_params, self.data_module.train_len(), fit_result
 
     def evaluate(self, parameters: Weights, config):
         self.log(f'starting to set parameters in evaluate with config {config}')

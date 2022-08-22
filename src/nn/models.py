@@ -150,6 +150,7 @@ class LinearRegressor(BaseNet):
         self.l1 = l1
         # TODO: move to callback
         self.beta_history = []
+        self.r2_score = R2Score()
 
     def regularization(self) -> torch.Tensor:
         """Calculates l1 regularization of input layer by default
@@ -169,6 +170,27 @@ class LinearRegressor(BaseNet):
         # print(w)
         self.beta_history.append(self.layer.weight.detach().cpu().numpy().copy())
         return super().on_after_backward()
+
+    def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
+        mse = mse_loss(y_hat.squeeze(1), y)
+        r2 = self.r2_score(y_hat.squeeze(1), y)
+        return RegLoaderMetrics(prefix, mse.item(), r2.item(), self.fl_current_epoch(), y_hat.shape[0])
+
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
+        train_loader, val_loader, test_loader = datamodule.predict_dataloader()
+        y_train_pred, y_train = self.predict(train_loader)
+        y_val_pred, y_val = self.predict(val_loader)
+        
+        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
+        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
+        
+        if test:
+            y_test_pred, y_test = self.predict(test_loader)
+            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
+        else:
+            test_metrics = None
+        metrics = RegMetrics(train_metrics, val_metrics, test_metrics, epoch=self.fl_current_epoch())
+        return metrics
         
 
 class LinearClassifier(BaseNet):

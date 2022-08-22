@@ -8,6 +8,7 @@ import numpy
 from numpy.linalg import norm
 import os
 import mlflow
+import plotly.graph_objects as go
 
 from flwr.common import (
     EvaluateRes,
@@ -27,6 +28,7 @@ from flwr.server.client_manager import ClientManager
 
 from fl.federation.utils import weights_to_bytes, bytes_to_weights
 from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from local.utils import add_beta_to_loss_landscape
 
 
 def fit_round(rnd: int):
@@ -54,8 +56,9 @@ class MlflowLogger(StrategyLogger):
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
-        if model_type not in ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier']:
-            raise ValueError(f'model_type should be one of the lassonet_regressor, mlp_regressor and not {model_type}')
+        known_model_types = ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier', 'linear_regressor']
+        if model_type not in known_model_types:
+            raise ValueError(f'model_type should be one of the {known_model_types} and not {model_type}')
 
         self.model_type = model_type
 
@@ -277,11 +280,34 @@ class Scaffold(FedAvg):
         self.old_weights = None
         super().__init__(**kwargs)
 
+    def _plot_2d_landscape(self, results: List[Tuple[ClientProxy, FitRes]]):
+        local_betas = [bytes_to_weights(res.metrics['local_beta']) for _, res in results]
+        true_betas = [bytes_to_weights(res.metrics['true_beta']) for _, res in results]
+        beta_grids = [bytes_to_weights(res.metrics['beta_grid']) for _, res in results]
+        # print(Z[90:, 20:30])
+        # global loss landscape
+        beta_grid = sum(beta_grids) / len(beta_grids)
+        fig = go.Figure()
+        points_num = 100
+        beta_space = numpy.linspace(-2, 2, num=points_num, endpoint=True)
+        fig.add_trace(go.Contour(
+                      z=beta_grid, # I don't know why we need T to work
+                      x=beta_space, # horizontal axis
+                      y=beta_space, # vertical axis,
+                      contours=dict(start=numpy.nanmin(beta_grid), end=numpy.nanmax(beta_grid), size=0.5)
+        ))
+
+        for i, (local_beta, true_beta) in enumerate(zip(local_betas, true_betas)):
+            add_beta_to_loss_landscape(fig, true_beta, local_beta, f'SGD_{i}')
+            
+        mlflow.log_figure(fig, 'global_loss_landscape.png')
+
     def aggregate_fit(
         self, rnd: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[BaseException]
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         
         # List[List[numpy.ndarray]]
+        self._plot_2d_landscape(results)
         client_weights = [parameters_to_weights(fit_res.parameters) for _, fit_res in results]
 
         for layer_index, old_layer_weight in enumerate(self.old_weights):

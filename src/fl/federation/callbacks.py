@@ -4,12 +4,56 @@ from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.core import LightningModule
 import mlflow
 import torch
+import numpy
+import plotly.graph_objects as go
+from flwr.common import Weights, Scalar
 
-from flwr.common import Weights
+from fl.federation.utils import ModuleParams, weights_to_bytes
+from nn.models import BaseNet
+from local.utils import mse_on_beta_grid, add_beta_to_loss_landscape
 
-from fl.federation.utils import ModuleParams
+
+class ClientCallback:
+    def __init__(self):
+        pass
+
+    def on_before_fit(self, model: BaseNet):
+        pass
+
+    def on_after_fit(self, model: BaseNet) -> Dict[str, Scalar]:
+        return {}
+
+    def on_before_evaluate(self, model: BaseNet):
+        pass
+
+    def on_after_evaluate(self, model: BaseNet):
+        pass
 
 
+class PlotLandscapeCallback(ClientCallback):
+    def __init__(self, x: numpy.ndarray, y: numpy.ndarray, beta: numpy.ndarray):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.beta = beta
+
+    def on_after_fit(self, model: BaseNet):
+        beta_space, Z = mse_on_beta_grid(self.x, self.y)
+        # print(Z[90:, 20:30])
+        fig = go.Figure()
+        fig.add_trace(go.Contour(
+                z=Z, # I don't know why we need T to work
+                x=beta_space, # horizontal axis
+                y=beta_space, # vertical axis,
+                contours=dict(start=numpy.nanmin(Z), end=numpy.nanmax(Z), size=0.5)
+        ))
+        beta_history = numpy.array(model.beta_history).squeeze()
+        add_beta_to_loss_landscape(fig, self.beta, beta_history, 'SGD')
+
+        mlflow.log_figure(fig, 'loss_landscape.png')
+        return {'true_beta': weights_to_bytes(self.beta), 'local_beta': weights_to_bytes(beta_history), 'beta_grid': weights_to_bytes(Z)}
+        
+        
 class ScaffoldCallback(Callback):
 
     c_global: ModuleParams

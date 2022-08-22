@@ -19,8 +19,20 @@ node:
 
 server:
   rounds: 8
-  checkpoint_dir: 'models/${data.random_state.name}/fold_${fold.index}'
+  checkpoint_dir: 'models/${data.random_state}/fold_${fold.index}'
 
 data:
   samples: 1000
   random_state: 2
+  phenotype:
+    name: quantitative
+    code: 1
+
+phenotype:
+    name: quantitative
+    code: 1
+
+
+callbacks:
+  plot_landscape:
+    arg: 1
