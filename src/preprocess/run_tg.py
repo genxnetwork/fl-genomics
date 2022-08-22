@@ -62,7 +62,7 @@ if __name__ == '__main__':
     pruning = Pruning()
     for node in nodes:
         logger.info(f'Pruning for {node}')
-        pruning.prune(node + '_filtered', default_pruning)
+        pruning.prune(node + '_filtered', **default_pruning)
     logger.info('Merging nodes from TG_SUPERPOP_DICT')
     pruning.merge()
     for node in nodes:
