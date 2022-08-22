@@ -159,7 +159,7 @@ class FLClient(NumPyClient):
                 callback.c_global = weights_to_module_params(self._get_layer_names(), bytes_to_weights(update_params['c_global']))
                 callback.update_c_local(
                     kwargs['eta'], callback.c_global, 
-                    old_params=self.model.state_dict(),
+                    old_params=weights_to_module_params(self._get_layer_names(), kwargs['old_params']),
                     new_params=weights_to_module_params(self._get_layer_names(), kwargs['new_params'])
                 )
     
@@ -180,6 +180,7 @@ class FLClient(NumPyClient):
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.params)
             self.set_parameters(parameters)
         
+        old_parameters = [p.copy() for p in parameters]
         start = time()    
         # self.log('fit after set parameters')            
         self.model.train()
@@ -195,7 +196,7 @@ class FLClient(NumPyClient):
         end = time()
         self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
         new_params = self.get_parameters()
-        self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=parameters, new_params=new_params)
+        self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=old_parameters, new_params=new_params)
 
         return new_params, self.data_module.train_len(), {}
 

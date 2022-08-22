@@ -4,7 +4,7 @@ from pytorch_lightning import LightningModule
 import torch
 from torch.nn import Linear, BatchNorm1d
 from torch.nn.init import uniform_ as init_uniform_
-from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu, softmax
+from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu6, softmax, relu
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, R2Score
 import mlflow
@@ -166,7 +166,6 @@ class LinearRegressor(BaseNet):
         return self.layer(x)
     
     def on_after_backward(self) -> None:
-        w = self.layer.weight.detach().cpu().numpy()
         # print(w)
         self.beta_history.append(self.layer.weight.detach().cpu().numpy().copy())
         return super().on_after_backward()
@@ -253,16 +252,16 @@ class MLPClassifier(BaseNet):
         # self.bn = BatchNorm1d(nfeat)
         self.nclass = nclass
         self.fc1 = Linear(nfeat, hidden_size)
-        # self.bn2 = BatchNorm1d(40)
+        self.bn2 = BatchNorm1d(hidden_size)
         self.fc2 = Linear(hidden_size, hidden_size2)
-        # self.bn3 = BatchNorm1d(40)
+        self.bn3 = BatchNorm1d(hidden_size2)
         self.fc3 = Linear(hidden_size2, nclass)
         self.loss = loss
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x = self.bn(x)
-        x = relu(self.fc1(x))
-        x = relu(self.fc2(x))
+        x = relu6(self.bn2(self.fc1(x)))
+        x = relu6(self.bn3(self.fc2(x)))
         # x = softmax(, dim=1)
         return self.fc3(x)
 

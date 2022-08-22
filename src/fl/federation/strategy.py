@@ -292,7 +292,7 @@ class Scaffold(FedAvg):
             for i, cw in enumerate(client_weights):
                 print(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
             
-            self.c_global[layer_index] = cg_layer + c_avg_delta
+            self.c_global[layer_index] = cg_layer + self.global_lr*c_avg_delta
 
         new_weights = aggregate([(cw, 1) for cw in client_weights])
         for layer_index, (old_layer_weight, new_layer_weight) in enumerate(zip(self.old_weights, new_weights)):
