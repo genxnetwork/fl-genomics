@@ -11,12 +11,15 @@ from preprocess.train_val_split import CVSplitter, WBSplitter
 from configs.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
     TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT, SPLIT_DIR, SPLIT_ID_DIR, SPLIT_GENO_DIR, FOLDS_NUMBER
 from configs.pca_config import pca_config_tg
+from configs.pruning_config import default_pruning
 from configs.qc_config import sample_qc_config, variant_qc_config
 from configs.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list, \
     TG_SUPERPOP_DICT, NUM_FOLDS
 
 import logging
 from os import path, symlink
+
+from preprocess.pruning import Pruning
 
 
 if __name__ == '__main__':
@@ -55,13 +58,25 @@ if __name__ == '__main__':
         local_samqc_prefix = os.path.join(SPLIT_GENO_DIR, local_prefix) + '_filtered'
         QC.qc(input_prefix=os.path.join(SPLIT_GENO_DIR, local_prefix), output_prefix=local_samqc_prefix, qc_config=sample_qc_config)
 
-    # 4. Split each node into K folds
+    # 4. Perform pruning for each node separately
+    pruning = Pruning()
+    for node in nodes:
+        logger.info(f'Pruning for {node}')
+        pruning.prune(node + '_filtered', **default_pruning)
+    logger.info('Merging nodes from TG_SUPERPOP_DICT')
+    pruning.merge()
+    for node in nodes:
+        logger.info(f'Removing variants from {node}')
+        pruning.remove_variants(NODE=f'{node}_filtered.preprune', SNPS='ALL')
+
+
+    # 5. Split each node into K folds
     logger.info("making k-fold split for the TG dataset")
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
     splitter = CVSplitter(superpop_split)
 
     for node in nodes:
-        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}.psam'), node=node, random_state=0)
+        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.preprune.psam'), node=node, random_state=0)
 
     ancestry_df = SplitTG().get_ethnic_background()
     logger.info(f"Processing split {superpop_split.root_dir}")
@@ -104,7 +119,7 @@ if __name__ == '__main__':
 
         pd.DataFrame({'IID': ids}).to_csv(centralised_ids_filepath, sep='\t', index=False)
 
-    # 5. Centralised PCA
+    # 6. Centralised PCA
     for fold_index in range(FOLDS_NUMBER):
         logger.info(f'Centralised PCA for fold {fold_index}')
         run_plink(
@@ -129,3 +144,4 @@ if __name__ == '__main__':
                         '--set-missing-var-ids', '@:#'
                     ]
                 )
+
