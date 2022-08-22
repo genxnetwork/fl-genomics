@@ -281,9 +281,12 @@ class Scaffold(FedAvg):
         super().__init__(**kwargs)
 
     def _plot_2d_landscape(self, results: List[Tuple[ClientProxy, FitRes]]):
-        local_betas = [bytes_to_weights(res.metrics['local_beta']) for _, res in results]
-        true_betas = [bytes_to_weights(res.metrics['true_beta']) for _, res in results]
-        beta_grids = [bytes_to_weights(res.metrics['beta_grid']) for _, res in results]
+        print(f'keys in metrics are {list(results[0][1].metrics.keys())}')
+        local_betas = [bytes_to_weights(res.metrics['local_beta'])[0] for _, res in results]
+        true_betas = [bytes_to_weights(res.metrics['true_beta'])[0] for _, res in results]
+        beta_grids = [bytes_to_weights(res.metrics['beta_grid'])[0] for _, res in results]
+        print(f'type of beta_grids[0] is {type(beta_grids[0])} and len is {len(beta_grids[0])}')
+        
         # print(Z[90:, 20:30])
         # global loss landscape
         beta_grid = sum(beta_grids) / len(beta_grids)

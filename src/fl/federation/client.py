@@ -177,6 +177,7 @@ class FLClient(NumPyClient):
         if self.client_callbacks is not None:
             for callback in self.client_callbacks:
                 fit_result |= callback.on_after_fit(self.model)
+        return fit_result
 
     def fit(self, parameters: Weights, config):
         # self.log(f'started fitting with config {config}')

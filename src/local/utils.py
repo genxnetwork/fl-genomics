@@ -28,7 +28,6 @@ def plot_loss_landscape(model: BaseNet, x: numpy.ndarray, y: numpy.ndarray, beta
 
 
 def mse_on_beta_grid(x: numpy.ndarray, y: numpy.ndarray, points_num: int = 100, beta_range=(-2, 2)):
-    points_num = 100
     beta_space = numpy.linspace(beta_range[0], beta_range[1], num=points_num, endpoint=True)
     Z = numpy.zeros((points_num, points_num))
     for i, j in itertools.product(range(points_num), range(points_num)):
@@ -38,6 +37,8 @@ def mse_on_beta_grid(x: numpy.ndarray, y: numpy.ndarray, points_num: int = 100, 
         # if abs(beta_i - self.beta[0]) < 0.01 and abs(beta_j - self.beta[1]) < 0.01:
         #     print(f'we have mse on contour plot: {mse:.5f} for {beta_i} and {beta_j}')
         Z[i, j] = mse
+
+    print(f'local beta_grid shape is {Z.shape}')
     return beta_space, Z.T
 
 

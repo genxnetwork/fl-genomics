@@ -51,7 +51,8 @@ class PlotLandscapeCallback(ClientCallback):
         add_beta_to_loss_landscape(fig, self.beta, beta_history, 'SGD')
 
         mlflow.log_figure(fig, 'loss_landscape.png')
-        return {'true_beta': weights_to_bytes(self.beta), 'local_beta': weights_to_bytes(beta_history), 'beta_grid': weights_to_bytes(Z)}
+
+        return {'true_beta': weights_to_bytes([self.beta]), 'local_beta': weights_to_bytes([beta_history]), 'beta_grid': weights_to_bytes([Z])}
         
         
 class ScaffoldCallback(Callback):
