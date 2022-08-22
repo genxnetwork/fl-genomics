@@ -120,7 +120,7 @@ if __name__ == '__main__':
         pd.DataFrame({'IID': ids}).to_csv(centralised_ids_filepath, sep='\t', index=False)
 
     # 6. Centralised PCA
-    for fold_index in [0]:
+    for fold_index in range(FOLDS_NUMBER):
         logger.info(f'Centralised PCA for fold {fold_index}')
         run_plink(
             args_list=[
@@ -131,7 +131,7 @@ if __name__ == '__main__':
                 '--pca', 'allele-wts', '20'
             ]
         )
-'''
+
         logger.info(f'Projecting train, test, and val parts for each node for fold {fold_index}...')
         for node in nodes:
             for part_name in ['train', 'val', 'test']:
@@ -144,4 +144,4 @@ if __name__ == '__main__':
                         '--set-missing-var-ids', '@:#'
                     ]
                 )
-'''
+
