@@ -11,6 +11,7 @@ from preprocess.train_val_split import CVSplitter, WBSplitter
 from configs.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
     TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT, SPLIT_DIR, SPLIT_ID_DIR, SPLIT_GENO_DIR, FOLDS_NUMBER
 from configs.pca_config import pca_config_tg
+from configs.pruning_config import default_pruning
 from configs.qc_config import sample_qc_config, variant_qc_config
 from configs.split_config import non_iid_split_name, uniform_split_config, split_map, uneven_split_shares_list, \
     TG_SUPERPOP_DICT, NUM_FOLDS
@@ -61,12 +62,11 @@ if __name__ == '__main__':
     pruning = Pruning()
     for node in nodes:
         logger.info(f'Pruning for {node}')
-        pruning.prune(node + '_filtered',
-                      window_size=1000,
-                      step=50,
-                      threshold=1)
+        pruning.prune(node + '_filtered', default_pruning)
+    logger.info('Merging nodes from TG_SUPERPOP_DICT')
     pruning.merge()
     for node in nodes:
+        logger.info(f'Removing variants from {node}')
         pruning.remove_variants(NODE=f'{node}_filtered.preprune', SNPS='ALL')
 
 
@@ -120,7 +120,7 @@ if __name__ == '__main__':
         pd.DataFrame({'IID': ids}).to_csv(centralised_ids_filepath, sep='\t', index=False)
 
     # 6. Centralised PCA
-    for fold_index in range(FOLDS_NUMBER):
+    for fold_index in [0]:
         logger.info(f'Centralised PCA for fold {fold_index}')
         run_plink(
             args_list=[
@@ -131,7 +131,7 @@ if __name__ == '__main__':
                 '--pca', 'allele-wts', '20'
             ]
         )
-
+'''
         logger.info(f'Projecting train, test, and val parts for each node for fold {fold_index}...')
         for node in nodes:
             for part_name in ['train', 'val', 'test']:
@@ -144,3 +144,4 @@ if __name__ == '__main__':
                         '--set-missing-var-ids', '@:#'
                     ]
                 )
+'''
