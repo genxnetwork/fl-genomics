@@ -14,8 +14,9 @@ ukb_loader_dir = globals().get('ukb_loader_dir', '/gpfs/gpfs0/ukb_data/processed
 data_root = globals().get('data_root', '/trinity/home/s.mishra/test')
 sample_qc_ids_path = globals().get('sample_qc_ids_path', f'{data_root}/passed_sample_qc')
 areas_path = globals().get('areas_path', '/trinity/home/s.mishra/nuts/UK_division.csv')
+superpopulations_path = globals().get('superpopulations_path', '/trinity/home/s.mishra/uk-biobank/superpopulations.csv')
 
-PLINK2_BIN = globals().get('PLINK2_BIN', 'plink2')
+PLINK2_BIN = globals().get('PLINK2_BIN', '/trinity/home/s.mishra/plink2')
 
 TG_DATA_ROOT = globals().get('TG_DATA_ROOT', '/mount/storage/TG/data/chip')
 TG_OUT = globals().get('TG_OUT', '/home/dkolobok/TG/out')

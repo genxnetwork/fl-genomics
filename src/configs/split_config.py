@@ -9,6 +9,9 @@ uneven_split_shares_list = [0.01777, 0.00349, 1/2, 1/4, 1/8, 1/16, 1/32]
 heterogeneous_split_name = 'region_split'
 n_heterogeneous_nodes = 11
 
+tg_split_name = 'tg_split'
+n_tg_nodes = 5
+
 NUM_FOLDS = 10  # for cross-validation
 
 # Maps ethnic backgrounds to split_ids
