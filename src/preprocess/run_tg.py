@@ -58,16 +58,16 @@ if __name__ == '__main__':
         local_samqc_prefix = os.path.join(SPLIT_GENO_DIR, local_prefix) + '_filtered'
         QC.qc(input_prefix=os.path.join(SPLIT_GENO_DIR, local_prefix), output_prefix=local_samqc_prefix, qc_config=sample_qc_config)
 
-    # 4. Perform pruning for each node separately
-    pruning = Pruning()
-    for node in nodes:
-        logger.info(f'Pruning for {node}')
-        pruning.prune(node + '_filtered', **default_pruning)
-    logger.info('Merging nodes from TG_SUPERPOP_DICT')
-    pruning.merge()
-    for node in nodes:
-        logger.info(f'Removing variants from {node}')
-        pruning.remove_variants(NODE=f'{node}_filtered', SNPS='ALL')
+    # # 4. Perform pruning for each node separately
+    # pruning = Pruning()
+    # for node in nodes:
+    #     logger.info(f'Pruning for {node}')
+    #     pruning.prune(node + '_filtered', **default_pruning)
+    # logger.info('Merging nodes from TG_SUPERPOP_DICT')
+    # pruning.merge()
+    # for node in nodes:
+    #     logger.info(f'Removing variants from {node}')
+    #     pruning.remove_variants(NODE=f'{node}_filtered', SNPS='ALL')
 
 
     # 5. Split each node into K folds
@@ -75,10 +75,10 @@ if __name__ == '__main__':
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
     splitter = CVSplitter(superpop_split)
 
-    for node in nodes:
-        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.pruned.psam'), node=node, random_state=0)
-
     ancestry_df = SplitTG().get_ethnic_background()
+    for node in nodes:
+        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'), node=node, y=ancestry_df, random_state=0)
+
     logger.info(f"Processing split {superpop_split.root_dir}")
     for node in nodes:
         logger.info(f"Saving train, val, test genotypes and running PCA for node {node}")
@@ -124,7 +124,7 @@ if __name__ == '__main__':
         logger.info(f'Centralised PCA for fold {fold_index}')
         run_plink(
             args_list=[
-                '--pfile', os.path.join(SPLIT_GENO_DIR, 'ALL_filtered.pruned'),
+                '--pfile', os.path.join(SPLIT_GENO_DIR, 'ALL_filtered'),
                 '--keep', superpop_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
                 '--freq', 'counts',
                 '--out', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext=''),
