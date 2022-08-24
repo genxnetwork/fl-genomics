@@ -68,7 +68,7 @@ class SplitTGHeter(SplitTG):
 class SplitTGHom(SplitTG):
 
     @staticmethod
-    def get_target(num_datasets: int = 7) -> pd.DataFrame:
+    def get_target(num_datasets: int = 5) -> pd.DataFrame:
         """
         Loads samples that passed initial QC into the splits at random creating homogeneous split,
         returns a DataFrame formatted to be used
