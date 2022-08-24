@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, R2Score
 import mlflow
 
+from configs.phenotype_config import TYPE_LOSS_DICT
 from nn.lightning import DataModule
 from nn.utils import ClfLoaderMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
 

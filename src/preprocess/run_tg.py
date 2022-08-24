@@ -9,7 +9,7 @@ from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter, WBSplitter
 from configs.global_config import sample_qc_ids_path, data_root, TG_BFILE_PATH, \
-    TG_SAMPLE_QC_IDS_PATH, TG_DATA_ROOT, TG_OUT, SPLIT_DIR, SPLIT_ID_DIR, SPLIT_GENO_DIR, FOLDS_NUMBER
+    TG_SAMPLE_QC_IDS_PATH, TG_DATA_CHIP_ROOT, TG_OUT, SPLIT_DIR, SPLIT_ID_DIR, SPLIT_GENO_DIR, FOLDS_NUMBER
 from configs.pca_config import pca_config_tg
 from configs.pruning_config import default_pruning
 from configs.qc_config import sample_qc_config, variant_qc_config
@@ -119,7 +119,7 @@ if __name__ == '__main__':
 
         pd.DataFrame({'IID': ids}).to_csv(centralised_ids_filepath, sep='\t', index=False)
 
-    # 6. Centralised PCA
+    # 6. K-fold centralised PCA
     for fold_index in range(FOLDS_NUMBER):
         logger.info(f'Centralised PCA for fold {fold_index}')
         run_plink(
