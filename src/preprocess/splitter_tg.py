@@ -70,8 +70,8 @@ class SplitTGHom(SplitTG):
     @staticmethod
     def get_target(num_datasets: int = 7) -> pd.DataFrame:
         """
-        Loads the ethnic background phenotype for samples that passed initial QC,
-        drops rows with missing values and returns a DataFrame formatted to be used
+        Loads samples that passed initial QC into the splits at random creating homogeneous split,
+        returns a DataFrame formatted to be used
         for downstream analysis with PLINK.
         """
         y = pd.read_csv(os.path.join(TG_DATA_CHIP_ROOT, 'igsr_samples.tsv'), sep='\t').rename(
