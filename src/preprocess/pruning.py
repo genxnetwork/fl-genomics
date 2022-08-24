@@ -20,7 +20,7 @@ class Pruning(object):
         run_plink(
             args_list=[
                 '--pfile', path.join(SPLIT_GENO_DIR, f'{NODE}'),
-                '--out', path.join(SPLIT_GENO_DIR, f'{NODE}.preprune'),
+                '--out', path.join(SPLIT_GENO_DIR, f'{NODE}'),
                 '--rm-dup',
                 '--set-missing-var-ids', '@:#',
                 '--make-pgen'
@@ -29,7 +29,7 @@ class Pruning(object):
 
         run_plink(
             args_list=[
-                '--pfile', path.join(SPLIT_GENO_DIR, f'{NODE}.preprune'),
+                '--pfile', path.join(SPLIT_GENO_DIR, f'{NODE}'),
                 '--out', path.join(SPLIT_GENO_DIR, f'{NODE}'),
                 '--indep-pairwise', f'{window_size}', f'{step}', f'{threshold}'
             ]
