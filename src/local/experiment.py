@@ -433,7 +433,7 @@ tg_experiment_dict = {
 }
 
             
-@hydra.main(config_path='configs', config_name='tg_ukb')
+@hydra.main(config_path='configs', config_name='tg')
 def local_experiment(cfg: DictConfig):
     print(cfg)
     assert cfg.study in ['tg', 'ukb']
