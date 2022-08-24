@@ -75,10 +75,10 @@ if __name__ == '__main__':
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
     splitter = CVSplitter(superpop_split)
 
-    for node in nodes:
-        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.preprune.psam'), node=node, random_state=0)
-
     ancestry_df = SplitTG().get_ethnic_background()
+    for node in nodes:
+        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.preprune.psam'), node=node, y=ancestry_df, random_state=0)
+
     logger.info(f"Processing split {superpop_split.root_dir}")
     for node in nodes:
         logger.info(f"Saving train, val, test genotypes and running PCA for node {node}")
