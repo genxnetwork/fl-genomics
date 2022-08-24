@@ -270,6 +270,12 @@ class TGNNExperiment(NNExperiment):
                                                         loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
                                                         )
 
+    def run(self):
+        self.load_data()
+        self.start_mlflow_run()
+        self.train()
+        self.eval_and_log(metric_fun=accuracy_score, metric_name='accuracy')
+
 class ClfNNExperiment(NNExperiment):
     def create_model(self):
         self.model = MLPPredictor(input_size=self.x.train.shape[1],
