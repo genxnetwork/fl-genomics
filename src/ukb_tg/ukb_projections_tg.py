@@ -13,7 +13,7 @@ from configs.global_config import TG_DATA_CHIP_ROOT, TG_BFILE_PATH, SPLIT_GENO_D
 
 # 0. Preparation
 from local.tg_simple_trainer import SimpleTrainer
-from preprocess.splitter_tg import SplitTG
+from preprocess.splitter_tg import SplitTGHeter
 from utils.plink import run_plink
 
 logging.basicConfig(level=logging.INFO,
@@ -72,7 +72,7 @@ run_plink(
 logger.info(f'Done!')
 
 # 5. Write TG phenotypes
-ancestry_df = SplitTG().get_ethnic_background()
+ancestry_df = SplitTGHeter().get_target()
 relevant_ids = ancestry_df['IID'].isin(pd.read_csv(all_filtered_fn + '.psam', sep='\t')['#IID'])
 ancestry_df.loc[relevant_ids, ['IID', 'ancestry']].to_csv(tg_pca_prefix + '.tsv', sep='\t', index=False)
 
