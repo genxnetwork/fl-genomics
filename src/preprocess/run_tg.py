@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 
 from preprocess.qc import QC, sample_qc
-from preprocess.splitter_tg import SplitTGHeter, SplitTGHeter
+from preprocess.splitter_tg import SplitTGHeter, SplitTGHom
 from utils.loaders import load_plink_pcs
 from utils.plink import run_plink
 from utils.split import Split
