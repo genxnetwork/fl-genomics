@@ -67,7 +67,7 @@ if __name__ == '__main__':
     pruning.merge()
     for node in nodes:
         logger.info(f'Removing variants from {node}')
-        pruning.remove_variants(NODE=f'{node}_filtered.preprune', SNPS='ALL')
+        pruning.remove_variants(NODE=f'{node}_filtered', SNPS='ALL')
 
 
     # 5. Split each node into K folds
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     splitter = CVSplitter(superpop_split)
 
     for node in nodes:
-        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.preprune.psam'), node=node, random_state=0)
+        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.pruned.psam'), node=node, random_state=0)
 
     ancestry_df = SplitTG().get_ethnic_background()
     logger.info(f"Processing split {superpop_split.root_dir}")
@@ -124,7 +124,7 @@ if __name__ == '__main__':
         logger.info(f'Centralised PCA for fold {fold_index}')
         run_plink(
             args_list=[
-                '--pfile', TG_BFILE_PATH,
+                '--pfile', os.path.join(SPLIT_GENO_DIR, 'ALL_filtered.pruned'),
                 '--keep', superpop_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
                 '--freq', 'counts',
                 '--out', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext=''),
