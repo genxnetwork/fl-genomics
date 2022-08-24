@@ -6,13 +6,13 @@
 import logging
 import os
 import sys
+import numpy as np
 import pandas as pd
 
 from configs.global_config import TG_DATA_CHIP_ROOT, TG_BFILE_PATH, SPLIT_GENO_DIR, TG_DATA_DIR
 
 # 0. Preparation
-from configs.qc_config import variant_qc_config
-from preprocess.qc import QC
+from local.tg_simple_trainer import SimpleTrainer
 from preprocess.splitter_tg import SplitTG
 from utils.plink import run_plink
 
@@ -23,29 +23,33 @@ logging.basicConfig(level=logging.INFO,
                     )
 logger = logging.getLogger()
 
-TG_UKB_DIR = os.path.join(TG_DATA_CHIP_ROOT, 'external', 'ukb')
+TG_EXT_DIR = os.path.join(TG_DATA_CHIP_ROOT, 'external')
+TG_UKB_DIR = os.path.join(TG_EXT_DIR, 'ukb')
 
 # 1. Take UKB variants file and leave only the rsid column
-
 ukb_variants_fn = os.path.join(TG_UKB_DIR, 'ukb_filtered.bim')
 ukb_rsids_fn = os.path.join(TG_UKB_DIR, 'ukb_rsids.txt')
 os.system("awk '{print $2}' " + ukb_variants_fn + " > " + ukb_rsids_fn)
 
-# # 2. Conduct QC on full genome TG data using only variants from UKB
-# logger.info(f'Running centralised PCA on all TG samples for variants present in UKB and TG')
-# raw_wgs_prefix = os.path.join(TG_DATA_DIR, 'tg')
-# out_tg_ukb_prefix = os.path.join(TG_UKB_DIR, 'tg_ukb_filtered')
-# QC.qc(input_prefix=raw_wgs_prefix, output_prefix=out_tg_ukb_prefix, qc_config={**variant_qc_config,
-#                                                                                **{'--extract': ukb_rsids_fn}})
-
-# 3. Conduct PCA on filtered TG data
-logger.info(f'Running centralised PCA on all TG samples for variants present in UKB and TG')
+# 2. Extract intersection variants
+logger.info(f'Filtering by samples present both in UKB and TG')
 all_filtered_fn = os.path.join(SPLIT_GENO_DIR, 'ALL_filtered')
-tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
+tg_filt_prefix = os.path.join(TG_UKB_DIR, 'tg_filt')
 run_plink(
     args_list=[
         '--pfile', all_filtered_fn,
         '--extract', ukb_rsids_fn,
+        '--make-pgen',
+        '--out', tg_filt_prefix,
+    ]
+)
+
+# 3. Conduct PCA on filtered TG data
+logger.info(f'Running centralised PCA on all TG samples for variants present in UKB and TG')
+tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
+run_plink(
+    args_list=[
+        '--pfile', tg_filt_prefix,
         '--freq', 'counts',
         '--out', tg_pca_prefix,
         '--pca', 'allele-wts', '20'
@@ -72,5 +76,13 @@ ancestry_df = SplitTG().get_ethnic_background()
 relevant_ids = ancestry_df['IID'].isin(pd.read_csv(all_filtered_fn + '.psam', sep='\t')['#IID'])
 ancestry_df.loc[relevant_ids, ['IID', 'ancestry']].to_csv(tg_pca_prefix + '.tsv', sep='\t', index=False)
 
-# 4. Train a model
-logger.info(f'Training the model')
+# 6. Train a model
+tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
+x = pd.read_csv(tg_pca_prefix + '.sscore', sep='\t').rename(columns={'#IID': 'IID'}).set_index('IID').filter(like='_AVG')
+y = pd.read_csv(tg_pca_prefix + '.tsv', sep='\t').set_index('IID').reindex(x.index)['ancestry']
+_, y = np.unique(y, return_inverse=True)
+# # CV is commented out because it's needed only to check performance
+# SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).run_cv(x=x.values, y=y)
+SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).train_and_save(x=x.values, y=y, out_fn=tg_pca_prefix + '.pkl')
+logger.info(f'Done!')
+
