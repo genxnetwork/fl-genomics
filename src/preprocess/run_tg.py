@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
     ancestry_df = SplitTGHeter().get_target()
     for node in nodes:
-        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'), node=node, y=ancestry_df, random_state=0)
+        splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'), node=node, y=ancestry_df.set_index('IID')['ancestry'], random_state=0)
 
     logger.info(f"Processing split {superpop_split.root_dir}")
     for node in nodes:

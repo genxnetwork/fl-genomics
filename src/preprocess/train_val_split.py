@@ -73,7 +73,7 @@ class CVSplitter:
         """        
         self.split = split
 
-    def split_ids(self, ids_path: str = None, node_index: int = None, node: str = None, y = None, random_state: int = 34, num_folds: int = NUM_FOLDS):
+    def split_ids(self, ids_path: str = None, node_index: int = None, node: str = None, y: pd.Series = None, random_state: int = 34, num_folds: int = NUM_FOLDS):
         """
         Splits sample ids into K-fold cv for each node. At each fold, 1/Kth goes to test data, 1/Kth (randomly) to val
         and the rest to train
@@ -92,16 +92,16 @@ class CVSplitter:
 
         if y is None:
             # regular KFold
-            kfold = KFold(n_splits=num_folds, shuffle=True, random_state=random_state)
-            kfsplit = kfold.split(ids)
+            kfsplit = KFold(n_splits=num_folds, shuffle=True, random_state=random_state).split(ids)
         else:
             # stratified KFold, for categorical and possibly binary phenotypes
-            kfold = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=random_state)
-            kfsplit = kfold.split(ids, y=y.set_index('IID').reindex(pd.Index(ids['IID']))['split'])
+            y = y.reindex(pd.Index(ids['IID']))
+            kfsplit = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=random_state).split(ids, y=y)
         for fold_index, (train_val_indices, test_indices) in enumerate(kfsplit):
             train_indices, val_indices = train_test_split(train_val_indices,
                                                           train_size=(NUM_FOLDS - 2) / (NUM_FOLDS - 1),
-                                                          random_state=random_state)
+                                                          random_state=random_state,
+                                                          stratify=None if y is None else y.iloc[train_val_indices])
             
             for indices, part in zip([train_indices, val_indices, test_indices], ['train', 'val', 'test']):
                 out_path = self.split.get_ids_path(node_index=node_index, node=node, fold_index=fold_index, part_name=part)

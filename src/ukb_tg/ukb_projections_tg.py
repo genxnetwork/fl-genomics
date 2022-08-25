@@ -77,13 +77,13 @@ if __name__ == '__main__':
     relevant_ids = ancestry_df['IID'].isin(pd.read_csv(all_filtered_fn + '.psam', sep='\t')['#IID'])
     ancestry_df.loc[relevant_ids, ['IID', 'ancestry']].to_csv(tg_pca_prefix + '.tsv', sep='\t', index=False)
 
-    # 6. Train a model
-    tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
-    x = pd.read_csv(tg_pca_prefix + '.sscore', sep='\t').rename(columns={'#IID': 'IID'}).set_index('IID').filter(like='_AVG')
-    y = pd.read_csv(tg_pca_prefix + '.tsv', sep='\t').set_index('IID').reindex(x.index)['ancestry']
-    _, y = np.unique(y, return_inverse=True)
-    # # CV is commented out because it's needed only to check performance
-    # SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).run_cv(x=x.values, y=y)
-    SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).train_and_save(x=x.values, y=y, out_fn=tg_pca_prefix + '.pkl')
-    logger.info(f'Done!')
+# 6. Train a model
+tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
+x = pd.read_csv(tg_pca_prefix + '.sscore', sep='\t').rename(columns={'#IID': 'IID'}).set_index('IID').filter(like='_AVG')
+y = pd.read_csv(tg_pca_prefix + '.tsv', sep='\t').set_index('IID').reindex(x.index)['ancestry']
+_, y = np.unique(y, return_inverse=True)
+# # CV is commented out because it's needed only to check performance
+SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).run_cv(x=x.values, y=y, K=10)
+# SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).train_and_save(x=x.values, y=y, out_fn=tg_pca_prefix + '.pkl')
+logger.info(f'Done!')
 

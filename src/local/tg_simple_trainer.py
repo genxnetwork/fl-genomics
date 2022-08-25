@@ -20,7 +20,8 @@ _logger = logging.getLogger()
 
 class SimpleTrainer(object):
     def __init__(self, nclass, nfeat, epochs=10000, lr=0.1):
-        self.model = MLPClassifier(nclass=nclass, nfeat=nfeat, optim_params=None, scheduler_params=None, loss=TYPE_LOSS_DICT['discrete'], binary=False)
+        self.nclass = nclass
+        self.nfeat = nfeat
         self.epochs = epochs
         self.lr = lr
 
@@ -83,12 +84,13 @@ class SimpleTrainer(object):
         logger.info(f"Test set: accuracy {test_acc}")
         return test_acc, float(loss)
 
-    def run_cv(self, x, y):
-        K = 10
+    def run_cv(self, x, y, K = 10):
         skf = StratifiedKFold(n_splits=K)
         test_acc = []
         for train_index, test_index in skf.split(x, y):
             _logger.info(f'Processing fold...')
+            self.model = MLPClassifier(nclass=self.nclass, nfeat=self.nfeat, optim_params=None, scheduler_params=None,
+                                       loss=TYPE_LOSS_DICT['discrete'], binary=False)
             xtrain = x[train_index]
             ytrain = y[train_index]
             xtest = x[test_index]

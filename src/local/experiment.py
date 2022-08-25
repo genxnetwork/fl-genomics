@@ -112,7 +112,7 @@ class LocalExperiment(object):
         self.load_data()
         self.start_mlflow_run()
         self.train()
-        self.eval_and_log()
+        self.eval_and_log(**TYPE_METRIC_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]])
     
 
 def simple_estimator_factory(model):
@@ -246,12 +246,6 @@ class MlpClfExperiment(NNExperiment):
                                                         loss=torch.nn.functional.binary_cross_entropy_with_logits,
                                                         binary=True
                                                         )
-
-    def run(self):
-        self.load_data()
-        self.start_mlflow_run()
-        self.train()
-        self.eval_and_log(metric_fun=roc_auc_score, metric_name='roc_auc')
 
 class TGNNExperiment(NNExperiment):
     def create_model(self):
@@ -410,13 +404,7 @@ class LassoNetClassifierExperiment(LassoNetExperiment):
         self.load_best_model(model=LassoNetClassifier)
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
     
-    def run(self):
-        self.load_data()
-        self.start_mlflow_run()
-        self.train()
-        self.eval_and_log(metric_fun=roc_auc_score, metric_name='roc_auc')
-        
-        
+
 # Dict of possible experiment types and their corresponding classes
 ukb_experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
