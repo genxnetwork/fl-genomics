@@ -13,68 +13,69 @@ from configs.global_config import TG_DATA_CHIP_ROOT, TG_BFILE_PATH, SPLIT_GENO_D
 
 # 0. Preparation
 from local.tg_simple_trainer import SimpleTrainer
-from preprocess.splitter_tg import SplitTG
+from preprocess.splitter_tg import SplitTGHeter
 from utils.plink import run_plink
 
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format='%(asctime)s %(levelname)-8s %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S'
-                    )
-logger = logging.getLogger()
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO,
+                        stream=sys.stdout,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S'
+                        )
+    logger = logging.getLogger()
 
-TG_EXT_DIR = os.path.join(TG_DATA_CHIP_ROOT, 'external')
-TG_UKB_DIR = os.path.join(TG_EXT_DIR, 'ukb')
+    TG_EXT_DIR = os.path.join(TG_DATA_CHIP_ROOT, 'external')
+    TG_UKB_DIR = os.path.join(TG_EXT_DIR, 'ukb')
 
-# 1. Take UKB variants file and leave only the rsid column
-ukb_variants_fn = os.path.join(TG_UKB_DIR, 'ukb_filtered.bim')
-ukb_rsids_fn = os.path.join(TG_UKB_DIR, 'ukb_rsids.txt')
-os.system("awk '{print $2}' " + ukb_variants_fn + " > " + ukb_rsids_fn)
+    # 1. Take UKB variants file and leave only the rsid column
+    ukb_variants_fn = os.path.join(TG_UKB_DIR, 'ukb_filtered.bim')
+    ukb_rsids_fn = os.path.join(TG_UKB_DIR, 'ukb_rsids.txt')
+    os.system("awk '{print $2}' " + ukb_variants_fn + " > " + ukb_rsids_fn)
 
-# 2. Extract intersection variants
-logger.info(f'Filtering by samples present both in UKB and TG')
-all_filtered_fn = os.path.join(SPLIT_GENO_DIR, 'ALL_filtered')
-tg_filt_prefix = os.path.join(TG_UKB_DIR, 'tg_filt')
-run_plink(
-    args_list=[
-        '--pfile', all_filtered_fn,
-        '--extract', ukb_rsids_fn,
-        '--make-pgen',
-        '--out', tg_filt_prefix,
-    ]
-)
+    # 2. Extract intersection variants
+    logger.info(f'Filtering by samples present both in UKB and TG')
+    all_filtered_fn = os.path.join(SPLIT_GENO_DIR, 'ALL_filtered')
+    tg_filt_prefix = os.path.join(TG_UKB_DIR, 'tg_filt')
+    run_plink(
+        args_list=[
+            '--pfile', all_filtered_fn,
+            '--extract', ukb_rsids_fn,
+            '--make-pgen',
+            '--out', tg_filt_prefix,
+        ]
+    )
 
-# 3. Conduct PCA on filtered TG data
-logger.info(f'Running centralised PCA on all TG samples for variants present in UKB and TG')
-tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
-run_plink(
-    args_list=[
-        '--pfile', tg_filt_prefix,
-        '--freq', 'counts',
-        '--out', tg_pca_prefix,
-        '--pca', 'allele-wts', '20'
-    ]
-)
+    # 3. Conduct PCA on filtered TG data
+    logger.info(f'Running centralised PCA on all TG samples for variants present in UKB and TG')
+    tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
+    run_plink(
+        args_list=[
+            '--pfile', tg_filt_prefix,
+            '--freq', 'counts',
+            '--out', tg_pca_prefix,
+            '--pca', 'allele-wts', '20'
+        ]
+    )
 
-# 4. Get TG data projections onto TG's PC space (1 / sqrt(.eigenval) scaling)
-logger.info(f"Getting TG data projections onto TG's PC space (1 / sqrt(.eigenval) scaling)")
-run_plink(
-    args_list=[
-        '--pfile', all_filtered_fn,
-        '--read-freq', tg_pca_prefix + '.acount',
-        '--score', tg_pca_prefix + '.eigenvec.allele',
-        '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
-        '--out', tg_pca_prefix,
-        '--set-missing-var-ids', '@:#'
-    ]
-)
+    # 4. Get TG data projections onto TG's PC space (1 / sqrt(.eigenval) scaling)
+    logger.info(f"Getting TG data projections onto TG's PC space (1 / sqrt(.eigenval) scaling)")
+    run_plink(
+        args_list=[
+            '--pfile', all_filtered_fn,
+            '--read-freq', tg_pca_prefix + '.acount',
+            '--score', tg_pca_prefix + '.eigenvec.allele',
+            '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
+            '--out', tg_pca_prefix,
+            '--set-missing-var-ids', '@:#'
+        ]
+    )
 
-logger.info(f'Done!')
+    logger.info(f'Done!')
 
-# 5. Write TG phenotypes
-ancestry_df = SplitTG().get_ethnic_background()
-relevant_ids = ancestry_df['IID'].isin(pd.read_csv(all_filtered_fn + '.psam', sep='\t')['#IID'])
-ancestry_df.loc[relevant_ids, ['IID', 'ancestry']].to_csv(tg_pca_prefix + '.tsv', sep='\t', index=False)
+    # 5. Write TG phenotypes
+    ancestry_df = SplitTGHeter().get_target()
+    relevant_ids = ancestry_df['IID'].isin(pd.read_csv(all_filtered_fn + '.psam', sep='\t')['#IID'])
+    ancestry_df.loc[relevant_ids, ['IID', 'ancestry']].to_csv(tg_pca_prefix + '.tsv', sep='\t', index=False)
 
 # 6. Train a model
 tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')

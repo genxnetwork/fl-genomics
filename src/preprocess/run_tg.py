@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 
 from preprocess.qc import QC, sample_qc
-from preprocess.splitter_tg import SplitTG
+from preprocess.splitter_tg import SplitTGHeter, SplitTGHom
 from utils.loaders import load_plink_pcs
 from utils.plink import run_plink
 from utils.split import Split
@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
     # 2. Split into ethnic datasets and then QC each local dataset
     logger.info("Splitting ethnic dataset")
-    nodes = SplitTG().split(input_prefix=varqc_prefix, make_pgen=True)
+    nodes = SplitTGHeter().split(input_prefix=varqc_prefix, make_pgen=True)
 
     # 3. Perform sample QC on each node separately
     for local_prefix in nodes:
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
     splitter = CVSplitter(superpop_split)
 
-    ancestry_df = SplitTG().get_ethnic_background()
+    ancestry_df = SplitTGHeter().get_target()
     for node in nodes:
         splitter.split_ids(ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'), node=node, y=ancestry_df.set_index('IID')['ancestry'], random_state=0)
 
