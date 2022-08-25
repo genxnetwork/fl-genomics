@@ -19,13 +19,13 @@ from xgboost import XGBRegressor
 from sklearn.metrics import r2_score, mean_squared_error, roc_auc_score, accuracy_score
 import torch
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_validate
+from sklearn.model_selection import cross_validate, train_test_split
 
 from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
-from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier
+from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.loaders import ExperimentDataLoader
