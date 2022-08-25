@@ -38,7 +38,7 @@ class PlotLandscapeCallback(ClientCallback):
         self.beta = beta
 
     def on_after_fit(self, model: BaseNet):
-        beta_space, Z = mse_on_beta_grid(self.x, self.y)
+        beta_space, Z = mse_on_beta_grid(self.x, self.y, beta_range=(-1, 1))
         # print(Z[90:, 20:30])
         fig = go.Figure()
         fig.add_trace(go.Contour(

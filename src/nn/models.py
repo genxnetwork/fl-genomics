@@ -274,16 +274,16 @@ class MLPClassifier(BaseNet):
         # self.bn = BatchNorm1d(nfeat)
         self.nclass = nclass
         self.fc1 = Linear(nfeat, hidden_size)
-        self.bn2 = BatchNorm1d(hidden_size)
+        # self.bn2 = BatchNorm1d(hidden_size)
         self.fc2 = Linear(hidden_size, hidden_size2)
-        self.bn3 = BatchNorm1d(hidden_size2)
+        # self.bn3 = BatchNorm1d(hidden_size2)
         self.fc3 = Linear(hidden_size2, nclass)
         self.loss = loss
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x = self.bn(x)
-        x = relu6(self.bn2(self.fc1(x)))
-        x = relu6(self.bn3(self.fc2(x)))
+        x = relu(self.fc1(x))
+        x = relu(self.fc2(x))
         # x = softmax(, dim=1)
         return self.fc3(x)
 

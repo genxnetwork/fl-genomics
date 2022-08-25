@@ -35,4 +35,7 @@ phenotype:
 
 callbacks:
   plot_landscape:
-    arg: 1
+    beta_start: -1
+    beta_end: 1
+    points_num: 100
+

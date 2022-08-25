@@ -180,3 +180,5 @@ mlruns/
 
 # hydra multirun logs
 src/multirun/
+
+mount_azure_fileshare.sh

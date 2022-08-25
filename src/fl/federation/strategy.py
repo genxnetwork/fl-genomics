@@ -280,7 +280,7 @@ class Scaffold(FedAvg):
         self.old_weights = None
         super().__init__(**kwargs)
 
-    def _plot_2d_landscape(self, results: List[Tuple[ClientProxy, FitRes]]):
+    def _plot_2d_landscape(self, rnd: int, results: List[Tuple[ClientProxy, FitRes]]):
         print(f'keys in metrics are {list(results[0][1].metrics.keys())}')
         local_betas = [bytes_to_weights(res.metrics['local_beta'])[0] for _, res in results]
         true_betas = [bytes_to_weights(res.metrics['true_beta'])[0] for _, res in results]
@@ -292,25 +292,27 @@ class Scaffold(FedAvg):
         beta_grid = sum(beta_grids) / len(beta_grids)
         fig = go.Figure()
         points_num = 100
-        beta_space = numpy.linspace(-2, 2, num=points_num, endpoint=True)
+        beta_space = numpy.linspace(-1, 1, num=points_num, endpoint=True)
         fig.add_trace(go.Contour(
-                      z=beta_grid, # I don't know why we need T to work
+                      z=beta_grid, 
                       x=beta_space, # horizontal axis
                       y=beta_space, # vertical axis,
-                      contours=dict(start=numpy.nanmin(beta_grid), end=numpy.nanmax(beta_grid), size=0.5)
+                      contours=dict(start=numpy.nanmin(beta_grid), end=numpy.nanmax(beta_grid), size=0.1)
         ))
 
         for i, (local_beta, true_beta) in enumerate(zip(local_betas, true_betas)):
             add_beta_to_loss_landscape(fig, true_beta, local_beta, f'SGD_{i}')
-            
-        mlflow.log_figure(fig, 'global_loss_landscape.png')
+        print(f'c_global shape is: {self.c_global[0].shape}')
+        fig.add_trace(go.Scatter(x=[self.c_global[0][0, 0]], y=[self.c_global[0][0, 1]], mode='markers', name=f'c_global'))
+        
+        mlflow.log_figure(fig, f'global_loss_landscape_rnd_{rnd}.png')
 
     def aggregate_fit(
         self, rnd: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[BaseException]
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
         
         # List[List[numpy.ndarray]]
-        self._plot_2d_landscape(results)
+        # self._plot_2d_landscape(rnd, results)
         client_weights = [parameters_to_weights(fit_res.parameters) for _, fit_res in results]
 
         for layer_index, old_layer_weight in enumerate(self.old_weights):
@@ -321,7 +323,7 @@ class Scaffold(FedAvg):
             for i, cw in enumerate(client_weights):
                 print(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
             
-            self.c_global[layer_index] = cg_layer + self.global_lr*c_avg_delta
+            self.c_global[layer_index] = cg_layer + c_avg_delta
 
         new_weights = aggregate([(cw, 1) for cw in client_weights])
         for layer_index, (old_layer_weight, new_layer_weight) in enumerate(zip(self.old_weights, new_weights)):

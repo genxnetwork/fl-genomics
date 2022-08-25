@@ -44,8 +44,12 @@ def mse_on_beta_grid(x: numpy.ndarray, y: numpy.ndarray, points_num: int = 100, 
 
 def add_beta_to_loss_landscape(fig: go.Figure, true_beta: numpy.ndarray, beta_history: numpy.ndarray, name: str):
     fig.add_trace(go.Scatter(x=beta_history[:, 0], y=beta_history[:, 1], mode='markers+lines', name=name))
-    fig.add_trace(go.Scatter(x=true_beta[0], y=true_beta[1], mode='markers', name='True beta'))
-    fig.update_layout(legend=dict(
+    fig.add_trace(go.Scatter(x=true_beta[0], y=true_beta[1], mode='markers', name=f'True beta {name}'))
+    fig.update_layout(
+        autosize=False,
+        width=1536,
+        height=1024,
+        legend=dict(
             yanchor="top",
             y=0.99,
             xanchor="left",

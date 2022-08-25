@@ -268,7 +268,11 @@ class QuadraticNNExperiment(NNExperiment):
         rng = numpy.random.default_rng(seed)
         self.data = rng.normal(0, 1.0, size=(self.cfg.data.samples, 2))
         # data = PolynomialFeatures(degree=2).transform(data)
-        self.beta = rng.normal(0, 1.0, size=(2, 1))
+        split = self.cfg.get('split', None)
+        if split is None:
+            self.beta = rng.normal(0, 1.0, size=(2, 1))
+        else:
+            self.beta = numpy.array(self.cfg.split.nodes[self.cfg.node.name].true_beta).reshape(-1, 1)
         self.logger.info(f'beta is {self.beta} for random_state {self.cfg.data.random_state}')
         self.y = self.data.dot(self.beta)[:, 0]
         # print('quadratic data shapes are', y.shape, data.shape)
