@@ -1,0 +1,46 @@
+defaults:
+  - _self_ 
+
+split_dir: /gpfs/gpfs0/ukb_data/test/ethnic_split
+train_node_index: 0
+node_index: 1
+gwas_node_index: 0
+fold_index: 0
+
+experiment:
+  train_name: ethnic-split-all-snps-train
+  name: ethnic-split-all-snps-test
+  snp_count: 100000
+  max_snps: 596409
+  include_genotype: true
+  include_covariates: true
+  different_node_gwas: false
+  test_samples_limit: null
+
+phenotype:
+  name: standing_height
+  code: 50
+
+data:
+  genotype:
+    root: ${split_dir}/genotypes/node_${node_index}/fold_${fold_index}
+    train: ${.root}_train
+    val: ${.root}_val
+    test: ${.root}_test
+    
+  phenotype:
+    root: ${split_dir}/phenotypes/${phenotype.name}/node_${node_index}/fold_${fold_index}
+    train: ${.root}_train.tsv
+    val: ${.root}_val.tsv
+    test: ${.root}_test.tsv
+        
+  covariates:
+    root: ${split_dir}/covariates/${phenotype.name}/node_${node_index}/fold_${fold_index}
+    train: ${.root}_train.tsv
+    val: ${.root}_val.tsv
+    test: ${.root}_test.tsv
+  gwas: ${split_dir}/gwas/${phenotype.name}/node_${gwas_node_index}/fold_${fold_index}.gwas.tsv
+  
+model:
+  batch_size: 128
+

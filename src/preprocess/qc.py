@@ -18,11 +18,9 @@ def sample_qc(bin_file_path: str, output_path: str, bin_file_type='--pfile'):
 class QC(object):
     """ Class that utilises QC to be used for local QC """
     @staticmethod
-    def qc(input_prefix: str, qc_config: dict) -> str:
+    def qc(input_prefix: str, output_prefix: str, qc_config: dict) -> str:
         """ Runs plink command that performs QC """
-        output_prefix = input_prefix + '_filtered'
         run_plink(args_list=['--make-pgen'],
                   args_dict={**{'--pfile': input_prefix, # Merging dicts here
                                 '--out': output_prefix},
                              **qc_config})
-        return output_prefix

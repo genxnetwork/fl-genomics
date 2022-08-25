@@ -38,7 +38,11 @@ class ExperimentDataLoader:
 
     def _load_phenotype(self, path: str) -> numpy.ndarray:
         phenotype = load_phenotype(path, out_type=PHENO_NUMPY_DICT[self.cfg.data.phenotype.name], encode=(self.cfg.study == 'tg'))
-        if (PHENO_TYPE_DICT[self.cfg.data.phenotype.name] == 'continuous') & (self.cfg.data.phenotype.name in MEAN_PHENO_DICT.keys()):
+        
+        if (PHENO_TYPE_DICT[self.cfg.data.phenotype.name] == 'binary'):
+            assert set(phenotype) == set([1, 2])
+            return phenotype - 1
+        elif (PHENO_TYPE_DICT[self.cfg.data.phenotype.name] == 'continuous') & (self.cfg.data.phenotype.name in MEAN_PHENO_DICT.keys()):
             return phenotype - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
         else:
             return phenotype

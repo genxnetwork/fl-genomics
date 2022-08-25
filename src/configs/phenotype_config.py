@@ -1,11 +1,13 @@
 import numpy as np
 import torch
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, roc_auc_score
 from torch.nn.functional import mse_loss, cross_entropy, binary_cross_entropy
 
-MEAN_PHENO_DICT = {'standing_height': 170.0}
+MEAN_PHENO_DICT = {'standing_height': 170.0,
+                   'ebmd': -0.33}
 
 PHENO_TYPE_DICT = {'standing height': 'continuous',
+                   'ebmd': 'continuous',
                    'ancestry': 'discrete',
                    'quantitative': 'continuous',
                    'asthma': 'binary'}
@@ -15,7 +17,9 @@ TYPE_LOSS_DICT = {'continuous': mse_loss,
                   'binary': binary_cross_entropy}
 
 PHENO_NUMPY_DICT = {'standing_height': np.float32,
-                    'ancestry': np.ndarray}
+                    'ebmd': np.float32,
+                    'ancestry': np.ndarray,
+                    'asthma': np.float32}
 
 
 def get_accuracy(y_true: np.array, y_pred: torch.tensor) -> float:
@@ -26,5 +30,7 @@ def get_accuracy(y_true: np.array, y_pred: torch.tensor) -> float:
 TYPE_METRIC_DICT = {'continuous': {'metric_fun': r2_score,
                                    'metric_name': 'r2'},
                     'discrete': {'metric_fun': get_accuracy,
-                                 'metric_name': 'accuracy'}
+                                 'metric_name': 'accuracy'},
+                    'binary': {'metric_fun': roc_auc_score,
+                               'metric_name': 'roc_auc'}
                     }

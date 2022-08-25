@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, R2Score
 import mlflow
 
+from configs.phenotype_config import TYPE_LOSS_DICT
 from nn.lightning import DataModule
 from nn.utils import ClfLoaderMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
 
@@ -269,7 +270,7 @@ class MLPPredictor(BaseNet):
 
 
 class MLPClassifier(BaseNet):
-    def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss, hidden_size=800, hidden_size2=200) -> None:
+    def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss, hidden_size=800, hidden_size2=200, binary=False) -> None:
         super().__init__(input_size=None, optim_params=optim_params, scheduler_params=scheduler_params)
         # self.bn = BatchNorm1d(nfeat)
         self.nclass = nclass
@@ -397,4 +398,11 @@ class LassoNetRegressor(BaseNet):
         #('covariate weight shapes are ', weight.shape, snp_count, cov_weights.shape, weight[:, snp_count:].shape)
         weight[:, snp_count:] = cov_weights
         self.layer.weight = torch.nn.Parameter(weight)
-    
+
+class LassoNetClassifier(LassoNetRegressor):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        
+    def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
+        return binary_cross_entropy_with_logits(y_hat, y)

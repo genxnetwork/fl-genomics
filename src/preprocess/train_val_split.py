@@ -5,9 +5,10 @@ from omegaconf import DictConfig
 from os import symlink
 
 import pandas
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import KFold, train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from numpy import array_split, array, cumsum
+import pandas as pd
 
 from configs.split_config import NUM_FOLDS
 from utils.split import Split
@@ -72,7 +73,7 @@ class CVSplitter:
         """        
         self.split = split
 
-    def split_ids(self, ids_path: str = None, node_index: int = None, node: str = None, random_state: int = 34, num_folds: int = NUM_FOLDS):
+    def split_ids(self, ids_path: str = None, node_index: int = None, node: str = None, y: pd.Series = None, random_state: int = 34, num_folds: int = NUM_FOLDS):
         """
         Splits sample ids into K-fold cv for each node. At each fold, 1/Kth goes to test data, 1/Kth (randomly) to val
         and the rest to train
@@ -80,6 +81,7 @@ class CVSplitter:
         Args:
             node_index (int): Index of node
             node_index (int): Alternatively, node name
+            y: y can be passed to trigger StratifiedKFold instead KFold
             random_state (int): Fixed random_state for train_test_split sklearn function
             num_folds (int): number of folds
         """
@@ -88,11 +90,18 @@ class CVSplitter:
         # we do not need sex here
         ids = pandas.read_table(ids_path).rename(columns={'#IID': 'IID'}).filter(['FID', 'IID'])
 
-        kfold = KFold(n_splits=num_folds, shuffle=True, random_state=random_state)
-        for fold_index, (train_val_indices, test_indices) in enumerate(kfold.split(ids)):
+        if y is None:
+            # regular KFold
+            kfsplit = KFold(n_splits=num_folds, shuffle=True, random_state=random_state).split(ids)
+        else:
+            # stratified KFold, for categorical and possibly binary phenotypes
+            y = y.reindex(pd.Index(ids['IID']))
+            kfsplit = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=random_state).split(ids, y=y)
+        for fold_index, (train_val_indices, test_indices) in enumerate(kfsplit):
             train_indices, val_indices = train_test_split(train_val_indices,
                                                           train_size=(NUM_FOLDS - 2) / (NUM_FOLDS - 1),
-                                                          random_state=random_state)
+                                                          random_state=random_state,
+                                                          stratify=None if y is None else y.iloc[train_val_indices])
             
             for indices, part in zip([train_indices, val_indices, test_indices], ['train', 'val', 'test']):
                 out_path = self.split.get_ids_path(node_index=node_index, node=node, fold_index=fold_index, part_name=part)
