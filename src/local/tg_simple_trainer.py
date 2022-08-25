@@ -83,8 +83,7 @@ class SimpleTrainer(object):
         logger.info(f"Test set: accuracy {test_acc}")
         return test_acc, float(loss)
 
-    def run_cv(self, x, y):
-        K = 10
+    def run_cv(self, x, y, K = 10):
         skf = StratifiedKFold(n_splits=K)
         test_acc = []
         for train_index, test_index in skf.split(x, y):
