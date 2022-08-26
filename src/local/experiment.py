@@ -29,7 +29,7 @@ from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPCl
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.loaders import ExperimentDataLoader
-from local.utils import plot_loss_landscape
+from utils.landscape import plot_loss_landscape
 
 
 class LocalExperiment(object):
