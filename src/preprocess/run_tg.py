@@ -5,7 +5,7 @@ import argparse
 import pandas as pd
 
 from preprocess.qc import QC
-from preprocess.splitter_tg import SplitTG
+from preprocess.splitter_tg import SplitTGHeter
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter
@@ -77,7 +77,7 @@ if __name__ == '__main__':
     nodes = set(TG_SUPERPOP_DICT.values())
     if Stage.POPULATION_SPLIT in stages:
         logger.info('Splitting ethnic dataset')
-        SplitTG().split(input_prefix=varqc_prefix, make_pgen=True)
+        SplitTGHeter().split(input_prefix=varqc_prefix, make_pgen=True)
 
     # 3. Perform sample QC on each node separately
     if Stage.SAMPLE_QC in stages:
@@ -106,17 +106,18 @@ if __name__ == '__main__':
         logger.info('making k-fold split for the TG dataset')
         splitter = CVSplitter(superpop_split)
 
+        ancestry_df = SplitTGHeter().get_target()
         for node in nodes:
             splitter.split_ids(
                 ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'),
                 node=node,
+                y=ancestry_df.set_index('IID')['ancestry'],
                 random_state=0
             )
 
-        ancestry_df = SplitTG().get_ethnic_background()
-        logger.info(f'Processing split {superpop_split.root_dir}')
+        logger.info(f"Processing split {superpop_split.root_dir}")
         for node in nodes:
-            logger.info(f'Saving train, val, test genotypes and running PCA for node {node}')
+            logger.info(f"Saving train, val, test genotypes and running PCA for node {node}")
             for fold_index in range(FOLDS_NUMBER):
                 for part_name in ['train', 'val', 'test']:
                     ids_path = superpop_split.get_ids_path(node=node, fold_index=fold_index, part_name=part_name)

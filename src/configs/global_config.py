@@ -18,6 +18,7 @@ areas_path = globals().get('areas_path', '/trinity/home/s.mishra/nuts/UK_divisio
 PLINK2_BIN = globals().get('PLINK2_BIN', 'plink2')
 
 TG_DATA_ROOT = globals().get('TG_DATA_ROOT', '/mnt/genx-bio-share/TG/data/chip')
+TG_DATA_DIR = globals().get('TG_DATA_DIR', '/mount/storage/TG/data')
 TG_OUT = globals().get('TG_OUT', '/home/dkolobok/TG/out')
 TG_BFILE_PATH = globals().get('TG_BFILE_PATH', os.path.join(TG_DATA_ROOT, 'tg'))
 TG_SAMPLE_QC_IDS_PATH = globals().get('TG_SAMPLE_QC_IDS_PATH', os.path.join(TG_DATA_ROOT, 'passed_sample_qc'))

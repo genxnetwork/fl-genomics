@@ -8,7 +8,7 @@ sys.path.append('..')
 from configs.split_config import ethnic_background_name_map
 from configs.split_config import TG_SUPERPOP_DICT
 from preprocess.splitter import SplitBase
-from preprocess.splitter_tg import SplitTG
+from preprocess.splitter_tg import SplitTGHeter
 from utils.plink import run_plink
 
 
@@ -57,7 +57,7 @@ class PCATG(PCABase):
     def pc_scatterplot(pca_path: str, scatter_plot_path: str) -> None:
         """ Visualises eigenvector with scatterplot [matrix] """
         eigenvec = pd.read_table(f'{pca_path}.eigenvec')[['IID', 'PC1', 'PC2']]
-        tg_df = SplitTG().get_ethnic_background()
+        tg_df = SplitTGHeter().get_target()
         eigenvec = pd.merge(eigenvec, tg_df, on='IID')
         eigenvec['ethnic_background_name'] = eigenvec['pop'].replace(TG_SUPERPOP_DICT)
         px.scatter(eigenvec, x='PC1', y='PC2', color='split').write_html(scatter_plot_path)

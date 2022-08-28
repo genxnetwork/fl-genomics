@@ -5,17 +5,17 @@ from omegaconf import DictConfig
 from os import symlink
 
 import pandas
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import KFold, train_test_split, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from numpy import array_split, array, cumsum
+import pandas as pd
 
 from configs.split_config import FOLDS_NUMBER
 from utils.split import Split
 
-FOLD_COUNT = 10
 
 class WBSplitter:
-    def __init__(self, ethnic_split: Split, new_split: Split, n_nodes: int, array_split_arg, n_folds: int=FOLD_COUNT):
+    def __init__(self, ethnic_split: Split, new_split: Split, n_nodes: int, array_split_arg, n_folds: int = FOLDS_NUMBER):
         """
         Splits the white british node of the ethnic split into a number of nodes
         in a new split using numpy's array_split.
@@ -72,7 +72,7 @@ class CVSplitter:
         """
         self.split = split
 
-    def split_ids(self, ids_path: str = None, node_index: int = None, node: str = None, random_state: int = 34, num_folds: int = FOLDS_NUMBER):
+    def split_ids(self, ids_path: str = None, node_index: int = None, node: str = None, y: pd.Series = None, random_state: int = 34, num_folds: int = FOLDS_NUMBER):
         """
         Splits sample ids into K-fold cv for each node. At each fold, 1/Kth goes to test data, 1/Kth (randomly) to val
         and the rest to train
@@ -80,6 +80,7 @@ class CVSplitter:
         Args:
             node_index (int): Index of node
             node_index (int): Alternatively, node name
+            y: y can be passed to trigger StratifiedKFold instead KFold
             random_state (int): Fixed random_state for train_test_split sklearn function
             num_folds (int): number of folds
         """
@@ -88,11 +89,18 @@ class CVSplitter:
         # we do not need sex here
         ids = pandas.read_table(ids_path).rename(columns={'#IID': 'IID'}).filter(['FID', 'IID'])
 
-        kfold = KFold(n_splits=num_folds, shuffle=True, random_state=random_state)
-        for fold_index, (train_val_indices, test_indices) in enumerate(kfold.split(ids)):
+        if y is None:
+            # regular KFold
+            kfsplit = KFold(n_splits=num_folds, shuffle=True, random_state=random_state).split(ids)
+        else:
+            # stratified KFold, for categorical and possibly binary phenotypes
+            y = y.reindex(pd.Index(ids['IID']))
+            kfsplit = StratifiedKFold(n_splits=num_folds, shuffle=True, random_state=random_state).split(ids, y=y)
+        for fold_index, (train_val_indices, test_indices) in enumerate(kfsplit):
             train_indices, val_indices = train_test_split(train_val_indices,
                                                           train_size=(FOLDS_NUMBER - 2) / (FOLDS_NUMBER - 1),
-                                                          random_state=random_state)
+                                                          random_state=random_state,
+                                                          stratify=None if y is None else y.iloc[train_val_indices])
 
             for indices, part in zip([train_indices, val_indices, test_indices], ['train', 'val', 'test']):
                 out_path = self.split.get_ids_path(node_index=node_index, node=node, fold_index=fold_index, part_name=part)
@@ -111,7 +119,7 @@ class CVSplitter:
         """
         phenotype = pandas.read_table(self.split.get_source_phenotype_path(node_index))
 
-        for fold_index in range(FOLD_COUNT):
+        for fold_index in range(FOLDS_NUMBER):
             for part in ['train', 'val', 'test']:
 
                 fold_indices = pandas.read_table(self.split.get_ids_path(node_index=node_index, fold_index=fold_index, part_name=part))
@@ -133,7 +141,7 @@ class CVSplitter:
         pca = pandas.read_table(self.split.get_source_pca_path(node_index))
         pca.rename({'#FID': 'FID'}, axis='columns', inplace=True)
 
-        for fold_index in range(FOLD_COUNT):
+        for fold_index in range(FOLDS_NUMBER):
             for part in ['train', 'val', 'test']:
 
                 fold_indices = pandas.read_table(self.split.get_ids_path(node_index=node_index, fold_index=fold_index, part_name=part))
@@ -147,7 +155,7 @@ class CVSplitter:
         Args:
             node_index (int): Index of node
         """
-        for fold_index in range(FOLD_COUNT):
+        for fold_index in range(FOLDS_NUMBER):
             for part in ['train', 'val', 'test']:
 
                 pca_path = self.split.get_pca_path(node_index=node_index, fold_index=fold_index, part=part)
@@ -197,7 +205,7 @@ class CVSplitter:
             node_index (int): Index of node
             covariates (List[str], optional): Covariates to standardize. If None, every covariate will be standardized. Defaults to None.
         """
-        for fold_index in range(FOLD_COUNT):
+        for fold_index in range(FOLDS_NUMBER):
             self.standardize(
                     self.split.get_pca_cov_path(node_index, fold_index, 'train'),
                     self.split.get_pca_cov_path(node_index, fold_index, 'val'),
@@ -242,7 +250,7 @@ class CVSplitter:
 @hydra.main(config_path='configs', config_name='split')
 def main(cfg: DictConfig):
 
-    split = Split(cfg.split_dir, cfg.phenotype.name, cfg.node_count, FOLD_COUNT)
+    split = Split(cfg.split_dir, cfg.phenotype.name, cfg.node_count, FOLDS_NUMBER)
     cv = CVSplitter(split)
 
     for node_index in range(cfg.node_count):
