@@ -9,10 +9,10 @@ class Split:
         Args:
             root_dir (str): Directory where all work with this split will be done.
             phenotype (str): Name of phenotype.
-            node_count (int): Number of nodes in split. 
+            node_count (int): Number of nodes in split.
             nodes (list): Alternatively, explicit node names.
             fold_count (int, optional): Number of cv folds. Defaults to 10.
-        """        
+        """
         self.root_dir = root_dir
         self.phenotype = phenotype
         self.node_count = node_count
@@ -81,7 +81,7 @@ class Split:
 
     def get_pca_path(self, fold_index: int, part: str, node_index: int = None, node: str = None, ext: str = '.csv.eigenvec') -> str:
         return os.path.join(self.pca_dir, f'node_{node_index}' if node_index is not None else node, f'fold_{fold_index}_{part}_projections') + ext
-    
+
     def get_pca_cov_path(self, fold_index: int, part: str, node_index: int = None, node: str = None) -> str:
         return os.path.join(self.pca_cov_dir, self.phenotype, f'node_{node_index}' if node_index is not None else node, f'fold_{fold_index}_{part}.tsv')
 
@@ -91,12 +91,15 @@ class Split:
     def get_snplist_path(self, strategy: str, node_index: int, fold_index: int) -> str:
         return os.path.join(self.snplists_dir, self.phenotype, f'node_{node_index}_fold_{fold_index}_{strategy}.snplist')
 
+    def get_genotypes_path(self):
+        return self.genotypes_dir
+
     def get_source_pfile_path(self, node_index: int = None, node: str = None) -> str:
         return os.path.join(self.genotypes_dir, f'node_{node_index}_filtered' if node_index is not None else f'{node}_filtered')
 
     def get_pfile_path(self, fold_index: int, part_name: str, node_index: int = None, node: str = None):
         return os.path.join(self.genotypes_dir, f"node_{node_index}" if node_index is not None else node, f"fold_{fold_index}_{part_name}")
-    
+
     def get_topk_pfile_path(self, strategy: str, node_index: int, fold_index: int, snp_count: int, part: str, sample_count: int = None) -> str:
         fold_dir = os.path.join(self.genotypes_dir, self.phenotype, f'node_{node_index}', strategy, f'fold_{fold_index}')
         makedirs(fold_dir, exist_ok=True)

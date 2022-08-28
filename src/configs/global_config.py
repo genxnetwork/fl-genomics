@@ -17,11 +17,11 @@ areas_path = globals().get('areas_path', '/trinity/home/s.mishra/nuts/UK_divisio
 
 PLINK2_BIN = globals().get('PLINK2_BIN', 'plink2')
 
-TG_DATA_ROOT = globals().get('TG_DATA_ROOT', '/mount/storage/TG/data/chip')
+TG_DATA_ROOT = globals().get('TG_DATA_ROOT', '/mnt/genx-bio-share/TG/data/chip')
 TG_OUT = globals().get('TG_OUT', '/home/dkolobok/TG/out')
 TG_BFILE_PATH = globals().get('TG_BFILE_PATH', os.path.join(TG_DATA_ROOT, 'tg'))
 TG_SAMPLE_QC_IDS_PATH = globals().get('TG_SAMPLE_QC_IDS_PATH', os.path.join(TG_DATA_ROOT, 'passed_sample_qc'))
 SPLIT_DIR = os.path.join(TG_DATA_ROOT, 'superpop_split')
 SPLIT_GENO_DIR = os.path.join(SPLIT_DIR, 'genotypes')
 SPLIT_ID_DIR = os.path.join(SPLIT_DIR, 'split_ids')
-FOLDS_NUMBER = globals().get('FOLDS_NUMBER', 10)
+FEDERATED_PCA_DIR = os.path.join(SPLIT_DIR, 'federated_pca')
