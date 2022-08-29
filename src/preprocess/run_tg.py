@@ -12,6 +12,7 @@ from preprocess.train_val_split import CVSplitter
 from configs.global_config import TG_BFILE_PATH, SPLIT_DIR, SPLIT_GENO_DIR, FEDERATED_PCA_DIR
 from configs.qc_config import sample_qc_config, variant_qc_config
 from configs.split_config import TG_SUPERPOP_DICT, FOLDS_NUMBER
+from configs.pruning_config import default_pruning
 
 from preprocess.pruning import PlinkPruningRunner
 from preprocess.federated_pca import FederatedPCASimulationRunner
