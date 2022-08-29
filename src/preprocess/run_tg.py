@@ -75,10 +75,11 @@ if __name__ == '__main__':
         QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config)
 
     # 2. Split into ethnic datasets and then QC each local dataset
-    nodes = set(TG_SUPERPOP_DICT.values())
+    splitter = SplitTGHeter()
+    nodes = splitter.nodes
     if Stage.POPULATION_SPLIT in stages:
         logger.info('Splitting ethnic dataset')
-        SplitTGHeter().split(input_prefix=varqc_prefix, make_pgen=True)
+        splitter.split(input_prefix=varqc_prefix, make_pgen=True)
 
     # 3. Perform sample QC on each node separately
     if Stage.SAMPLE_QC in stages:

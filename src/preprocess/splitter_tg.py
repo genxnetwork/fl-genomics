@@ -12,9 +12,8 @@ class SplitTG(SplitBase):
     # def _load_data(self) -> pd.DataFrame:
     # x = pd.read_csv(os.path.join(TG_DATA_ROOT, 'global.eigenvec'), sep='\t').set_index('IID')
     # y = pd.read_csv(os.path.join(TG_DATA_ROOT, 'samples.tsv')).set_index('IID')['pop']
-    @staticmethod
     @abstractmethod
-    def get_target():
+    def get_target(self):
         pass
 
     def split(self, input_prefix: str, make_pgen=True, df=None):
@@ -45,9 +44,10 @@ class SplitTG(SplitBase):
 
 
 class SplitTGHeter(SplitTG):
+    def __init__(self):
+        self.nodes = list(set(TG_SUPERPOP_DICT.values()))
 
-    @staticmethod
-    def get_target(min_samples_in_pop=30) -> pd.DataFrame:
+    def get_target(self, min_samples_in_pop=30) -> pd.DataFrame:
         """
         Loads the ethnic background phenotype for samples that passed initial QC,
         drops rows with missing values and returns a DataFrame formatted to be used
@@ -65,9 +65,11 @@ class SplitTGHeter(SplitTG):
 
 
 class SplitTGHom(SplitTG):
+    def __init__(self, num_datasets: int = 5):
+        self.num_datasets = num_datasets
+        self.nodes = list(range(self.num_datasets))
 
-    @staticmethod
-    def get_target(num_datasets: int = 5) -> pd.DataFrame:
+    def get_target(self) -> pd.DataFrame:
         """
         Loads samples that passed initial QC into the splits at random creating homogeneous split,
         returns a DataFrame formatted to be used
@@ -80,6 +82,6 @@ class SplitTGHom(SplitTG):
         y = y.loc[y['IID'].isin(sample_qc_ids['#IID']), :]
 
         y = y.sample(len(y)).reset_index()
-        y['split'] = y['index'] % num_datasets
+        y['split'] = y['index'] % self.num_datasets
         y['split'] = y['split'].astype(str)
         return y[['IID', 'ancestry', 'split', 'Population name', 'Superpopulation name']]
