@@ -179,7 +179,7 @@ if __name__ == '__main__':
             logger.info(f'Centralised PCA for fold {fold_index}')
             run_plink(
                 args_list=[
-                    '--pfile', TG_BFILE_PATH,
+                    '--pfile', os.path.join(SPLIT_GENO_DIR, 'ALL_filtered'),
                     '--keep', superpop_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
                     '--freq', 'counts',
                     '--extract', os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
