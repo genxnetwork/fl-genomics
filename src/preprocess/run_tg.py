@@ -99,7 +99,7 @@ if __name__ == '__main__':
             nodes=nodes,
             result_filepath=os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
             node_filename_template='%s_filtered'
-        ).run(window_size=1000, step=50, threshold=0.005)
+        ).run(**default_pruning)
 
     # 5. Split each node into K folds
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
