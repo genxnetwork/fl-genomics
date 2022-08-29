@@ -34,8 +34,8 @@ class FederatedPCASimulationRunner:
         validation_foldname_template='fold_%i_val'
     ):
         """
-        Two methods are available: P-COV and P-STACK. Both of them rovide the same results but for the case
-        when number of features >> number of samples, P-STACK provides a memory-efficient approach.
+        Two methods are available: P-COV and P-STACK. Both of them provide the same results but for the case
+        when number of features >> number of samples, P-STACK's approach is more memory-efficient..
         """
 
         self.source_folder = source_folder
@@ -63,7 +63,7 @@ class FederatedPCASimulationRunner:
 
     def compute_allele_frequencies(self):
         """
-        Compute centralized allele frequencies by joining plink *.acout files
+        Compute centralized allele frequencies by joining plink *.acount files
         obtained separately for each node.
         """
 
