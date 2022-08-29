@@ -20,7 +20,7 @@ class QC(object):
     @staticmethod
     def qc(input_prefix: str, output_prefix: str, qc_config: dict) -> str:
         """ Runs plink command that performs QC """
-        run_plink(args_list=['--make-pgen'],
+        run_plink(args_list=['--make-pgen', '--set-missing-var-ids', '@:#', '--rm-dup'],
                   args_dict={**{'--pfile': input_prefix, # Merging dicts here
                                 '--out': output_prefix},
                              **qc_config})
