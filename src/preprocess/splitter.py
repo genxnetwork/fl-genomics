@@ -1,11 +1,11 @@
 from abc import abstractmethod
-# from ukb_loader import UKBDataLoader
+from ukb_loader import UKBDataLoader
 from numpy.random import seed, choice
 import pandas as pd
 pd.options.mode.chained_assignment = None # Shush
 import os
 
-from configs.global_config import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path
+from configs.global_config import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path, superpopulations_path
 from configs.split_config import non_iid_split_name, split_map, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, random_seed
 from utils.plink import run_plink
 
@@ -99,6 +99,42 @@ class SplitHeterogeneous(SplitBase):
         for i, code in enumerate(sorted(areas.nuts118cd.unique())):
             split_id_path = os.path.join(split_id_dir, f"{i}.csv")
             df.loc[areas.loc[areas.nuts118cd==code].index, ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
+            
+class SplitTG(SplitBase):
+    def split(self, make_pgen=True, superpopulations_path=superpopulations_path):
+        '''
+        Splits UKB samples based on a provided table with superpopulation codes.
+        Args:
+        superpopulations_path: path to file with region codes.
+        '''
+        df = pd.read_table(superpopulations_path)
+        df.index = df.IID
+        df['FID'] = df.IID
+        
+        # Keep only samples that passed sample QC
+        sample_qc_ids = pd.read_table(f'{sample_qc_ids_path}.id', index_col='IID')
+        df = df.loc[df.index.intersection(sample_qc_ids.index)]
+        
+        split_id_dir = os.path.join(data_root, "tg_split", 'split_ids')
+        genotype_dir = os.path.join(data_root, "tg_split", 'genotypes')
+        genotype_node_dirs = [os.path.join(genotype_dir, f"node_{node_index}")
+                              for node_index in range(max(list(split_map.values()))+1)]
+        
+        for dir_ in [split_id_dir, genotype_dir] + genotype_node_dirs:
+            os.makedirs(dir_, exist_ok=True)
+
+        prefix_list = []
+            
+        for i in range(max(df.node_index) + 1):
+            split_id_path = os.path.join(split_id_dir, f"{i}.csv")
+            df.loc[df.node_index == i, ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
+            prefix = os.path.join(genotype_dir, f"node_{i}")
+            prefix_list.append(prefix)
+            
+            if make_pgen:
+                self.make_split_pgen(split_id_path, prefix)
+                
+        return prefix_list
     
         
         
