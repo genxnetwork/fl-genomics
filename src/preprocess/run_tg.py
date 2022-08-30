@@ -5,13 +5,13 @@ import argparse
 import pandas as pd
 
 from preprocess.qc import QC
-from preprocess.splitter_tg import SplitTGHeter
+from preprocess.splitter_tg import SplitTGHeter, SplitTGHom
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter
-from configs.global_config import TG_BFILE_PATH, SPLIT_DIR, SPLIT_GENO_DIR, FEDERATED_PCA_DIR
+from configs.global_config import TG_BFILE_PATH, SPLIT_DIR, SPLIT_GENO_DIR, FEDERATED_PCA_DIR, SPLIT_ID_DIR, PCA_DIR
 from configs.qc_config import sample_qc_config, variant_qc_config
-from configs.split_config import TG_SUPERPOP_DICT, FOLDS_NUMBER
+from configs.split_config import FOLDS_NUMBER
 from configs.pruning_config import default_pruning
 
 from preprocess.pruning import PlinkPruningRunner
@@ -31,7 +31,7 @@ class Stage:
     def all(cls):
         return {
             cls.VARIANT_QC, cls.POPULATION_SPLIT, cls.SAMPLE_QC,
-            cls.PRUNING, cls.FOLD_SPLIT, cls.FEDERATED_PCA
+            cls.PRUNING, cls.FOLD_SPLIT, cls.CENTRALIZED_PCA
         }
 
 
@@ -83,7 +83,7 @@ if __name__ == '__main__':
 
     # 3. Perform sample QC on each node separately
     if Stage.SAMPLE_QC in stages:
-        for local_prefix in nodes:
+        for local_prefix in nodes + ['ALL']:
             logger.info(f'Running local QC for {local_prefix}')
             local_samqc_prefix = os.path.join(SPLIT_GENO_DIR, local_prefix) + '_filtered'
             QC.qc(
@@ -117,9 +117,34 @@ if __name__ == '__main__':
                 random_state=0
             )
 
+        # Perform centralised sample ids merge to use it with `--keep` flag in plink
+        os.makedirs(os.path.join(SPLIT_ID_DIR, 'ALL'), exist_ok=True)
+        for fold_index in range(FOLDS_NUMBER):
+            for part_name in ['train', 'test', 'val']:
+                ids = []
+
+                for node in nodes:
+                    ids_filepath = superpop_split.get_ids_path(
+                        fold_index=fold_index,
+                        part_name=part_name,
+                        node=node
+                    )
+
+                    ids.extend(pd.read_csv(ids_filepath, sep='\t')['IID'].to_list())
+
+                centralised_ids_filepath = superpop_split.get_ids_path(
+                    fold_index=fold_index,
+                    part_name=part_name,
+                    node='ALL'
+                )
+
+                pd.DataFrame({'IID': ids}).to_csv(centralised_ids_filepath, sep='\t', index=False)
+
         logger.info(f"Processing split {superpop_split.root_dir}")
-        for node in nodes:
-            logger.info(f"Saving train, val, test genotypes and running PCA for node {node}")
+        os.makedirs(os.path.join(SPLIT_GENO_DIR, 'ALL'), exist_ok=True)
+        os.makedirs(os.path.join(SPLIT_DIR, 'only_phenotypes', 'ancestry', 'ALL'), exist_ok=True)
+        for node in nodes + ['ALL']:
+            logger.info(f"Saving train, val, test genotypes for node {node}")
             for fold_index in range(FOLDS_NUMBER):
                 for part_name in ['train', 'val', 'test']:
                     ids_path = superpop_split.get_ids_path(node=node, fold_index=fold_index, part_name=part_name)
@@ -143,28 +168,6 @@ if __name__ == '__main__':
                         sep='\t', index=False
                     )
 
-        for fold_index in range(FOLDS_NUMBER):
-            # Perform centralised sample ids merge to use it with `--keep` flag in plink
-            ids = []
-
-            for node in nodes:
-                ids_filepath = superpop_split.get_ids_path(
-                    fold_index=fold_index,
-                    part_name='train',
-                    node=node
-                )
-
-                ids.extend(pd.read_csv(ids_filepath, sep='\t')['IID'].to_list())
-
-            # Store the list of ids inside the super population split file structure
-            centralised_ids_filepath = superpop_split.get_ids_path(
-                fold_index=fold_index,
-                part_name='train',
-                node='ALL'  # centralised PCA
-            )
-
-            pd.DataFrame({'IID': ids}).to_csv(centralised_ids_filepath, sep='\t', index=False)
-
     # 6. PCA
     if Stage.FEDERATED_PCA in stages:
         runner = FederatedPCASimulationRunner(
@@ -176,35 +179,44 @@ if __name__ == '__main__':
             nodes=nodes
         ).run()
     elif Stage.CENTRALIZED_PCA in stages:
+        os.makedirs(os.path.join(PCA_DIR, 'ALL'), exist_ok=True)
+        variant_ids_file = os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in')
         for fold_index in range(FOLDS_NUMBER):
             logger.info(f'Centralised PCA for fold {fold_index}')
-            run_plink(
-                args_list=[
-                    '--pfile', os.path.join(SPLIT_GENO_DIR, 'ALL_filtered'),
-                    '--keep', superpop_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
-                    '--freq', 'counts',
-                    '--extract', os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
-                    '--out', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext=''),
-                    '--pca', 'allele-wts', '20'
-                ]
-            )
+
+            plink_arguments = [
+                '--pfile', os.path.join(SPLIT_GENO_DIR, 'ALL_filtered'),
+                '--keep', superpop_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
+                '--freq', 'counts',
+                '--out', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext=''),
+                '--pca', 'allele-wts', '20'
+            ]
+
+            # Use pruned ids if file is present
+            if os.path.exists(variant_ids_file):
+                plink_arguments.extend(['--extract', variant_ids_file])
+
+            run_plink(args_list=plink_arguments)
 
             logger.info(f'Projecting train, test, and val parts for each node for fold {fold_index}...')
-            for node in nodes:
+            for node in nodes + ['ALL']:
                 for part_name in ['train', 'val', 'test']:
-                    run_plink(
-                        args_list=[
-                            '--pfile', superpop_split.get_pfile_path(
+                    plink_arguments = [
+                        '--pfile', superpop_split.get_pfile_path(
                                 node=node, fold_index=fold_index, part_name=part_name
                             ),
                             '--read-freq', superpop_split.get_pca_path(
                                 node='ALL', fold_index=fold_index, part='train', ext='.acount'
                             ),
-                            '--extract', os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
                             '--score', superpop_split.get_pca_path(
                                 node='ALL', fold_index=fold_index, part='train', ext='.eigenvec.allele'
                             ), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize',
                             '--score-col-nums', '6-25',
                             '--out', superpop_split.get_pca_path(node=node, fold_index=fold_index, part=part_name),
-                        ]
-                    )
+                    ]
+
+                    # Use pruned ids if file is present
+                    if os.path.exists(variant_ids_file):
+                        plink_arguments.extend(['--extract', variant_ids_file])
+
+                    run_plink(args_list=plink_arguments)

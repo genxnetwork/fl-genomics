@@ -16,7 +16,7 @@ sample_qc_ids_path = globals().get('sample_qc_ids_path', f'{data_root}/passed_sa
 areas_path = globals().get('areas_path', '/trinity/home/s.mishra/nuts/UK_division.csv')
 superpopulations_path = globals().get('superpopulations_path', '/trinity/home/s.mishra/uk-biobank/superpopulations.csv')
 
-PLINK2_BIN = globals().get('PLINK2_BIN', '/trinity/home/s.mishra/plink2')
+PLINK2_BIN = 'plink2'
 
 TG_DATA_ROOT = globals().get('TG_DATA_ROOT', '/mnt/genx-bio-share/TG/data/chip')
 TG_DATA_DIR = globals().get('TG_DATA_DIR', '/mount/storage/TG/data')
@@ -26,4 +26,5 @@ TG_SAMPLE_QC_IDS_PATH = globals().get('TG_SAMPLE_QC_IDS_PATH', os.path.join(TG_D
 SPLIT_DIR = os.path.join(TG_DATA_ROOT, 'superpop_split')
 SPLIT_GENO_DIR = os.path.join(SPLIT_DIR, 'genotypes')
 SPLIT_ID_DIR = os.path.join(SPLIT_DIR, 'split_ids')
+PCA_DIR = os.path.join(SPLIT_DIR, 'pca')
 FEDERATED_PCA_DIR = os.path.join(SPLIT_DIR, 'federated_pca')

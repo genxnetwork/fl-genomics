@@ -40,7 +40,7 @@ class SplitTG(SplitBase):
         if make_pgen:
             self.make_split_pgen(split_id_path, out_prefix=os.path.join(SPLIT_GENO_DIR, 'ALL'), bin_file_type='--pfile',
                                  bin_file=input_prefix)
-        return list(splits_prefixes) + ['ALL']
+        return list(splits_prefixes)
 
 
 class SplitTGHeter(SplitTG):
