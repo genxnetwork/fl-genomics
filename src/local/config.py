@@ -28,6 +28,13 @@ node_size_dict = {
         8: 29253,
         9: 19399,
         10: 36027
+    },
+    'tg_split': {
+        0: 370000,
+        1: 7900,
+        2: 7100,
+        3: 2056,
+        4: 400
     }
 }
 
@@ -52,5 +59,12 @@ node_name_dict = {
         8: 'South West (England)',
         9: 'Wales',
         10: 'Scotland'
+    },
+    'tg_split': {
+        0: "EUR",
+        1: "SAS",
+        2: "AFR",
+        3: "EAS",
+        4: "AM"
     }
 }
