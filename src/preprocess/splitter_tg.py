@@ -67,9 +67,9 @@ class SplitTGHeter(SplitTG):
 class SplitTGHom(SplitTG):
     def __init__(self, num_datasets: int = 5):
         self.num_datasets = num_datasets
-        self.nodes = list(range(self.num_datasets))
+        self.nodes = [str(node) for node in range(self.num_datasets)]
 
-    def get_target(self) -> pd.DataFrame:
+    def get_target(self, min_samples_in_pop=30) -> pd.DataFrame:
         """
         Loads samples that passed initial QC into the splits at random creating homogeneous split,
         returns a DataFrame formatted to be used
@@ -80,6 +80,9 @@ class SplitTGHom(SplitTG):
         # Leave only those samples that passed population QC
         sample_qc_ids = pd.read_table(f'{TG_SAMPLE_QC_IDS_PATH}.id')
         y = y.loc[y['IID'].isin(sample_qc_ids['#IID']), :]
+        # filter by min number of samples in a pop
+        pop_val_counts = y['ancestry'].value_counts()
+        y = y[y['ancestry'].isin(pop_val_counts[pop_val_counts >= min_samples_in_pop].index)]
 
         y = y.sample(len(y)).reset_index()
         y['split'] = y['index'] % self.num_datasets

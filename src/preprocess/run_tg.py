@@ -38,7 +38,7 @@ class Stage:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'stages', metavar='stage', type=str, nargs='+',
+        'stages', metavar='stage', type=str, nargs='*',
         help=f'Available stages: {Stage.all()}'
     )
     args = parser.parse_args()
@@ -75,7 +75,7 @@ if __name__ == '__main__':
         QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config)
 
     # 2. Split into ethnic datasets and then QC each local dataset
-    splitter = SplitTGHeter()
+    splitter = SplitTGHom()
     nodes = splitter.nodes
     if Stage.POPULATION_SPLIT in stages:
         logger.info('Splitting ethnic dataset')
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         logger.info('making k-fold split for the TG dataset')
         splitter = CVSplitter(superpop_split)
 
-        ancestry_df = SplitTGHeter().get_target()
+        ancestry_df = SplitTGHom().get_target()
         for node in nodes:
             splitter.split_ids(
                 ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'),
