@@ -9,7 +9,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from configs.global_config import TG_DATA_CHIP_ROOT, TG_BFILE_PATH, SPLIT_GENO_DIR, TG_DATA_DIR
+from configs.global_config import TG_DATA_ROOT, SPLIT_GENO_DIR
 
 # 0. Preparation
 from local.tg_simple_trainer import SimpleTrainer
@@ -24,7 +24,7 @@ if __name__ == '__main__':
                         )
     logger = logging.getLogger()
 
-    TG_EXT_DIR = os.path.join(TG_DATA_CHIP_ROOT, 'external')
+    TG_EXT_DIR = os.path.join(TG_DATA_ROOT, 'external')
     TG_UKB_DIR = os.path.join(TG_EXT_DIR, 'ukb')
 
     # 1. Take UKB variants file and leave only the rsid column
