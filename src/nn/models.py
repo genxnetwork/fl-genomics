@@ -4,7 +4,7 @@ from pytorch_lightning import LightningModule
 import torch
 from torch.nn import Linear, BatchNorm1d
 from torch.nn.init import uniform_ as init_uniform_
-from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu6, softmax, relu
+from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu6, softmax, relu, selu
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, R2Score
 import mlflow
@@ -283,8 +283,8 @@ class MLPClassifier(BaseNet):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x = self.bn(x)
-        x = relu(self.fc1(x))
-        x = relu(self.fc2(x))
+        x = selu(self.fc1(x))
+        x = selu(self.fc2(x))
         # x = softmax(, dim=1)
         return self.fc3(x)
 

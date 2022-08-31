@@ -2,6 +2,9 @@ defaults:
   - _self_
   - model: mlp_classifier
   - experiment: tg
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
 
 study: tg
 split_dir: /media/storage/TG/data/chip/superpop_split
