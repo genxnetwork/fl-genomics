@@ -4,7 +4,7 @@ defaults:
   - experiment: tg
 
 study: tg
-split_dir: /mnt/genx-bio-share/TG/data/chip/superpop_split
+split_dir: /mnt/genx-bio-share/TG/data/chip/homo_split
 node: ALL
 fold_index: 5
 
