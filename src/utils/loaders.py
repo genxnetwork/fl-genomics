@@ -4,7 +4,7 @@ from omegaconf import DictConfig
 import numpy
 import logging
 from numpy.typing import NDArray
-import omegaconf 
+import omegaconf
 import pandas as pd
 
 from fl.datasets.memory import load_covariates, load_phenotype, load_from_pgen, get_sample_indices
@@ -38,7 +38,7 @@ class ExperimentDataLoader:
 
     def _load_phenotype(self, path: str) -> numpy.ndarray:
         phenotype = load_phenotype(path, out_type=PHENO_NUMPY_DICT[self.cfg.data.phenotype.name], encode=(self.cfg.study == 'tg'))
-        
+
         if (PHENO_TYPE_DICT[self.cfg.data.phenotype.name] == 'binary'):
             assert set(phenotype) == set([1, 2])
             return phenotype - 1
@@ -46,7 +46,7 @@ class ExperimentDataLoader:
             return phenotype - MEAN_PHENO_DICT[self.cfg.data.phenotype.name]
         else:
             return phenotype
-        
+
     def load(self) -> Tuple[X, Y]:
 
         y_train = self._load_phenotype(self.cfg.data.phenotype.train)
@@ -72,7 +72,7 @@ class ExperimentDataLoader:
 
         else:
             raise ValueError('Please define the study in config! See src/configs/default.yaml')
-        
+
         return x, y
 
     def _load_genotype_and_covariates(self, sample_index: SampleIndex) -> X:
@@ -93,9 +93,9 @@ class ExperimentDataLoader:
                                               sample_indices=sample_index.test),
                                load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :].astype(numpy.float16)))
 
-        return X(X_train, X_val, X_test) 
+        return X(X_train, X_val, X_test)
 
-        
+
     def _load_genotype(self, sample_index: SampleIndex) -> X:
         X_train = load_from_pgen(self.cfg.data.genotype.train,
                                       gwas_path=self.cfg.data.get('gwas', None),

@@ -22,5 +22,6 @@ class QC(object):
         """ Runs plink command that performs QC """
         run_plink(args_list=['--make-pgen'],
                   args_dict={**{'--pfile': input_prefix, # Merging dicts here
-                                '--out': output_prefix},
+                                '--out': output_prefix,
+                                '--set-missing-var-ids': '@:#'},
                              **qc_config})

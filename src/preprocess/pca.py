@@ -5,8 +5,8 @@ from abc import abstractmethod
 import sys
 sys.path.append('..')
 
-from config.split_config import ethnic_background_name_map
-from config.split_config import TG_SUPERPOP_DICT
+from configs.split_config import ethnic_background_name_map
+from configs.split_config import TG_SUPERPOP_DICT
 from preprocess.splitter import SplitBase
 from preprocess.splitter_tg import SplitTGHeter
 from utils.plink import run_plink
