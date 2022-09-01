@@ -1,7 +1,7 @@
 import logging
 import os
 
-import dash_bio
+# import dash_bio
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
@@ -9,7 +9,7 @@ import plotly.graph_objs as go
 from utils.plink import run_plink
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
-DATA_DIR = '/mnt/genx-bio-share/UKB/gwas_analysis'
+DATA_DIR = '/trinity/home/s.mishra/gwas_analysis'
 out_dir_root = os.path.join(DATA_DIR, 'out')
 os.makedirs(out_dir_root, exist_ok=True)
 
@@ -49,12 +49,13 @@ class GwasWbSubsample(object):
     def clump_sumstat(self):
         logging.info('Clumping summary statistics')
         for i in range(1, self.num_repeats):
+            logging.info(f'Fold {i}')
             run_plink(args_dict={
-                '--pfile': '',
-                '--clump': os.path.join(self.folder, f'{pheno_name}_fold_{i}.{pheno_name}.glm.linear'),
+                '--bfile': os.path.join(DATA_DIR, f"fold_{i}_train"),
+                '--clump': os.path.join(self.folder, f'{pheno_name}_fold_{i}.{pheno_name}.glm.linear.nolog'),
                 '--clump-snp-field': 'ID',
-                '--clump-field': 'LOG10_P',
-                '--clump-kb': '250',
+                '--clump-field': 'P_VAL',
+                '--clump-kb': '1000',
                 '--clump-r2': '0.1',
                 '--clump-p1': '1',
                 '--out': os.path.join(self.folder, f'{pheno_name}_fold_{i}')
