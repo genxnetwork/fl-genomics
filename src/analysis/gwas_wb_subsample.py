@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objs as go
 
+from utils.plink import run_plink
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:%(asctime)s %(message)s')
 DATA_DIR = '/mnt/genx-bio-share/UKB/gwas_analysis'
@@ -19,6 +20,7 @@ class GwasWbSubsample(object):
         self.maf_thresholds = maf_thresholds
         self.top_snps_list = top_snps_list
         self.pheno_name = pheno_name
+        self.clump_sumstat()
         logging.info('Reading data...')
         maf_df = pd.read_csv(os.path.join(DATA_DIR, 'plink2.afreq'), sep='\t', usecols=['ID', 'ALT_FREQS'], dtype={'ID': object, 'ALT_FREQS': float}).set_index('ID')
         all_df = pd.read_csv(os.path.join(self.folder, f'{pheno_name}_all_samples.tsv'), sep='\t', na_values='.',
@@ -43,6 +45,21 @@ class GwasWbSubsample(object):
         os.makedirs(self.out_dir, exist_ok=True)
         # self.df.to_csv(os.path.join(self.out_dir, 'df.csv'))
         # self.df = pd.read_csv(os.path.join(self.out_dir, 'df.csv')).set_index('ID')
+
+    def clump_sumstat(self):
+        logging.info('Clumping summary statistics')
+        for i in range(1, self.num_repeats):
+            run_plink(args_dict={
+                '--pfile': '',
+                '--clump': os.path.join(self.folder, f'{pheno_name}_fold_{i}.{pheno_name}.glm.linear'),
+                '--clump-snp-field': 'ID',
+                '--clump-field': 'LOG10_P',
+                '--clump-kb': '250',
+                '--clump-r2': '0.1',
+                '--clump-p1': '1',
+                '--out': os.path.join(self.folder, f'{pheno_name}_fold_{i}')
+            }, plink_version='1.9')
+            pass
 
     def marginal_distributions(self):
         logging.info('One-dimenstional stats...')

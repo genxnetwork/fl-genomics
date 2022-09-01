@@ -16,7 +16,8 @@ sample_qc_ids_path = globals().get('sample_qc_ids_path', f'{data_root}/passed_sa
 areas_path = globals().get('areas_path', '/trinity/home/s.mishra/nuts/UK_division.csv')
 superpopulations_path = globals().get('superpopulations_path', '/trinity/home/s.mishra/uk-biobank/superpopulations.csv')
 
-PLINK2_BIN = 'plink2'
+PLINK2_BIN = globals().get('PLINK2_BIN', 'plink2')
+PLINK19_BIN = globals().get('PLINK19_BIN', 'plink19')
 
 TG_DATA_ROOT = globals().get('TG_DATA_ROOT', '/mnt/genx-bio-share/TG/data/chip')
 TG_DATA_DIR = globals().get('TG_DATA_DIR', '/mount/storage/TG/data')
