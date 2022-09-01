@@ -62,6 +62,12 @@ def get_log_dir():
 def run(cfg: DictConfig):
     
     configure_logging()
+    # we can write ${div:${.max_rounds},${.rounds}} in yaml configs
+    # to divide one number by another
+    # we need it to infer number of local epochs in each federated round 
+    OmegaConf.register_new_resolver(
+        'div', lambda x, y: int(x // y), replace=True
+    )
     print(cfg)
     # parse command-line runner.py arguments
     queue = multiprocessing.Queue()
@@ -83,10 +89,11 @@ def run(cfg: DictConfig):
             'description': cfg.experiment.description,
             'phenotype': cfg.data.phenotype.name,
             'split': cfg.split.name,
+            'fold': str(cfg.fold.index)
         }
     ) as run:
-        mlflow.log_params(OmegaConf.to_container(cfg.server, resolve=True))
-        mlflow.log_params(OmegaConf.to_container(cfg.strategy, resolve=True))
+        for field in ['server', 'strategy', 'model', 'optimizer', 'scheduler']:
+            mlflow.log_params({field: OmegaConf.to_container(cfg[field], resolve=True)})
         info = MlflowInfo(experiment.experiment_id, run.info.run_id)
 
         # assigning gpus to nodes and creating process objects
@@ -107,6 +114,7 @@ def run(cfg: DictConfig):
         
         # create, start and wait for server to finish 
         server = Server(log_dir, queue, params_hash, cfg)
+        print(f'SERVER CREATED SUCCESSFULLY')
         server.start()
 
         # wait for all nodes to finish

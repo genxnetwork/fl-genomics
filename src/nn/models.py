@@ -4,7 +4,7 @@ from pytorch_lightning import LightningModule
 import torch
 from torch.nn import Linear, BatchNorm1d
 from torch.nn.init import uniform_ as init_uniform_
-from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu, softmax
+from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu6, softmax, relu
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, R2Score
 import mlflow
@@ -60,7 +60,7 @@ class BaseNet(LightningModule):
         mlflow.log_metric('train_loss', avg_loss, self.fl_current_epoch())
         mlflow.log_metric('raw_loss', avg_raw_loss, self.fl_current_epoch())
         mlflow.log_metric('reg', avg_reg, self.fl_current_epoch())
-        mlflow.log_metric('lr', self._get_current_lr(), self.fl_current_epoch())
+        mlflow.log_metric('lr', self.get_current_lr(), self.fl_current_epoch())
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
@@ -71,9 +71,12 @@ class BaseNet(LightningModule):
     def fl_current_epoch(self):
         return (self.current_round - 1) * self.scheduler_params['epochs_in_round'] + self.current_epoch
 
-    def _get_current_lr(self):
-        optim = self.trainer.optimizers[0] 
-        lr = optim.param_groups[0]['lr']
+    def get_current_lr(self):
+        if self.trainer is not None:
+            optim = self.trainer.optimizers[0] 
+            lr = optim.param_groups[0]['lr']
+        else:
+            return self.optim_params['lr']
         return lr
     
     def _configure_adamw(self):
@@ -105,15 +108,17 @@ class BaseNet(LightningModule):
 
 
     def _configure_sgd(self):
+        last_epoch = (self.current_round - 1) * self.scheduler_params['epochs_in_round'] if self.scheduler_params is not None else 0
+        
         optimizer = torch.optim.SGD([
             {
                 'params': self.parameters(),
-                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**self.current_round*self.scheduler_params['epochs_in_round'] if self.scheduler_params is not None else self.optim_params['lr'],
+                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**last_epoch if self.scheduler_params is not None else self.optim_params['lr'],
                 'initial_lr': self.optim_params['lr'],
             }], lr=self.optim_params['lr'], weight_decay=self.optim_params.get('weight_decay', 0))
 
         schedulers = [torch.optim.lr_scheduler.ExponentialLR(
-            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=self.current_round*self.scheduler_params['epochs_in_round']
+            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=last_epoch
         )] if self.scheduler_params is not None else None
         return [optimizer], schedulers
 
@@ -144,6 +149,9 @@ class LinearRegressor(BaseNet):
         super().__init__(input_size, optim_params, scheduler_params)
         self.layer = Linear(input_size, 1)
         self.l1 = l1
+        # TODO: move to callback
+        self.beta_history = []
+        self.r2_score = R2Score()
 
     def regularization(self) -> torch.Tensor:
         """Calculates l1 regularization of input layer by default
@@ -159,6 +167,32 @@ class LinearRegressor(BaseNet):
     def forward(self, x) -> Any:
         return self.layer(x)
     
+    def on_after_backward(self) -> None:
+        # print(w)
+        self.beta_history.append(self.layer.weight.detach().cpu().numpy().copy())
+        return super().on_after_backward()
+
+    def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
+        mse = mse_loss(y_hat.squeeze(1), y)
+        r2 = self.r2_score(y_hat.squeeze(1), y)
+        return RegLoaderMetrics(prefix, mse.item(), r2.item(), self.fl_current_epoch(), y_hat.shape[0])
+
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
+        train_loader, val_loader, test_loader = datamodule.predict_dataloader()
+        y_train_pred, y_train = self.predict(train_loader)
+        y_val_pred, y_val = self.predict(val_loader)
+        
+        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
+        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
+        
+        if test:
+            y_test_pred, y_test = self.predict(test_loader)
+            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
+        else:
+            test_metrics = None
+        metrics = RegMetrics(train_metrics, val_metrics, test_metrics, epoch=self.fl_current_epoch())
+        return metrics
+        
 
 class LinearClassifier(BaseNet):
     def __init__(self, input_size: int, l1: float, lr: float, momentum: float, epochs: float) -> None:
@@ -236,17 +270,19 @@ class MLPPredictor(BaseNet):
 
 
 class MLPClassifier(BaseNet):
-    def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss, binary=False) -> None:
+    def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss, hidden_size=800, hidden_size2=200, binary=False) -> None:
         super().__init__(input_size=None, optim_params=optim_params, scheduler_params=scheduler_params)
-        self.bn = BatchNorm1d(nfeat)
+        # self.bn = BatchNorm1d(nfeat)
         self.nclass = nclass
-        self.fc1 = Linear(nfeat, 200)
-        self.fc2 = Linear(200, 100)
-        self.fc3 = Linear(100, 1 if binary else nclass)
+        self.fc1 = Linear(nfeat, hidden_size)
+        # self.bn2 = BatchNorm1d(hidden_size)
+        self.fc2 = Linear(hidden_size, hidden_size2)
+        # self.bn3 = BatchNorm1d(hidden_size2)
+        self.fc3 = Linear(hidden_size2, nclass)
         self.loss = loss
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.bn(x)
+        # x = self.bn(x)
         x = relu(self.fc1(x))
         x = relu(self.fc2(x))
         # x = softmax(, dim=1)

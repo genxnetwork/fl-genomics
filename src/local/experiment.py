@@ -16,20 +16,20 @@ from mlflow.models.signature import ModelSignature
 from numpy import argmax, amax
 from sklearn.linear_model import LassoCV, LinearRegression
 from xgboost import XGBRegressor
-from sklearn.metrics import r2_score, roc_auc_score, accuracy_score
+from sklearn.metrics import r2_score, mean_squared_error, roc_auc_score, accuracy_score
 import torch
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_validate
+from sklearn.model_selection import cross_validate, train_test_split
 
-from configs.split_config import TG_SUPERPOP_DICT
 from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
-from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier
+from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.loaders import ExperimentDataLoader
+from local.utils import plot_loss_landscape
 
 
 class LocalExperiment(object):
@@ -73,6 +73,10 @@ class LocalExperiment(object):
                 'covariates': str(int(self.cfg.experiment.include_covariates)),
                 'snps': str(int(self.cfg.experiment.include_genotype))
             }
+        elif self.cfg.study == 'simulation':
+            study_tags = {
+                'sample_count': str(self.cfg.data.samples)
+            }
         else:
             raise ValueError('Please define the study in config! See src/configs/default.yaml')
         self.run = mlflow.start_run(tags=universal_tags | study_tags)
@@ -82,7 +86,7 @@ class LocalExperiment(object):
         self.x, self.y = self.loader.load()
         
         if self.cfg.study == 'ukb':
-            self.x_cov = self.loader.load_covariates()
+            self.x_cov, self.y_cov = self.loader.load_covariates()
             self.logger.info(f"{self.x_cov.train.shape[1]} covariates loaded")
 
         self.logger.info(f"{self.x.train.shape[1]} features loaded")
@@ -180,14 +184,14 @@ class NNExperiment(LocalExperiment):
     
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
-        mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
-        mlflow.log_params({'scheduler': self.cfg.experiment.get('scheduler', None)})
+        mlflow.log_params({'optimizer': self.cfg.optimizer})
+        mlflow.log_params({'scheduler': self.cfg.get('scheduler', None)})
         
         self.create_model()
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
-                                       gpus=self.cfg.experiment.get('gpus', None),
-                                       precision=self.cfg.model.get('precision', None),
-                                       max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
+                                       gpus=self.cfg.experiment.get('gpus', 0),
+                                       precision=self.cfg.model.get('precision', 32),
+                                       max_epochs=self.cfg.training.max_epochs, weights_summary='full', patience=self.cfg.training.patience, log_every_n_steps=5)
         
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
@@ -284,6 +288,105 @@ class ClfNNExperiment(NNExperiment):
                 scheduler_params=self.cfg.experiment.scheduler
             )
 
+class QuadraticNNExperiment(NNExperiment):
+    """Experiment class for training linear model with two parameters on a simulated dataset with two features
+    It is called quadratic because loss function landscape will be quadratic
+
+    Args:
+        NNExperiment (_type_): _description_
+    """    
+    def __init__(self, cfg):
+        NNExperiment.__init__(self, cfg)
+
+    def _train_sklearn_regression(self):
+        lr = LinearRegression()
+        lr.fit(self.data_module.train_dataset.X, self.data_module.train_dataset.y)
+        y_train_pred = lr.predict(self.data_module.train_dataset.X)
+        y_val_pred = lr.predict(self.data_module.val_dataset.X)
+        y_test_pred = lr.predict(self.data_module.test_dataset.X)
+        train_r2 = r2_score(self.data_module.train_dataset.y, y_train_pred)
+        val_r2 = r2_score(self.data_module.val_dataset.y, y_val_pred)
+        test_r2 = r2_score(self.data_module.test_dataset.y, y_test_pred)
+        print(f'sklearn LR train_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\ttest_r2: {test_r2:.4f}')
+
+    
+    def load_data(self):
+        seed = self.cfg.data.random_state if not 'node' in self.cfg else hash(self.cfg.node.index) + self.cfg.data.random_state
+        rng = numpy.random.default_rng(seed)
+        self.data = rng.normal(0, 1.0, size=(self.cfg.data.samples, 2))
+        # data = PolynomialFeatures(degree=2).transform(data)
+        split = self.cfg.get('split', None)
+        if split is None:
+            self.beta = rng.normal(0, 1.0, size=(2, 1))
+        else:
+            self.beta = numpy.array(self.cfg.split.nodes[self.cfg.node.name].true_beta).reshape(-1, 1)
+        self.logger.info(f'beta is {self.beta} for random_state {self.cfg.data.random_state}')
+        self.y = self.data.dot(self.beta)[:, 0]
+        # print('quadratic data shapes are', y.shape, data.shape)
+        x_train, x_val_test, y_train, y_val_test = train_test_split(self.data, self.y, train_size=0.8)
+        x_val, x_test, y_val, y_test = train_test_split(x_val_test, y_val_test, train_size=0.5)
+
+        self.data_module = DataModule(*[a.astype(numpy.float32) for a in [x_train, x_val, x_test, y_train, y_val, y_test]],
+                                        batch_size=self.cfg.model.get('batch_size', len(x_train)))
+
+        self._train_sklearn_regression()
+    
+    def create_model(self):
+        self.model = LinearRegressor(2, 0.0, 
+                                     optim_params=self.cfg.optimizer,
+                                     scheduler_params=self.cfg.scheduler)
+        
+    def load_best_model(self):
+        self.model = LinearRegressor.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                          input_size=2,
+                                                          l1=0.0,
+                                                          optim_params=self.cfg.optimizer,
+                                                          scheduler_params=self.cfg.scheduler)
+
+    def train(self):
+        mlflow.log_params({'model': self.cfg.model})
+        mlflow.log_params({'optimizer': self.cfg.optimizer})
+        mlflow.log_params({'scheduler': self.cfg.get('scheduler', None)})
+        
+        self.create_model()
+        for epoch in range(self.cfg.training.max_epochs):
+            self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
+                                            gpus=self.cfg.experiment.get('gpus', 0),
+                                            precision=self.cfg.model.get('precision', 32),
+                                            max_epochs=1, weights_summary='full', patience=self.cfg.training.patience, log_every_n_steps=5)
+
+            
+            self.trainer.fit(self.model, self.data_module)
+            train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
+        
+            train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
+            val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
+            test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+
+        plot_loss_landscape(self.model, self.data, self.y, self.beta)
+        self.load_best_model()
+
+       
+    def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
+        self.model.eval()
+        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
+        
+        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
+        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
+        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+
+        '''        
+        metric_train = metric_fun(y_true=self.y.train, y_pred=train_preds)
+        metric_val = metric_fun(y_true=self.y.val, y_pred=val_preds)
+        metric_test = metric_fun(y_true=self.y.test, y_pred=test_preds)
+        
+        print(f"Train {metric_name}: {metric_train}")
+        mlflow.log_metric(f'train_{metric_name}', metric_train)
+        print(f"Val {metric_name}: {metric_val}")
+        mlflow.log_metric(f'val_{metric_name}', metric_val)
+        print(f"Test {metric_name}: {metric_test}")
+        mlflow.log_metric(f'test_{metric_name}', metric_test)
+        '''
 
 class LassoNetExperiment(NNExperiment):
 
@@ -420,18 +523,25 @@ tg_experiment_dict = {
     'random_forest': RandomForestExperiment
 }
 
+simulation_experiment_dict = {
+    'linear_regressor': QuadraticNNExperiment
+}
+
             
 @hydra.main(config_path='configs', config_name='tg_hom')
 def local_experiment(cfg: DictConfig):
     print(cfg)
-    assert cfg.study in ['tg', 'ukb']
+    assert cfg.study in ['tg', 'ukb', 'simulation']
     if cfg.study == 'ukb':
         assert cfg.model.name in ukb_experiment_dict.keys()
         experiment = ukb_experiment_dict[cfg.model.name](cfg)
-    else:
-        print(tg_experiment_dict.keys())
+    elif cfg.study == 'tg':
         assert cfg.model.name in tg_experiment_dict.keys()
         experiment = tg_experiment_dict[cfg.model.name](cfg)
+    else: 
+        assert cfg.model.name in simulation_experiment_dict.keys()
+        experiment = simulation_experiment_dict[cfg.model.name](cfg)
+
 
     experiment.run()   
     

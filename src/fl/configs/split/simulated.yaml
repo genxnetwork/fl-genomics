@@ -1,0 +1,21 @@
+name: 'simulated' 
+nodes: 
+  first:
+    name: 'first'
+    resources:
+      gpus: 0
+    sample_count: 1000
+    index: 1
+    true_beta:
+      - 0.5
+      - 0.5
+
+  second:
+    name: 'second'
+    resources:
+      gpus: 0
+    sample_count: 1000
+    index: 2
+    true_beta:
+      - 0.1
+      - 0.9

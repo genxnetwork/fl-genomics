@@ -1,0 +1,25 @@
+defaults:
+  - _self_
+  - experiment: quadratic
+  - model: linear_regressor
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
+
+study: simulation
+
+fold:
+  index: 0
+
+split_dir: /media/storage/simulation/quadratic
+
+data:
+  samples: 1000
+  random_state: 2
+  phenotype:
+    name: quantitative
+    code: 1
+
+phenotype:
+    name: quantitative
+    code: 1

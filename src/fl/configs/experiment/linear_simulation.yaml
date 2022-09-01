@@ -1,0 +1,3 @@
+name: local-linear-simulation
+description: simulated linear regression data
+pretrain_on_cov: False

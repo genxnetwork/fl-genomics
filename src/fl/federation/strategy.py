@@ -1,9 +1,14 @@
+import json
 import pickle
 import shutil
-from typing import List, Tuple, Optional, Dict
+from threading import local
+from typing import List, Tuple, Optional, Dict, cast
 import logging
 import numpy
+from numpy.linalg import norm
 import os
+import mlflow
+import plotly.graph_objects as go
 
 from flwr.common import (
     EvaluateRes,
@@ -12,14 +17,18 @@ from flwr.common import (
     Weights,
     Parameters,
     FitRes,
+    FitIns,
     parameters_to_weights,
     weights_to_parameters
 )
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import FedAvg, FedAdam, FedAdagrad, QFedAvg
+from flwr.server.strategy.aggregate import aggregate
 from flwr.server.client_manager import ClientManager
 
-from nn.utils import ClfFederatedMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from fl.federation.utils import weights_to_bytes, bytes_to_weights
+from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from local.utils import add_beta_to_loss_landscape
 
 
 def fit_round(rnd: int):
@@ -34,40 +43,42 @@ def on_evaluate_config_fn(rnd: int):
 RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 
-class MlflowLogger:
+class StrategyLogger:
+    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+        pass
+
+    def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
+        pass
+
+
+class MlflowLogger(StrategyLogger):
     def __init__(self, epochs_in_round: int, model_type: str) -> None:
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
-        if model_type not in ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier']:
-            raise ValueError(f'model_type should be one of the lassonet_regressor, mlp_regressor and not {model_type}')
+        known_model_types = ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier', 'linear_regressor']
+        if model_type not in known_model_types:
+            raise ValueError(f'model_type should be one of the {known_model_types} and not {model_type}')
 
         self.model_type = model_type
 
-    def log_losses(self, rnd: int, results: RESULTS) -> Metrics:
-        """Logs val_loss, val and train r^2 to mlflow
+    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+        """Logs val_loss, val and train r^2 or auc to mlflow
 
         Args:
             rnd (int): current FL round
-            results (RESULTS): Central model evaluation results from server
+            metrics (Metrics): Metrics to log to mlflow
 
         Returns:
             Metrics: Metrics reduced over clients
         """       
-        metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
-        if self.model_type == 'mlp_classifier':
-            fed_metrics = ClfFederatedMetrics(metric_list, rnd*self.epochs_in_round)
-        else:
-            fed_metrics = RegFederatedMetrics(metric_list, rnd*self.epochs_in_round)
-        # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
-        # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
-        avg_metrics = fed_metrics.reduce()
         # logging.info(avg_metrics)
-        logging.info(f'round {rnd}\t' + str(avg_metrics))
-        avg_metrics.log_to_mlflow()
+        logging.info(f'round {rnd}\t' + str(metrics))
+        metrics.log_to_mlflow()
 
-        return avg_metrics
-
+    def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
+        pass
+        
 
 class Checkpointer:
     def __init__(self, checkpoint_dir: str) -> None:
@@ -114,17 +125,30 @@ class Checkpointer:
 
 
 class MCMixin:
-    def __init__(self, mlflow_logger: MlflowLogger, checkpointer: Checkpointer, **kwargs) -> None:
+    def __init__(self, strategy_logger: StrategyLogger, checkpointer: Checkpointer, **kwargs) -> None:
         """Mixin for strategies which can log metrics and save checkpoints
 
         Args:
-            mlflow_logger (MlflowLogger): Mlflow Logger
+            strategy_logger (StrategyLogger): Logger for logging metrics to mlflow, neptune or stdout
             checkpointer (Checkpointer): Model checkpoint saver
         """        
-        self.mlflow_logger = mlflow_logger
+        self.strategy_logger = strategy_logger
         self.checkpointer = checkpointer
+        
         kwargs['on_evaluate_config_fn'] = self.on_evaluate_config_fn_closure
         super().__init__(**kwargs)
+
+    def _aggregate_metrics(self, rnd: int, results: RESULTS) -> Metrics:
+
+        metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
+        if isinstance(metric_list[0], ClfMetrics):
+            fed_metrics = ClfFederatedMetrics(metric_list, rnd)
+        else:
+            fed_metrics = RegFederatedMetrics(metric_list, rnd)
+        # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
+        # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
+        avg_metrics = fed_metrics.reduce()
+        return avg_metrics
 
     def aggregate_evaluate(
         self,
@@ -136,7 +160,8 @@ class MCMixin:
         if not results:
             return None
 
-        metrics = self.mlflow_logger.log_losses(rnd, results)
+        metrics = self._aggregate_metrics(rnd, results)
+        self.strategy_logger.log_losses(rnd, metrics)
         reduced_metrics = metrics.reduce() 
         self.checkpointer.add_loss_to_history(reduced_metrics)
         # unreduced metrics because in case of lassonet_regressor we need best_col attribute
@@ -144,14 +169,25 @@ class MCMixin:
         self.checkpointer.last_metrics = metrics
         return super().aggregate_evaluate(rnd, results, failures)
     
+    def _metrics_to_layer_names(self, results: List[Tuple[ClientProxy, FitRes]]) -> List[str]:
+        metrics = results[0][1].metrics
+        return json.loads(str(metrics['layers'], encoding='utf-8'))
+
     def aggregate_fit(
         self,
         rnd: int,
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[BaseException],
-    ) -> Optional[Weights]:
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+
         aggregated_parameters, aggregated_metrics = super().aggregate_fit(rnd, results, failures)
         self.checkpointer.save_checkpoint(rnd, aggregated_parameters)
+
+        client_weights = [parameters_to_weights(res[1].parameters) for res in results]
+        # layer_names = self._metrics_to_layer_names(results)
+        aggregated_weights = parameters_to_weights(aggregated_parameters)
+        # self.strategy_logger.log_weights(rnd, layer_names, client_weights, aggregated_weights)
+
         return aggregated_parameters, aggregated_metrics
 
     def configure_evaluate(
@@ -160,7 +196,6 @@ class MCMixin:
         if rnd == -1:
             # print(f'loading best parameters for final evaluation')
             parameters = self.checkpointer.load_best_parameters()
-        print(f'DEBUG: starting to configure eval')
         return super().configure_evaluate(rnd, parameters, client_manager)
 
     def on_evaluate_config_fn_closure(self, rnd: int):
@@ -200,11 +235,11 @@ class MCFedAdagrad(MCMixin,FedAdagrad):
         # evaluate called by server after getting random initial parameters from one of the clients
         # we set those parameters as initial weights
         if not self.weights_inited_properly:
-            print(f'initializing weights!!!')
             self.current_weights = parameters_to_weights(parameters)
             self.weights_inited_properly = True
+            logging.info(f'weights were initialized')
         else:
-            print(f'we do not need to initialize weights')
+            logging.info(f'this strategy does not require weights initialization')
         return cen_ev
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
@@ -224,11 +259,121 @@ class MCFedAdam(MCMixin,FedAdam):
         # evaluate called by server after getting random initial parameters from one of the clients
         # we set those parameters as initial weights
         if not self.weights_inited_properly:
-            print(f'initializing weights!!!')
             self.current_weights = parameters_to_weights(parameters)
             self.weights_inited_properly = True
+            logging.info(f'weights were initialized')
         else:
-            print(f'we do not need to initialize weights')
+            logging.info(f'this strategy does not require weights initialization')
+        return cen_ev
+
+    def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
+        return None
+
+
+class Scaffold(FedAvg):
+    def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, **kwargs) -> None:
+        """FL strategy for heterogenious data which uses control variates for adjusting gradients on nodes.
+        c_global variate is an estimation of true gradient of all clients.
+        c_local variate is an estimation of node gradient.
+        Scaffold corrects local update steps to the direction of global gradient, adding c_global - c_local to gradient data before backprop.
+        https://arxiv.org/abs/1910.06378
+
+        Args:
+            K (int, optional): Number of training steps (gradient updates) taken by each local model. Defaults to 1.
+            local_lr (float, optional): Local learning rate for gradient updates. Defaults to 0.01.
+            global_lr (float, optional): Global learning rate for updating global model weights after aggregation. Defaults to 0.1.
+        """        
+        self.K = K
+        self.local_lr = local_lr
+        self.global_lr = global_lr
+        self.c_global = None
+        self.old_weights = None
+        super().__init__(**kwargs)
+
+    def _plot_2d_landscape(self, rnd: int, results: List[Tuple[ClientProxy, FitRes]]):
+        local_betas = [bytes_to_weights(res.metrics['local_beta'])[0] for _, res in results]
+        true_betas = [bytes_to_weights(res.metrics['true_beta'])[0] for _, res in results]
+        beta_grids = [bytes_to_weights(res.metrics['beta_grid'])[0] for _, res in results]
+        
+        # print(Z[90:, 20:30])
+        # global loss landscape
+        beta_grid = sum(beta_grids) / len(beta_grids)
+        fig = go.Figure()
+        points_num = 100
+        beta_space = numpy.linspace(-1, 1, num=points_num, endpoint=True)
+        fig.add_trace(go.Contour(
+                      z=beta_grid, 
+                      x=beta_space, # horizontal axis
+                      y=beta_space, # vertical axis,
+                      contours=dict(start=numpy.nanmin(beta_grid), end=numpy.nanmax(beta_grid), size=0.1)
+        ))
+
+        for i, (local_beta, true_beta) in enumerate(zip(local_betas, true_betas)):
+            add_beta_to_loss_landscape(fig, true_beta, local_beta, f'SGD_{i}')
+        fig.add_trace(go.Scatter(x=[self.c_global[0][0, 0]], y=[self.c_global[0][0, 1]], mode='markers', name=f'c_global'))
+        
+        mlflow.log_figure(fig, f'global_loss_landscape_rnd_{rnd}.png')
+
+    def aggregate_fit(
+        self, rnd: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[BaseException]
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        
+        # List[List[numpy.ndarray]]
+        # self._plot_2d_landscape(rnd, results)
+        client_weights = [parameters_to_weights(fit_res.parameters) for _, fit_res in results]
+
+        for layer_index, old_layer_weight in enumerate(self.old_weights):
+            cg_layer = self.c_global[layer_index]
+            c_deltas = [-cg_layer + (1/(self.K*self.local_lr))*(old_layer_weight - cw[layer_index]) for cw in client_weights]
+            c_avg_delta = sum(c_deltas)/len(client_weights)
+            logging.info(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
+            for i, cw in enumerate(client_weights):
+                logging.debug(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
+            
+            self.c_global[layer_index] = cg_layer + c_avg_delta
+
+        new_weights = aggregate([(cw, 1) for cw in client_weights])
+        for layer_index, (old_layer_weight, new_layer_weight) in enumerate(zip(self.old_weights, new_weights)):
+            # print('weights aggregation: ', layer_index, type(old_layer_weight), type(new_layer_weight))
+            # print(old_layer_weight.shape, new_layer_weight.shape)
+            # if layer_index == 6:
+            #     print(f'new_layer_weight is {new_layer_weight}')
+            if not isinstance(new_layer_weight, numpy.ndarray):
+                continue
+                # new_layer_weight = numpy.array([new_layer_weight])
+            self.old_weights[layer_index] += self.global_lr * (new_layer_weight - old_layer_weight)
+
+        return weights_to_parameters(self.old_weights), {}
+
+    def configure_fit(
+        self, rnd: int, parameters: Parameters, client_manager: ClientManager
+    ) -> List[Tuple[ClientProxy, FitIns]]:
+
+        client_configs = super().configure_fit(rnd, parameters, client_manager)
+        for client_proxy, fit_ins in client_configs:
+            fit_ins.config['c_global'] = weights_to_bytes(self.c_global)
+        return client_configs
+
+
+class MCScaffold(MCMixin, Scaffold):
+    def __init__(self, strategy_logger: StrategyLogger, checkpointer: Checkpointer, **kwargs) -> None:
+        initial_parameters = weights_to_parameters([numpy.zeros((1,1))])
+        self.weights_inited_properly = False
+        super().__init__(strategy_logger, checkpointer, initial_parameters=initial_parameters, **kwargs)
+
+    def evaluate(self, parameters: Parameters) -> Optional[Tuple[float, Dict[str, Scalar]]]:
+        cen_ev = super().evaluate(parameters)
+        # scaffold calculates updates using old and new weights
+        # we need to set initial weights
+        # evaluate called by server after getting random initial parameters from one of the clients
+        # we set those parameters as initial weights
+        if not self.weights_inited_properly:
+            self.old_weights = parameters_to_weights(parameters)
+            self.c_global = [numpy.zeros_like(ow) for ow in self.old_weights]
+            self.weights_inited_properly = True
+            logging.info(f'weights were initialized')
+        else:
+            logging.info(f'this strategy does not require weights initialization')
         return cen_ev
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
