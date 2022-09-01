@@ -90,10 +90,26 @@ class GwasWbSubsample(object):
 
 
     def analyse(self):
-        self.get_manh()
+        # self.get_manh()
+        self.get_top10()
         self.joint_distribution()
         self.marginal_distributions()
         pass
+
+    def get_top10(self):
+        subs_cols = [f'LOG10_P_{i}' for i in range(1, self.num_repeats)]
+        maf = 0.05
+        ts = 10
+        col = subs_cols[5]
+        sdf = self.df[self.df['ALT_FREQS'] >= maf]
+        snp_order = pd.DataFrame(
+            {col: sdf[col].sort_values(ascending=False).index.to_list() for col in subs_cols},
+            index=sdf.index)
+        tsdf = snp_order.head(ts)
+        tmp = set(tsdf.index).intersection(tsdf[col])
+        tmp_df = pd.read_csv(os.path.join(self.folder, f'{self.pheno_name}_all_samples.tsv'), sep='\t')
+        tmp_df = tmp_df[tmp_df['ID'].isin(tmp)]
+        tmp_df.to_csv(os.path.join(out_dir_root, f'{self.pheno_name}_top10.csv'), index=False)
 
     def get_manh(self):
         subs_cols = [f'LOG10_P_{i}' for i in range(1, self.num_repeats)]
@@ -122,6 +138,7 @@ class GwasWbSubsample(object):
         )
         fig_manh.write_html(os.path.join(self.out_dir, f'manh.html'))
         fig_manh.write_html(os.path.join(out_dir_root, f'{self.pheno_name}_manh.html'))
+        pass
 
 
 if __name__ == '__main__':
