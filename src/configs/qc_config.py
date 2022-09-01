@@ -1,5 +1,5 @@
 variant_qc_config = {
-    '--maf': '0.01',
+    '--maf': '0.05',
     '--geno': '0.02'
 }
 
