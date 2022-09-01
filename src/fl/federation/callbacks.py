@@ -14,6 +14,10 @@ from local.utils import mse_on_beta_grid, add_beta_to_loss_landscape
 
 
 class ClientCallback:
+    """Base class for FLClient callbacks
+       Client will call on_before_fit before fitting a model in federated setting,
+       on_after_fit after fitting and so on 
+    """    
     def __init__(self):
         pass
 
@@ -31,13 +35,31 @@ class ClientCallback:
 
 
 class PlotLandscapeCallback(ClientCallback):
+    """FLCLient callback for drawing the loss landscape for linear model with two parameters as a contour plot
+    """    
     def __init__(self, x: numpy.ndarray, y: numpy.ndarray, beta: numpy.ndarray):
+        """Create PlotLandscapeCallback with features, target and true model cofficients data
+        The underlying true model is x*beta=y
+
+        Args:
+            x (numpy.ndarray): Features array, should have two columns
+            y (numpy.ndarray): Target array
+            beta (numpy.ndarray): True model coefficients array, should have two values
+        """        
         super().__init__()
         self.x = x
         self.y = y
         self.beta = beta
 
-    def on_after_fit(self, model: BaseNet):
+    def on_after_fit(self, model: BaseNet) -> Dict[str, Scalar]:
+        """Generates loss landscape using true coefficients and adds history of found coefficients as path on loss landscape plot
+
+        Args:
+            model (BaseNet): model with beta_history attribute which should be a list of numpy arrays of shape (2, 1)
+
+        Returns:
+            Dict[str, Scalar]: Dict with three items, true beta coefficients, local beta history and local loss landscape
+        """        
         beta_space, Z = mse_on_beta_grid(self.x, self.y, beta_range=(-1, 1))
         # print(Z[90:, 20:30])
         fig = go.Figure()
@@ -56,11 +78,20 @@ class PlotLandscapeCallback(ClientCallback):
         
         
 class ScaffoldCallback(Callback):
+    """PytorchLightning Callback for updating gradient data as required by Scaffold FL strategy before backpropagation
 
+    """    
     c_global: ModuleParams
     c_local: ModuleParams
 
     def __init__(self, K: int = 1, log_grad=False, log_diff=False) -> None:
+        """Init function
+
+        Args:
+            K (int, optional): Number of training steps, i.e. number of batches used for training a model. Defaults to 1.
+            log_grad (bool, optional): If True, logs gradient l2 norm to mlflow. Defaults to False.
+            log_diff (bool, optional): If True, logs l2 norm of difference between local and global varaites to mlflow. Defaults to False.
+        """        
         self.K = K
         self.c_global = None
         self.c_local = None
@@ -84,6 +115,14 @@ class ScaffoldCallback(Callback):
     def update_c_local(
         self, eta: float, c_global: ModuleParams, old_params: ModuleParams, new_params: ModuleParams
     ) -> None:
+        """Updates local c variate using local learning rate, global c variate and model parameters before and after fit
+
+        Args:
+            eta (float): local learning rate
+            c_global (ModuleParams): global c variate sent by FL server
+            old_params (ModuleParams): old model params before fit
+            new_params (ModuleParams): new model params after fit
+        """        
         if self.c_local is None:
             self.c_local = OrderedDict([(layer, torch.zeros_like(value)) for layer, value in c_global.items()])
 

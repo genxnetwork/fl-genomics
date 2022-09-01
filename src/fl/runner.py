@@ -62,6 +62,9 @@ def get_log_dir():
 def run(cfg: DictConfig):
     
     configure_logging()
+    # we can write ${div:${.max_rounds},${.rounds}} in yaml configs
+    # to divide one number by another
+    # we need it to infer number of local epochs in each federated round 
     OmegaConf.register_new_resolver(
         'div', lambda x, y: int(x // y), replace=True
     )

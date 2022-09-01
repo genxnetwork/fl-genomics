@@ -1,4 +1,4 @@
-name: 'quadratic' 
+name: 'simulated' 
 nodes: 
   first:
     name: 'first'

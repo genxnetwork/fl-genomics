@@ -289,6 +289,12 @@ class ClfNNExperiment(NNExperiment):
             )
 
 class QuadraticNNExperiment(NNExperiment):
+    """Experiment class for training linear model with two parameters on a simulated dataset with two features
+    It is called quadratic because loss function landscape will be quadratic
+
+    Args:
+        NNExperiment (_type_): _description_
+    """    
     def __init__(self, cfg):
         NNExperiment.__init__(self, cfg)
 

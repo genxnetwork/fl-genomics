@@ -196,7 +196,6 @@ class MCMixin:
         if rnd == -1:
             # print(f'loading best parameters for final evaluation')
             parameters = self.checkpointer.load_best_parameters()
-        print(f'DEBUG: starting to configure eval')
         return super().configure_evaluate(rnd, parameters, client_manager)
 
     def on_evaluate_config_fn_closure(self, rnd: int):
@@ -236,11 +235,11 @@ class MCFedAdagrad(MCMixin,FedAdagrad):
         # evaluate called by server after getting random initial parameters from one of the clients
         # we set those parameters as initial weights
         if not self.weights_inited_properly:
-            print(f'initializing weights!!!')
             self.current_weights = parameters_to_weights(parameters)
             self.weights_inited_properly = True
+            logging.info(f'weights were initialized')
         else:
-            print(f'we do not need to initialize weights')
+            logging.info(f'this strategy does not require weights initialization')
         return cen_ev
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
@@ -260,11 +259,11 @@ class MCFedAdam(MCMixin,FedAdam):
         # evaluate called by server after getting random initial parameters from one of the clients
         # we set those parameters as initial weights
         if not self.weights_inited_properly:
-            print(f'initializing weights!!!')
             self.current_weights = parameters_to_weights(parameters)
             self.weights_inited_properly = True
+            logging.info(f'weights were initialized')
         else:
-            print(f'we do not need to initialize weights')
+            logging.info(f'this strategy does not require weights initialization')
         return cen_ev
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
@@ -273,6 +272,17 @@ class MCFedAdam(MCMixin,FedAdam):
 
 class Scaffold(FedAvg):
     def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, **kwargs) -> None:
+        """FL strategy for heterogenious data which uses control variates for adjusting gradients on nodes.
+        c_global variate is an estimation of true gradient of all clients.
+        c_local variate is an estimation of node gradient.
+        Scaffold corrects local update steps to the direction of global gradient, adding c_global - c_local to gradient data before backprop.
+        https://arxiv.org/abs/1910.06378
+
+        Args:
+            K (int, optional): Number of training steps (gradient updates) taken by each local model. Defaults to 1.
+            local_lr (float, optional): Local learning rate for gradient updates. Defaults to 0.01.
+            global_lr (float, optional): Global learning rate for updating global model weights after aggregation. Defaults to 0.1.
+        """        
         self.K = K
         self.local_lr = local_lr
         self.global_lr = global_lr
@@ -281,11 +291,9 @@ class Scaffold(FedAvg):
         super().__init__(**kwargs)
 
     def _plot_2d_landscape(self, rnd: int, results: List[Tuple[ClientProxy, FitRes]]):
-        print(f'keys in metrics are {list(results[0][1].metrics.keys())}')
         local_betas = [bytes_to_weights(res.metrics['local_beta'])[0] for _, res in results]
         true_betas = [bytes_to_weights(res.metrics['true_beta'])[0] for _, res in results]
         beta_grids = [bytes_to_weights(res.metrics['beta_grid'])[0] for _, res in results]
-        print(f'type of beta_grids[0] is {type(beta_grids[0])} and len is {len(beta_grids[0])}')
         
         # print(Z[90:, 20:30])
         # global loss landscape
@@ -302,7 +310,6 @@ class Scaffold(FedAvg):
 
         for i, (local_beta, true_beta) in enumerate(zip(local_betas, true_betas)):
             add_beta_to_loss_landscape(fig, true_beta, local_beta, f'SGD_{i}')
-        print(f'c_global shape is: {self.c_global[0].shape}')
         fig.add_trace(go.Scatter(x=[self.c_global[0][0, 0]], y=[self.c_global[0][0, 1]], mode='markers', name=f'c_global'))
         
         mlflow.log_figure(fig, f'global_loss_landscape_rnd_{rnd}.png')
@@ -319,9 +326,9 @@ class Scaffold(FedAvg):
             cg_layer = self.c_global[layer_index]
             c_deltas = [-cg_layer + (1/(self.K*self.local_lr))*(old_layer_weight - cw[layer_index]) for cw in client_weights]
             c_avg_delta = sum(c_deltas)/len(client_weights)
-            print(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
+            logging.info(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
             for i, cw in enumerate(client_weights):
-                print(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
+                logging.debug(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
             
             self.c_global[layer_index] = cg_layer + c_avg_delta
 
@@ -361,12 +368,12 @@ class MCScaffold(MCMixin, Scaffold):
         # evaluate called by server after getting random initial parameters from one of the clients
         # we set those parameters as initial weights
         if not self.weights_inited_properly:
-            print(f'initializing weights!!!')
             self.old_weights = parameters_to_weights(parameters)
             self.c_global = [numpy.zeros_like(ow) for ow in self.old_weights]
             self.weights_inited_properly = True
+            logging.info(f'weights were initialized')
         else:
-            print(f'we do not need to initialize weights')
+            logging.info(f'this strategy does not require weights initialization')
         return cen_ev
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:

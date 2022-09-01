@@ -114,6 +114,11 @@ class Node(Process):
         return False
 
     def create_callbacks(self):
+        """Init FL client callbacks if they are specified in cfg
+
+        Returns:
+            Optional[List[ClientCallback]]: List of initialized callbacks or None 
+        """        
         callbacks_desc = self.cfg.get('callbacks', None)
         if callbacks_desc is None:
             return None
