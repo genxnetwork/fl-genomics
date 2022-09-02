@@ -9,8 +9,7 @@ PARTS = ['train', 'val', 'test']
 PLINK_EXT = ['bed', 'bim', 'fam']
 PLINK2_EXT = ['pgen', 'pvar', 'psam']
 
-PHENOTYPE_NAME = config['phenotype']['name']
-PHENOTYPE_CODE = config['phenotype']['code']
+PHENOTYPE_CODES=config['phenotype_codes']
 PHENOTYPE_TYPE = config['phenotype']['type']
 COVARIATES = config['covariates'] 
 SNP_COUNTS = config['snp_counts']
@@ -19,20 +18,11 @@ MODELS = ['lassonet', 'lasso', 'mlp']
 
 
 rule ALL:
-    input: 
-        local_dataset=expand("genotypes/{phenotype}/node_{node}/fold_{fold}/top_{snp_count}_{part}.pgen",
-                             phenotype=[PHENOTYPE_NAME],
-                             node=range(len(ETHNICITIES)),
-                             fold=range(FOLD_COUNT),
-                             snp_count=SNP_COUNTS,
-                             part=PARTS),
-        union_dataset=expand("genotypes/{phenotype}/node_{node}/fold_{fold}/union/top_{snp_count}_{part}.pgen",
-                             phenotype=[PHENOTYPE_NAME],
-                             node=range(len(ETHNICITIES)),
-                             fold=range(FOLD_COUNT),
-                             snp_count=SNP_COUNTS,
-                             part=PARTS)
-
+    input:
+        gwas_results=expand("gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
+                            phenotype=list(PHENOTYPE_CODES.keys()),
+                            node=[0],
+                            fold=range(FOLD_COUNT))
 
 rule prepare_phenotypes_and_covariates:
     input:
@@ -40,8 +30,8 @@ rule prepare_phenotypes_and_covariates:
         pca         = "pca/node_{node}/fold_{fold}_{part}_projections.sscore",
         dataset     = UKB_DATASET
     params:
-        phenotype_name  = PHENOTYPE_NAME,
-        phenotype_code  = PHENOTYPE_CODE,
+        phenotype_name  = lambda wildcards: wildcards.phenotype,
+        phenotype_code  = lambda wildcards: PHENOTYPE_CODES[wildcards.phenotype],
         phenotype_type  = PHENOTYPE_TYPE,
         covariates      = COVARIATES
     log:
@@ -70,12 +60,12 @@ rule gwas:
         covariates  = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv.normalized"
     threads: 4
     resources:
-        time        = "1:00:00",
+        time        = "3:30:00",
         mem_mb      = 24000,
-        partition   = "gpu_devel"
+        partition   = "cpu"
     params:
         out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
-        phenotype_name  = PHENOTYPE_NAME,
+        phenotype_name  = lambda wildcards: wildcards.phenotype,
         phenotype_type  = PHENOTYPE_TYPE
     log: "logs/gwas/{phenotype}/node_{node}/fold_{fold}.log"
     output:
@@ -83,6 +73,8 @@ rule gwas:
     script:
         "dimred/gwas.py"
 
+
+'''
 rule local_datasets:
     input:
         gwas        = rules.gwas.output['results'],
@@ -139,7 +131,7 @@ rule union_datasets:
                    --make-pgen --out {params.out_prefix}
         """
 
-'''
+
 rule local_lassonet:
     input:
         genotype    = expand("genotypes/{{phenotype}}/node_{{node}}/fold_{{fold}}/top_{{snp_count}}_{part}.pgen", part=PARTS),

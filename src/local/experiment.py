@@ -14,7 +14,7 @@ from mlflow.xgboost import autolog
 from mlflow.types import Schema, TensorSpec
 from mlflow.models.signature import ModelSignature
 from numpy import argmax, amax
-from sklearn.linear_model import LassoCV, LinearRegression
+from sklearn.linear_model import LassoCV, LinearRegression, LogisticRegressionCV
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score, mean_squared_error, roc_auc_score, accuracy_score
 import torch
@@ -101,9 +101,9 @@ class LocalExperiment(object):
         preds_val = self.model.predict(self.x.val)
         preds_test = self.model.predict(self.x.test)
 
-        metric_train = metric_fun(self.y_train, preds_train)
-        metric_val = metric_fun(self.y_val, preds_val)
-        metric_test = metric_fun(self.y_test, preds_test)
+        metric_train = metric_fun(self.y.train, preds_train)
+        metric_val = metric_fun(self.y.val, preds_val)
+        metric_test = metric_fun(self.y.test, preds_test)
         
         print(f"Train {metric_name}: {metric_train}")
         mlflow.log_metric(f'train_{metric_name}', metric_train)
@@ -134,7 +134,7 @@ def simple_estimator_factory(model):
 
         def train(self):
             self.logger.info("Training")
-            self.model.fit(self.X.train, self.y.train)
+            self.model.fit(self.x.train, self.y.train)
        
     return SimpleEstimatorExperiment
 
@@ -511,11 +511,12 @@ class LassoNetClassifierExperiment(LassoNetExperiment):
 # Dict of possible experiment types and their corresponding classes
 ukb_experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
+    'logistic_regression': simple_estimator_factory(LogisticRegressionCV),
     'xgboost': XGBExperiment,
     'lassonet': LassoNetExperiment,
     'lassonet_classifier': LassoNetClassifierExperiment,
     'mlp_regressor': NNExperiment,
-    'mlp_classifier_ukb': MlpClfExperiment
+    'mlp_classifier': MlpClfExperiment
 }
 
 tg_experiment_dict = {
