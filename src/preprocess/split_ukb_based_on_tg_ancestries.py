@@ -37,7 +37,8 @@ ethnic_split = Split(path.join(data_root, non_iid_split_name), 'standing_height'
     
 for split in [tg_split]:
     logger.info(f"Processing split {split.root_dir}")
-    for node_index in range(n_tg_nodes):
+#     for node_index in range(n_tg_nodes):
+    for node_index in range(5, 15):
         logger.info(f"Node {node_index}")
         for fold_index in range(1):
             for part_name in ['train', 'val', 'test']:
