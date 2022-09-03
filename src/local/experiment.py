@@ -86,7 +86,7 @@ class LocalExperiment(object):
         self.x, self.y = self.loader.load()
         
         if self.cfg.study == 'ukb':
-            self.x_cov, self.y_cov = self.loader.load_covariates()
+            self.x_cov = self.loader.load_covariates()
             self.logger.info(f"{self.x_cov.train.shape[1]} covariates loaded")
 
         self.logger.info(f"{self.x.train.shape[1]} features loaded")
@@ -421,7 +421,7 @@ class LassoNetExperiment(NNExperiment):
         cov_val = load_covariates(self.cfg.data.covariates.val)
         lr.fit(cov_train, self.y.train)
         val_r2 = lr.score(cov_val, self.y.val)
-        train_r2 = lr.score(cov_train, self.y.test)
+        train_r2 = lr.score(cov_train, self.y.train)
         cov_count = cov_train.shape[1]
         snp_count = self.x.train.shape[1] - cov_count
         self.logger.info(f"cov only train_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f} for {cov_count} covariates")
@@ -529,7 +529,7 @@ simulation_experiment_dict = {
 }
 
             
-@hydra.main(config_path='configs', config_name='tg_hom')
+@hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
     print(cfg)
     assert cfg.study in ['tg', 'ukb', 'simulation']

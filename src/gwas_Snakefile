@@ -21,8 +21,13 @@ rule ALL:
     input:
         gwas_results=expand("gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
                             phenotype=list(PHENOTYPE_CODES.keys()),
-                            node=[0],
-                            fold=range(FOLD_COUNT))
+                            node=range(len(ETHNICITIES)),
+                            fold=range(FOLD_COUNT)),
+        phenotypes=expand("phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
+                          phenotype=list(PHENOTYPE_CODES.keys()),
+                          node=range(len(ETHNICITIES)),
+                          fold=range(FOLD_COUNT),
+                          part=PARTS)
 
 rule prepare_phenotypes_and_covariates:
     input:
@@ -62,7 +67,7 @@ rule gwas:
     resources:
         time        = "3:30:00",
         mem_mb      = 24000,
-        partition   = "cpu"
+        partition   = "gpu_devel"
     params:
         out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
         phenotype_name  = lambda wildcards: wildcards.phenotype,
