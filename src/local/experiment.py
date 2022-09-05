@@ -29,7 +29,7 @@ from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPCl
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.loaders import ExperimentDataLoader
-from local.utils import plot_loss_landscape
+from utils.landscape import plot_loss_landscape
 
 
 class LocalExperiment(object):
@@ -252,6 +252,23 @@ class MlpClfExperiment(NNExperiment):
                                                         )
 
 class TGNNExperiment(NNExperiment):
+    def load_data(self):
+        LocalExperiment.load_data(self)
+        train_stds, val_stds, test_stds = self.x.train.std(axis=0), self.x.val.std(axis=0), self.x.test.std(axis=0)
+        for part, stds in zip(['train', 'val', 'test'], [train_stds, val_stds, test_stds]):
+            self.logger.info(f'{part} stds: {numpy.array2string(stds, precision=3, floatmode="fixed")}')
+        
+        if self.cfg.data.x_reduces.normalize_stds:
+            self.x.val = self.x.val * (train_stds / val_stds)
+            self.x.test = self.x.test * (train_stds / test_stds)
+            for part, matrix in zip(['train', 'val', 'test'], [self.x.train, self.x.val, self.x.test]):
+                self.logger.info(f'{part} normalized stds: {numpy.array2string(matrix.std(axis=0), precision=3, floatmode="fixed")}')
+         
+        self.data_module = DataModule(self.x.train, self.x.val, self.x.test,
+                                      self.y.train.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+                                      self.y.val.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+                                      self.y.test.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+                                      batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
     def create_model(self):
         self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
                                    optim_params=self.cfg.experiment.optimizer,
