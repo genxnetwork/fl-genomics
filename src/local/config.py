@@ -29,13 +29,14 @@ node_size_dict = {
         9: 19399,
         10: 36027
     },
-    'tg_split': {
+    'tg_split': {**{
         0: 370000,
         1: 7900,
         2: 7100,
         3: 2056,
-        4: 400
-    }
+        4: 400,
+        }, **{i: 7500 for i in range(5, 15)}
+                }
 }
 
 node_name_dict = {
@@ -60,11 +61,11 @@ node_name_dict = {
         9: 'Wales',
         10: 'Scotland'
     },
-    'tg_split': {
+    'tg_split': {**{
         0: "EUR",
         1: "SAS",
         2: "AFR",
         3: "EAS",
         4: "AM"
-    }
+        }, **{i: f'EUR_{i}' for i in range(5, 15)}}
 }
