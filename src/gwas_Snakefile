@@ -8,6 +8,7 @@ UKB_DATASET = config['ukb_dataset']
 PARTS = ['train', 'val', 'test']
 PLINK_EXT = ['bed', 'bim', 'fam']
 PLINK2_EXT = ['pgen', 'pvar', 'psam']
+TRAIN_PCA_EXT = ['acount', 'eigenval', 'eigenvec', 'eigenvec.allele']
 
 PHENOTYPE_CODES=config['phenotype_codes']
 PHENOTYPE_TYPE = config['phenotype']['type']
@@ -19,15 +20,82 @@ MODELS = ['lassonet', 'lasso', 'mlp']
 
 rule ALL:
     input:
-        gwas_results=expand("gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
+        pvals=expand("gwas/{phenotype}/node_{node}/fold_{fold}.clumped",
                             phenotype=list(PHENOTYPE_CODES.keys()),
-                            node=range(len(ETHNICITIES)),
+                            node=range(15),
                             fold=range(FOLD_COUNT)),
         phenotypes=expand("phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
                           phenotype=list(PHENOTYPE_CODES.keys()),
-                          node=range(len(ETHNICITIES)),
+                          node=range(15),
                           fold=range(FOLD_COUNT),
                           part=PARTS)
+
+rule save_node_gts:
+    input:
+        split_ids   = "split_ids/node_{node}/fold_{fold}_{part}.tsv",
+        source_genotype    = "genotypes/node_{node}_filtered.pgen"
+    resources:
+        time        = "01:00:00",
+        mem_mb      = 48000,
+        partition   = "gpu_devel"
+    params:
+        in_prefix = "genotypes/node_{node}_filtered",
+        out_prefix = "genotypes/node_{node}/fold_{fold}_{part}"
+    output:
+        genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen"
+    shell:
+        """
+            plink2 --pfile {params.in_prefix} \
+                   --keep {input.split_ids} \
+                   --out {params.out_prefix} \
+                   --make-pgen
+        """
+
+
+
+rule train_pca:
+    input:
+        genotype    = "genotypes/node_{node}/fold_{fold}_train.pgen"
+    resources:
+        time        = "08:00:00",
+        mem_mb      = 24000,
+        partition   = "cpu"
+    threads: 4
+    params:
+        in_prefix = "genotypes/node_{node}/fold_{fold}_train",
+        out_prefix = "pca/node_{node}/fold_{fold}_train_projections"
+    output:
+        train_eigenvec = "pca/node_{node}/fold_{fold}_train_projections.eigenvec"
+    shell:
+        """
+            plink2 --pfile {params.in_prefix} \
+                   --out {params.out_prefix} \
+                   --freq counts --pca allele-wts 20 approx --threads 4
+        """
+
+rule pca_project:
+    input:
+        genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen",
+        train_eigenvec = "pca/node_{node}/fold_{fold}_train_projections.eigenvec"
+    resources:
+        time        = "00:30:00",
+        mem_mb      = 24000,
+        partition   = "gpu_devel"
+    params:
+        in_prefix = "genotypes/node_{node}/fold_{fold}_{part}",
+        eigenvec_allele = "pca/node_{node}/fold_{fold}_train_projections.eigenvec.allele",
+        acount = "pca/node_{node}/fold_{fold}_train_projections.acount",
+        out_prefix = "pca/node_{node}/fold_{fold}_{part}_projections"
+    output:
+        projections = "pca/node_{node}/fold_{fold}_{part}_projections.sscore"
+    shell:
+        """
+            plink2 --pfile {params.in_prefix} \
+                   --read-freq {params.acount}\
+                   --score {params.eigenvec_allele} 2 5 header-read no-mean-imputation variance-standardize\
+                   --score-col-nums 6-25 \
+                   --out {params.out_prefix} --threads 4
+        """
 
 rule prepare_phenotypes_and_covariates:
     input:
@@ -67,7 +135,7 @@ rule gwas:
     resources:
         time        = "3:30:00",
         mem_mb      = 24000,
-        partition   = "gpu_devel"
+        partition   = "cpu"
     params:
         out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
         phenotype_name  = lambda wildcards: wildcards.phenotype,
@@ -78,8 +146,63 @@ rule gwas:
     script:
         "dimred/gwas.py"
 
+rule make_beds:
+    input:
+        pgen = "genotypes/node_{node}/fold_{fold}_{part}.pgen"
+    resources:
+        time = "1:00:00",
+        mem_mb = "16000",
+        partition = "gpu_devel"
+    params:
+        prefix = "genotypes/node_{node}/fold_{fold}_{part}"
+    output:
+        bed = "genotypes/node_{node}/fold_{fold}_{part}.bed"
+    shell:
+        """
+            plink2 --make-bed --pfile {params.prefix} --threads 4 --out {params.prefix}
+        """
 
+rule power_pvals:
+    input:
+        gwas_report = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv"
+    threads: 4 
+    resources:
+        time = "0:05:00",
+        mem_mb = "8000",
+        partition = "gpu_devel"
+    log: "logs/power_pvals/{phenotype}/node_{node}/fold_{fold}"
+    output:
+        gwas_report = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.nolog.tsv"
+    script:
+        "preprocess/power_pvals.py" 
+
+rule clump:
+    input:
+        gwas_report = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.nolog.tsv",
+        bed = "genotypes/node_{node}/fold_{fold}_train.bed"
+    resources:
+        time = "2:00:00",
+        mem_mb = 16000,
+        partition = "gpu_devel"
+    params:
+        in_prefix = "genotypes/node_{node}/fold_{fold}_train",
+        out_prefix = "gwas/{phenotype}/node_{node}/fold_{fold}"
+    output:
+        clumped = "gwas/{phenotype}/node_{node}/fold_{fold}.clumped"
+    shell:
+        """
+            plink19 --bfile {params.in_prefix} \
+                    --clump {input.gwas_report} \
+                    --clump-snp-field ID \
+                    --clump-field P_VAL \
+                    --clump-kb 1000 \
+                    --clump-r2 0.1 \
+                    --clump-p1 1 \
+                    --out {params.out_prefix}
+        """
+        
 '''
+
 rule local_datasets:
     input:
         gwas        = rules.gwas.output['results'],
