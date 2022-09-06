@@ -157,6 +157,8 @@ class ExperimentDataLoader:
         train_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.train)
         val_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.val)
         test_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.test)
+        unique = numpy.unique(val_sw)
+        self.logger.info(f'we loaded {numpy.array2string(unique, precision=2, floatmode="fixed")}')
         return Y(train_sw, val_sw, test_sw)
 
 
