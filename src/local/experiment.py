@@ -1,6 +1,7 @@
 from abc import abstractmethod
 import sys
 
+
 sys.path.append('..')
 
 import hydra
@@ -25,6 +26,7 @@ from local.config import node_size_dict, node_name_dict
 from fl.datasets.memory import load_covariates
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
+from nn.utils import LassoNetRegMetrics
 from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
@@ -170,17 +172,14 @@ class RandomForestExperiment(LocalExperiment):
     	pass
 
 
-
 class NNExperiment(LocalExperiment):
     def __init__(self, cfg):
         LocalExperiment.__init__(self, cfg)
 
     def load_data(self):
         LocalExperiment.load_data(self)
-        self.data_module = DataModule(self.x.train, self.x.val, self.x.test,
-                                      self.y.train.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
-                                      self.y.val.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
-                                      self.y.test.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+        self.data_module = DataModule(self.x,
+                                      self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
                                       batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
     
     def train(self):
@@ -265,11 +264,10 @@ class TGNNExperiment(NNExperiment):
             for part, matrix in zip(['train', 'val', 'test'], [self.x.train, self.x.val, self.x.test]):
                 self.logger.info(f'{part} normalized stds: {numpy.array2string(matrix.std(axis=0), precision=3, floatmode="fixed")}')
          
-        self.data_module = DataModule(self.x.train, self.x.val, self.x.test,
-                                      self.y.train.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
-                                      self.y.val.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
-                                      self.y.test.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+        self.data_module = DataModule(self.x,
+                                      self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
                                       batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
+
     def create_model(self):
         self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
                                    optim_params=self.cfg.experiment.optimizer,
@@ -409,7 +407,7 @@ class QuadraticNNExperiment(NNExperiment):
 class LassoNetExperiment(NNExperiment):
 
     def create_model(self, model=LassoNetRegressor):
-        self.model = model(
+        self.model: model = model(
             input_size=self.x.train.shape[1],
             hidden_size=self.cfg.model.hidden_size,
             optim_params=self.cfg.experiment.optimizer,
@@ -484,29 +482,13 @@ class LassoNetExperiment(NNExperiment):
         
         self.logger.info("Evaluating model and logging metrics")
         self.model.eval()
-        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
-        
-        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
-        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
-        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
-        
-        print(train_preds.shape, val_preds.shape, test_preds.shape)
-        # each preds column correspond to different alpha l1 reg parameter
-        # we select column which gives the best val_r2 and use this column to make test predictions
-        metric_val_list = [metric_fun(self.y.val, val_preds[:, col]) for col in range(val_preds.shape[1])]
-        best_col = argmax(metric_val_list)
-        best_val_metric = amax(metric_val_list)
-        best_train_metric = metric_fun(self.y.train, train_preds[:, best_col])
-        best_test_metric = metric_fun(self.y.test, test_preds[:, best_col])
-        
-        print(f'Best alpha: {self.model.alphas[best_col]:.6f}')
-        mlflow.log_metric('best_alpha', self.model.alphas[best_col])
-        print(f"Train {metric_name}: {best_train_metric:.4f}")
-        mlflow.log_metric(f'train_{metric_name}', best_train_metric)
-        print(f"Val {metric_name}: {best_val_metric:.4f}")
-        mlflow.log_metric(f'val_{metric_name}', best_val_metric)
-        print(f"Test {metric_name}: {best_test_metric:.4f}")
-        mlflow.log_metric(f'test_{metric_name}', best_test_metric)
+        metrics: LassoNetRegMetrics = self.model.predict_and_eval(self.data_module, test=True)
+
+        print(f'Best alpha: {self.model.alphas[metrics.best_col]:.6f}')
+        metrics.log_to_mlflow()
+        print(f'metrics: {metrics}')
+        mlflow.log_metric('best_alpha', self.model.alphas[metrics.best_col])
+
 
 class LassoNetClassifierExperiment(LassoNetExperiment):
 

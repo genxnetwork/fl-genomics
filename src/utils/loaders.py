@@ -24,6 +24,14 @@ class Y:
     val: numpy.ndarray
     test: numpy.ndarray
 
+    def astype(self, new_type):
+        new_y = Y(
+            train=self.train.astype(new_type),
+            val=self.val.astype(new_type),
+            test=self.test.astype(new_type)
+        )
+        return new_y
+
 @dataclass
 class SampleIndex:
     train: NDArray[numpy.dtype(numpy.uint32)]
