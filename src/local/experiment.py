@@ -28,7 +28,7 @@ from nn.train import prepare_trainer
 from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
-from utils.loaders import ExperimentDataLoader
+from utils.loaders import Y, ExperimentDataLoader
 from utils.landscape import plot_loss_landscape
 
 
@@ -84,11 +84,12 @@ class LocalExperiment(object):
     def load_data(self):
         self.logger.info("Loading data")
         self.x, self.y = self.loader.load()
-        
+        # self.sw = Y(None, None, None) if study is not ukb
+        self.sw = self.loader.load_sample_weights()
+
         if self.cfg.study == 'ukb':
             self.x_cov = self.loader.load_covariates()
             self.logger.info(f"{self.x_cov.train.shape[1]} covariates loaded")
-
         self.logger.info(f"{self.x.train.shape[1]} features loaded")
     
     @abstractmethod
@@ -101,9 +102,9 @@ class LocalExperiment(object):
         preds_val = self.model.predict(self.x.val)
         preds_test = self.model.predict(self.x.test)
 
-        metric_train = metric_fun(self.y.train, preds_train)
-        metric_val = metric_fun(self.y.val, preds_val)
-        metric_test = metric_fun(self.y.test, preds_test)
+        metric_train = metric_fun(self.y.train, preds_train, sample_weight=self.sw.train)
+        metric_val = metric_fun(self.y.val, preds_val, sample_weight=self.sw.val)
+        metric_test = metric_fun(self.y.test, preds_test, sample_weight=self.sw.test)
         
         print(f"Train {metric_name}: {metric_train}")
         mlflow.log_metric(f'train_{metric_name}', metric_train)
@@ -207,9 +208,9 @@ class NNExperiment(LocalExperiment):
         val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
         test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
                 
-        metric_train = metric_fun(self.y.train, train_preds)
-        metric_val = metric_fun(self.y.val, val_preds)
-        metric_test = metric_fun(self.y.test, test_preds)
+        metric_train = metric_fun(self.y.train, train_preds, sample_weight=self.sw.train)
+        metric_val = metric_fun(self.y.val, val_preds, sample_weight=self.sw.val)
+        metric_test = metric_fun(self.y.test, test_preds, sample_weight=self.sw.test)
         
         print(f"Train {metric_name}: {metric_train}")
         mlflow.log_metric(f'train_{metric_name}', metric_train)
