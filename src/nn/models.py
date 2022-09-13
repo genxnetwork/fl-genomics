@@ -150,7 +150,7 @@ class LinearRegressor(BaseNet):
         self.layer = Linear(input_size, 1)
         self.l1 = l1
         # TODO: move to callback
-        self.beta_history = []
+        # self.beta_history = []
         self.r2_score = R2Score()
 
     def regularization(self) -> torch.Tensor:
@@ -169,7 +169,8 @@ class LinearRegressor(BaseNet):
     
     def on_after_backward(self) -> None:
         # print(w)
-        self.beta_history.append(self.layer.weight.detach().cpu().numpy().copy())
+        # self.beta_history.append(self.layer.weight.detach().cpu().numpy().copy())
+        mlflow.log_metric('grad_norm', torch.norm(self.layer.weight.grad).item(), self.fl_current_epoch())
         return super().on_after_backward()
 
     def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
@@ -229,7 +230,8 @@ class MLPPredictor(BaseNet):
         super().__init__(input_size, optim_params, scheduler_params)
         self.input = Linear(input_size, hidden_size)
         self.bn = BatchNorm1d(hidden_size)
-        self.hidden = Linear(hidden_size, 1)
+        self.hidden = Linear(hidden_size, hidden_size)
+        self.hidden2 = Linear(hidden_size, 1)
         self.loss = loss
         self.l1 = l1
         self.optim_params = optim_params
@@ -237,8 +239,9 @@ class MLPPredictor(BaseNet):
         self.r2_score = R2Score(num_outputs=1, multioutput='uniform_average')
 
     def forward(self, x):
-        x = relu(self.input(x))
-        return self.hidden(x)
+        x = selu(self.input(x))
+        x = selu(self.hidden(x))
+        return self.hidden2(x)
 
     def regularization(self):
         reg = self.l1 * torch.norm(self.input.weight, p=1)

@@ -13,9 +13,9 @@ covariates:
   val: '${.root}_val.tsv'
   test: '${.root}_test.tsv'
 genotype:
-  root: '${split.path}/genotypes/${data.phenotype.name}/node_${node.index}/fold_${fold.index}/union/top_${experiment.snp_count}'
+  root: '${split.path}/genotypes/node_${node.index}/fold_${fold.index}'
   train: '${.root}_train'
   val: '${.root}_val'
   test: '${.root}_test'
-gwas: '${split.path}/gwas/${data.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
-load_strategy: union
+gwas: '${split.path}/gwas/${data.phenotype.name}/node_0/fold_${fold.index}.gwas.tsv'
+pop_file: ${split.path}/superpopulations.tsv

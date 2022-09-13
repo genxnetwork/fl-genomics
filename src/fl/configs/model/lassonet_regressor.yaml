@@ -1,0 +1,6 @@
+  name: lassonet_regressor
+  batch_size: 256
+  hidden_size: 64
+  alpha_start: -3
+  alpha_end: 0.5
+  init_limit: 0.001

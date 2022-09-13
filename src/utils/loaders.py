@@ -46,7 +46,8 @@ class ExperimentDataLoader:
 
     def _load_phenotype(self, path: str) -> numpy.ndarray:
         phenotype = load_phenotype(path, out_type=PHENO_NUMPY_DICT[self.cfg.data.phenotype.name], encode=(self.cfg.study == 'tg'))
-
+        if numpy.isnan(phenotype).sum() > 0:
+            raise ValueError(f'There are {numpy.isnan(phenotype).sum()} nan values in phenotype from {path}')
         if (PHENO_TYPE_DICT[self.cfg.data.phenotype.name] == 'binary'):
             assert set(phenotype) == set([1, 2])
             return phenotype - 1
@@ -83,21 +84,38 @@ class ExperimentDataLoader:
 
         return x, y
 
+    def _get_snp_count(self):
+        pvar_path = self.cfg.data.genotype.train + '.pvar'
+        pvar = pd.read_table(pvar_path)
+        return pvar.shape[0]
+
     def _load_genotype_and_covariates(self, sample_index: SampleIndex) -> X:
+        load_strategy = self.cfg.data.get('load_strategy', 'default')
+        if load_strategy == 'default':
+            gwas_path = self.cfg.data.gwas
+            snp_count = self.cfg.experiment.snp_count
+        elif load_strategy == 'union':
+            # we do not need gwas file
+            # SNPs were already selected and written to a separate genotype file
+            gwas_path = None 
+            snp_count = self._get_snp_count()
+        else:
+            raise ValueError(f'load_strategy should be one of ["default", "union"]')
+
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         X_train = numpy.hstack((load_from_pgen(self.cfg.data.genotype.train,
-                                              self.cfg.data.gwas,
-                                              snp_count=self.cfg.experiment.snp_count,
-                                              sample_indices=sample_index.train),
+                                               gwas_path,
+                                               snp_count=snp_count,
+                                               sample_indices=sample_index.train),
                                load_covariates(self.cfg.data.covariates.train).astype(numpy.float16)))
         X_val = numpy.hstack((load_from_pgen(self.cfg.data.genotype.val,
-                                              self.cfg.data.gwas,
-                                              snp_count=self.cfg.experiment.snp_count,
-                                              sample_indices=sample_index.val),
+                                             gwas_path,
+                                             snp_count=snp_count,
+                                             sample_indices=sample_index.val),
                                load_covariates(self.cfg.data.covariates.val).astype(numpy.float16)))
         X_test = numpy.hstack((load_from_pgen(self.cfg.data.genotype.test,
-                                              self.cfg.data.gwas,
-                                              snp_count=self.cfg.experiment.snp_count,
+                                              gwas_path,
+                                              snp_count=snp_count,
                                               sample_indices=sample_index.test),
                                load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :].astype(numpy.float16)))
 
@@ -124,6 +142,12 @@ class ExperimentDataLoader:
         X_train = load_covariates(self.cfg.data.covariates.train)
         X_val = load_covariates(self.cfg.data.covariates.val)
         X_test = load_covariates(self.cfg.data.covariates.test)[:test_samples_limit, :]
+        if numpy.isnan(X_train).sum() > 0:
+            raise ValueError(f'X_train has {numpy.isnan(X_train).sum()} nan values')
+        if numpy.isnan(X_val).sum() > 0:
+            raise ValueError(f'X_val has {numpy.isnan(X_val).sum()} nan values')
+        if numpy.isnan(X_test).sum() > 0:
+            raise ValueError(f'X_test has {numpy.isnan(X_test).sum()} nan values')
         return X(X_train, X_val, X_test)
 
     def _load_pcs(self) -> X:
@@ -144,31 +168,32 @@ class ExperimentDataLoader:
                                                       indices_limit=test_samples_limit)
         return SampleIndex(si_train, si_val, si_test)
 
-    def _sample_weights(self, populations_frame: pd.DataFrame, pheno_file: str) -> numpy.ndarray:
-        pheno = pd.read_table(pheno_file)
-        merged = pheno.merge(populations_frame, how='inner', on='IID')
-        populations = merged['node_index'].values
-        unique, counts = numpy.unique(populations, return_counts=True)
-        
-        # populations contains values from [0, number of populations)
-        sw = [populations.shape[0]/counts[p] for p in populations]
-        
-        return sw
+    def _sample_weights(self, pheno_file: str) -> numpy.ndarray:
+        sw_frame = pd.read_table(pheno_file + '.sw')
+        return sw_frame.sample_weight.values
 
     def load_sample_weights(self) -> Y:
-        if self.cfg.study != 'ukb':
+        if self.cfg.study != 'ukb' or not self.cfg.get('sample_weights', False):
             # all samples will have equal weights during evaluation
             return Y(None, None, None) 
         self.logger.info("Loading sample weights")
-        pop_file = self.cfg.data.pop_file
-        populations_frame = pd.read_table(pop_file)
-        train_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.train)
-        val_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.val)
-        test_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.test)
+        train_sw = self._sample_weights(self.cfg.data.phenotype.train)
+        val_sw = self._sample_weights(self.cfg.data.phenotype.val)
+        test_sw = self._sample_weights(self.cfg.data.phenotype.test)
         unique = numpy.unique(val_sw)
-        self.logger.info(f'we loaded {numpy.array2string(unique, precision=2, floatmode="fixed")}')
+        self.logger.info(f'we loaded {numpy.array2string(unique, precision=1, floatmode="fixed")} unique weights in val')
         return Y(train_sw, val_sw, test_sw)
 
+
+def calculate_sample_weights(populations_frame: pd.DataFrame, pheno_frame: pd.DataFrame) -> numpy.ndarray:
+    merged = pheno_frame.merge(populations_frame, how='inner', on='IID')
+    populations = merged['node_index'].values
+    unique, counts = numpy.unique(populations, return_counts=True)
+        
+        # populations contains values from [0, number of populations)
+    sw = [populations.shape[0]/counts[p] for p in populations]
+        
+    return sw
 
 def load_plink_pcs(path, order_as_in_file=None):
     """ Loads PLINK's eigenvector matrix (e.g. to be used as X for TG). If @order_as_in_file is not None,

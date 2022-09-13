@@ -86,7 +86,7 @@ class LocalExperiment(object):
     def load_data(self):
         self.logger.info("Loading data")
         self.x, self.y = self.loader.load()
-        # self.sw = Y(None, None, None) if study is not ukb
+        # self.sw = Y(None, None, None) if study is not ukb or cfg.sample_weights is False or not in cfg
         self.sw = self.loader.load_sample_weights()
 
         if self.cfg.study == 'ukb':
@@ -180,7 +180,27 @@ class NNExperiment(LocalExperiment):
         LocalExperiment.load_data(self)
         self.data_module = DataModule(self.x,
                                       self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+                                      sample_weights=self.sw,
                                       batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
+
+    def create_model(self):
+        self.model = MLPPredictor(input_size=self.x.train.shape[1],
+                                  hidden_size=self.cfg.model.hidden_size,
+                                  l1=self.cfg.model.alpha,
+                                  optim_params=self.cfg.optimizer,
+                                  scheduler_params=self.cfg.scheduler,
+                                  loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
+                                  )
+
+    def load_best_model(self):
+        self.model = MLPPredictor.load_from_checkpoint(
+                self.trainer.checkpoint_callback.best_model_path,
+                input_size=self.x.train.shape[1],
+                hidden_size=self.cfg.model.hidden_size,
+                l1=self.cfg.model.alpha,
+                optim_params=self.cfg.optimizer,
+                scheduler_params=self.cfg.scheduler
+            )
     
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
@@ -189,9 +209,13 @@ class NNExperiment(LocalExperiment):
         
         self.create_model()
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
-                                       gpus=self.cfg.experiment.get('gpus', 0),
-                                       precision=self.cfg.model.get('precision', 32),
-                                       max_epochs=self.cfg.training.max_epochs, weights_summary='full', patience=self.cfg.training.patience, log_every_n_steps=5)
+                                       gpus=self.cfg.training.get('gpus', 0),
+                                       precision=self.cfg.training.get('precision', 32),
+                                       max_epochs=self.cfg.training.max_epochs, 
+                                       weights_summary='full', 
+                                       patience=self.cfg.training.patience, 
+                                       log_every_n_steps=5,
+                                       enable_progress_bar=self.cfg.training.enable_progress_bar)
         
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
@@ -229,8 +253,31 @@ class NNExperiment(LocalExperiment):
         val_r2 = lr.score(self.x_cov.val, self.y.val)
         train_r2 = lr.score(self.x_cov.train, self.y.train)
         samples, cov_count = self.x_cov.train.shape
-        self.log(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+        print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
         return lr.coef_
+
+    def pretrain_and_substract(self) -> Y:
+        """Pretrains linear regression on phenotype and covariates
+        Predicts phenotype and substracts predicted phenotype from true phenotype
+        
+        Returns:
+            Y: phenotype residual unexplained by linear covariate-only model
+        """
+        lr = LinearRegression()
+        lr.fit(self.x_cov.train, self.y.train)
+        y_train = self.y.train - lr.predict(self.x_cov.train)
+        y_val = self.y.val - lr.predict(self.x_cov.val)
+        y_test = self.y.test - lr.predict(self.x_cov.test)
+
+        val_r2 = lr.score(self.x_cov.val, self.y.val)
+        train_r2 = lr.score(self.x_cov.train, self.y.train)
+        samples, cov_count = self.x_cov.train.shape
+        print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+
+        residual = Y(y_train, y_val, y_test)
+        return residual.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name])
+        
+
 
 class MlpClfExperiment(NNExperiment):
     def create_model(self):

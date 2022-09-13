@@ -88,7 +88,7 @@ class Server(Process):
         print(f'SERVER LOGGING CONFIGURED')
         logging.info(f'SERVER LOGGING CONFIGURED')
         start_server(
-                    server_address="[::]:8080",
+                    server_address=f"[::]:{self.cfg.server.port}",
                     strategy=strategy,
                     config={"num_rounds": self.cfg.server.rounds},
                     force_final_distributed_eval=True
