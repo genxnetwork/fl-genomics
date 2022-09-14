@@ -22,11 +22,11 @@ rule ALL:
     input:
         pvals=expand("gwas/{phenotype}/node_{node}/fold_{fold}.clumped",
                             phenotype=list(PHENOTYPE_CODES.keys()),
-                            node=range(15),
+                            node=range(len(ETHNICITIES)),
                             fold=range(FOLD_COUNT)),
         phenotypes=expand("phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
                           phenotype=list(PHENOTYPE_CODES.keys()),
-                          node=range(15),
+                          node=range(len(ETHNICITIES)),
                           fold=range(FOLD_COUNT),
                           part=PARTS)
 
