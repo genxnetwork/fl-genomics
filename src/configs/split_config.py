@@ -67,6 +67,30 @@ ethnic_background_name_map = {
     6:	'Other ethnic group'
 }
 
+assessment_centre_split_name = 'ac_split'
+assessment_centre_code_map = {
+    11012: 'Barts',
+    11021: 'Birmingham',
+    11011: 'Bristol',
+    11008: 'Bury',
+    11003: 'Cardiff',
+    11024: 'Cheadle (revisit)',
+    11020: 'Croydon',
+    11005: 'Edinburgh',
+    11004: 'Glasgow',
+    11018: 'Hounslow',
+    11010: 'Leeds',
+    11016: 'Liverpool',
+#     11001: 'Manchester',
+    11017: 'Middlesborough',
+    11009: 'Newcastle',
+    11013: 'Nottingham',
+    11002: 'Oxford',
+    11007: 'Reading',
+    11014: 'Sheffield',
+    11006: 'Stoke'
+}
+
 heterogeneous_split_codes = [1, 1001, 1002, 1003]
 
 random_seed = 32

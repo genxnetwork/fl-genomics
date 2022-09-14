@@ -6,7 +6,7 @@ pd.options.mode.chained_assignment = None # Shush
 import os
 
 from configs.global_config import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path, superpopulations_path
-from configs.split_config import non_iid_split_name, split_map, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, n_subsample_nodes, n_subsample_samples, random_seed
+from configs.split_config import non_iid_split_name, split_map, assessment_centre_code_map, assessment_centre_split_name, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, n_subsample_nodes, n_subsample_samples, random_seed
 from utils.plink import run_plink
 
 class SplitBase(object):
@@ -133,6 +133,42 @@ class SplitTG(SplitBase):
             else: # Subsampled node
                 df.loc[df.node_index == 0, ['FID', 'IID']].sample(n_subsample_samples, random_state=i)\
                 .to_csv(split_id_path, index=False, sep='\t')
+                
+            prefix = os.path.join(genotype_dir, f"node_{i}")
+            prefix_list.append(prefix)
+            
+            if make_pgen:
+                self.make_split_pgen(split_id_path, prefix)
+                
+        return prefix_list
+    
+         
+class SplitAssessmentCentre(SplitBase):
+    def split(self, make_pgen=True):
+        '''
+        Splits UKB samples based on Assessment Centres
+        '''
+        loader = UKBDataLoader(ukb_loader_dir, 'split', '54', ['31'])
+        df = pd.concat((loader.load_train(), loader.load_val(), loader.load_test()))
+        df['FID'] = df['IID'] = df.index
+        
+        # Keep only samples that passed sample QC
+        sample_qc_ids = pd.read_table(f'{sample_qc_ids_path}.id', index_col='IID')
+        df = df.loc[df.index.intersection(sample_qc_ids.index)]
+        
+        split_id_dir = os.path.join(data_root, assessment_centre_split_name, 'split_ids')
+        genotype_dir = os.path.join(data_root, assessment_centre_split_name, 'genotypes')
+        genotype_node_dirs = [os.path.join(genotype_dir, f"node_{node_index}")
+                              for node_index in range(len(assessment_centre_code_map))]
+        
+        for dir_ in [split_id_dir, genotype_dir] + genotype_node_dirs:
+            os.makedirs(dir_, exist_ok=True)
+
+        prefix_list = []
+            
+        for i, code in enumerate(assessment_centre_code_map.keys()):
+            split_id_path = os.path.join(split_id_dir, f"{i}.csv")
+            df.loc[df['54'] == float(code), ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
                 
             prefix = os.path.join(genotype_dir, f"node_{i}")
             prefix_list.append(prefix)
