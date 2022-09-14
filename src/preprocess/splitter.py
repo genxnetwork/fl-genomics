@@ -131,7 +131,7 @@ class SplitTG(SplitBase):
             if i <= max(df.node_index): # Superpopulation node
                 df.loc[df.node_index == i, ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
             else: # Subsampled node
-                df.loc[df.node_index == 0, ['FID', 'IID']].sample(n_subsampled_samples, random_state=i)\
+                df.loc[df.node_index == 0, ['FID', 'IID']].sample(n_subsample_samples, random_state=i)\
                 .to_csv(split_id_path, index=False, sep='\t')
                 
             prefix = os.path.join(genotype_dir, f"node_{i}")
