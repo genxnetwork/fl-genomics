@@ -1,0 +1,8 @@
+name: fedadam
+active_nodes: all
+args:
+  eta: 1e-1
+  eta_l: 1e-1
+  beta_1: 0.9
+  beta_2: 0.99
+  tau: 1e-9 

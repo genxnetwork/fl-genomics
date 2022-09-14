@@ -1,0 +1,33 @@
+name: 'homo_split' 
+path: '/mnt/genx-bio-share/TG/data/chip/${.name}'
+nodes: 
+  n0:
+    name: 'Node 0'
+    resources:
+      gpus: 0
+    sample_count: 536
+    index: 0
+  n1:
+    name: 'Node 1'
+    resources:
+      gpus: 0
+    sample_count: 541
+    index: 1
+  n2:
+    name: 'Node 2'
+    resources:
+      gpus: 0
+    sample_count: 522
+    index: 2
+  n3:
+    name: 'Node 3'
+    resources:
+      gpus: 0
+    sample_count: 517
+    index: 3
+  n4:
+    name: 'Node 4'
+    resources:
+      gpus: 0
+    sample_count: 524
+    index: 4

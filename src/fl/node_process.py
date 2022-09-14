@@ -13,11 +13,10 @@ from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
 import flwr
-from sklearn.linear_model import LinearRegression
 
-from nn.lightning import DataModule
-from fl.federation.client import FLClient
-from local.experiment import NNExperiment
+from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
+from local.experiment import NNExperiment, QuadraticNNExperiment
+from fl.federation.callbacks import PlotLandscapeCallback
 
 
 @dataclass
@@ -62,7 +61,7 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
-        self.experiment = NNExperiment(self.cfg)
+        self.experiment = NNExperiment(self.cfg) if 'landscape' not in self.cfg.experiment.name else QuadraticNNExperiment(self.cfg)
     
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step
@@ -98,20 +97,38 @@ class Node(Process):
         Args:
             client (FLClient): Federation Learning client which should implement weights exchange procedures.
         """
-        for i in range(20):
+        for i in range(2):
             try:
                 print(f'starting numpy client with server {client.server}')
                 flwr.client.start_numpy_client(f'{client.server}', client)
                 return True
             except RpcError as re:
                 # probably server slurm job have not started yet
-                time.sleep(5)
+                print(re)
+                time.sleep(20)
                 continue
             except Exception as e:
+                print(e)
                 self.logger.error(e)
-                self.logger.error(e.with_traceback())
                 raise e
         return False
+
+    def create_callbacks(self):
+        """Init FL client callbacks if they are specified in cfg
+
+        Returns:
+            Optional[List[ClientCallback]]: List of initialized callbacks or None 
+        """        
+        callbacks_desc = self.cfg.get('callbacks', None)
+        if callbacks_desc is None:
+            return None
+        callbacks = []
+        for node in callbacks_desc:
+            print(node)
+            if node == 'plot_landscape':
+                assert isinstance(self.experiment, QuadraticNNExperiment)
+                callbacks.append(PlotLandscapeCallback(self.experiment.data, self.experiment.y, self.experiment.beta))
+        return callbacks        
 
     def run(self) -> None:
         """Runs data loading and training of node
@@ -120,8 +137,14 @@ class Node(Process):
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
         self.experiment.load_data()
-
-        client = FLClient(self.server_url, self.experiment.data_module, self.cfg, self.logger)
+        metrics_logger = MLFlowMetricsLogger()
+        client_callbacks = self.create_callbacks()
+        client = FLClient(self.server_url, 
+                          self.experiment.data_module, 
+                          self.cfg, 
+                          self.logger, 
+                          metrics_logger, 
+                          client_callbacks)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
@@ -132,7 +155,6 @@ class Node(Process):
                 'description': self.cfg.experiment.description,
                 'node_index': str(self.node_index),
                 'phenotype': self.cfg.data.phenotype.name,
-                #TODO: make it a parameter
                 'split': self.cfg.split.name,
                 # 'snp_count': str(self.snp_count),
                 # 'sample_count': str(self.sample_count)

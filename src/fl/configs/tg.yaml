@@ -9,6 +9,8 @@ defaults:
   - strategy: fedavg
 
 study: tg
+log_weights: False
+log_grad: False
 fold:
   index: 0
 node:
@@ -31,6 +33,7 @@ data:
     train: ${.root}_train_projections.csv.eigenvec.sscore
     val: ${.root}_val_projections.csv.eigenvec.sscore
     test: ${.root}_test_projections.csv.eigenvec.sscore
+    normalize_stds: True
 
   phenotype:
     name: ancestry
