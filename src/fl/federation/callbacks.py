@@ -10,7 +10,7 @@ from flwr.common import Weights, Scalar
 
 from fl.federation.utils import ModuleParams, weights_to_bytes
 from nn.models import BaseNet
-from local.utils import mse_on_beta_grid, add_beta_to_loss_landscape
+from utils.landscape import mse_on_beta_grid, add_beta_to_loss_landscape
 
 
 class ClientCallback:

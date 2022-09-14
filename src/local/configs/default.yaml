@@ -1,10 +1,14 @@
 defaults:
-  - _self_ 
-  - model: lassonet_classifier
-  - experiment: asthma
+  - _self_
+  - model: lassonet
+  - experiment: local
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
+
 
 study: ukb
-split_dir: /trinity/home/s.mishra/test/ethnic_split
+split_dir: /gpfs/gpfs0/ukb_data/test/tg_split
 node_index: 0
 gwas_node_index: node_index
 fold_index: 0
@@ -17,7 +21,7 @@ data:
     test: ${.root}_test
     
   phenotype:
-    name: asthma
+    name: standing_height
     root: ${split_dir}/phenotypes/${data.phenotype.name}/node_${node_index}/fold_${fold_index}
     train: ${.root}_train.tsv
     val: ${.root}_val.tsv
@@ -30,4 +34,5 @@ data:
     test: ${.root}_test.tsv
     
   gwas: ${split_dir}/gwas/${data.phenotype.name}/node_${node_index}/fold_${fold_index}.gwas.tsv
+  pop_file: ${split_dir}/superpopulations.tsv
 

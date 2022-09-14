@@ -28,7 +28,7 @@ from flwr.server.client_manager import ClientManager
 
 from fl.federation.utils import weights_to_bytes, bytes_to_weights
 from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
-from local.utils import add_beta_to_loss_landscape
+from utils.landscape import add_beta_to_loss_landscape
 
 
 def fit_round(rnd: int):

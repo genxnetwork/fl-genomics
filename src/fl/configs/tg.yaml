@@ -33,6 +33,7 @@ data:
     train: ${.root}_train_projections.csv.eigenvec.sscore
     val: ${.root}_val_projections.csv.eigenvec.sscore
     test: ${.root}_test_projections.csv.eigenvec.sscore
+    normalize_stds: True
 
   phenotype:
     name: ancestry

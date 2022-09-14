@@ -24,6 +24,14 @@ class Y:
     val: numpy.ndarray
     test: numpy.ndarray
 
+    def astype(self, new_type):
+        new_y = Y(
+            train=self.train.astype(new_type),
+            val=self.val.astype(new_type),
+            test=self.test.astype(new_type)
+        )
+        return new_y
+
 @dataclass
 class SampleIndex:
     train: NDArray[numpy.dtype(numpy.uint32)]
@@ -135,6 +143,31 @@ class ExperimentDataLoader:
                                                       self.cfg.data.phenotype.test,
                                                       indices_limit=test_samples_limit)
         return SampleIndex(si_train, si_val, si_test)
+
+    def _sample_weights(self, populations_frame: pd.DataFrame, pheno_file: str) -> numpy.ndarray:
+        pheno = pd.read_table(pheno_file)
+        merged = pheno.merge(populations_frame, how='inner', on='IID')
+        populations = merged['node_index'].values
+        unique, counts = numpy.unique(populations, return_counts=True)
+        
+        # populations contains values from [0, number of populations)
+        sw = [populations.shape[0]/counts[p] for p in populations]
+        
+        return sw
+
+    def load_sample_weights(self) -> Y:
+        if self.cfg.study != 'ukb':
+            # all samples will have equal weights during evaluation
+            return Y(None, None, None) 
+        self.logger.info("Loading sample weights")
+        pop_file = self.cfg.data.pop_file
+        populations_frame = pd.read_table(pop_file)
+        train_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.train)
+        val_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.val)
+        test_sw = self._sample_weights(populations_frame, self.cfg.data.phenotype.test)
+        unique = numpy.unique(val_sw)
+        self.logger.info(f'we loaded {numpy.array2string(unique, precision=2, floatmode="fixed")}')
+        return Y(train_sw, val_sw, test_sw)
 
 
 def load_plink_pcs(path, order_as_in_file=None):
