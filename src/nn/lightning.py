@@ -10,7 +10,7 @@ NArr = numpy.ndarray
 
 
 class DataModule(LightningDataModule):
-    def __init__(self, X_train: NArr, X_val: NArr, X_test: NArr, 
+    def __init__(self, X_train: NArr, X_val: NArr, X_test: NArr,
                  y_train: NArr, y_val: NArr, y_test: NArr, batch_size: int,
                  X_cov_train: NArr = None, X_cov_val: NArr = None, X_cov_test: NArr = None):
         super().__init__()
@@ -22,11 +22,11 @@ class DataModule(LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
         return loader
-    
+
     def val_dataloader(self) -> DataLoader:
         loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
         return loader
-    
+
     def test_dataloader(self) -> DataLoader:
         loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
         return loader
@@ -38,14 +38,14 @@ class DataModule(LightningDataModule):
         return [train_loader, val_loader, test_loader]
 
     def _dataset_len(self, dataset: TensorDataset):
-        return len(dataset) // self.batch_size + int(len(dataset) % self.batch_size > 0) 
+        return len(dataset) // self.batch_size + int(len(dataset) % self.batch_size > 0)
 
     def train_len(self):
         return len(self.train_dataset)
-    
+
     def val_len(self):
         return len(self.val_dataset)
-    
+
     def test_len(self):
         return len(self.test_dataset)
 
