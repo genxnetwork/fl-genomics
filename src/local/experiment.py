@@ -150,7 +150,7 @@ class XGBExperiment(LocalExperiment):
     def train(self):
         self.logger.info("Training")
         autolog()
-        self.model.fit(self.x.train, self.y.train, eval_set=[(self.x.val, self.x.val)],
+        self.model.fit(self.x.train, self.y.train, eval_set=[(self.x.val, self.y.val)],
                        early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
 
 
@@ -191,7 +191,7 @@ class NNExperiment(LocalExperiment):
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
                                        gpus=self.cfg.experiment.get('gpus', 0),
                                        precision=self.cfg.model.get('precision', 32),
-                                       max_epochs=self.cfg.training.max_epochs, weights_summary='full', patience=self.cfg.training.patience, log_every_n_steps=5)
+                                       max_epochs=self.cfg.training.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
         
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
@@ -232,6 +232,25 @@ class NNExperiment(LocalExperiment):
         self.log(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
         return lr.coef_
 
+class MlpRegressorExperiment(NNExperiment):
+    def create_model(self):
+        self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                   optim_params=self.cfg.experiment.optimizer,
+                                   scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                   loss=torch.nn.functional.mse_loss,
+                                   binary=True
+                                   )
+
+
+    def load_best_model(self):
+        self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                        nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                                        optim_params=self.cfg.experiment.optimizer,
+                                                        scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                                        loss=torch.nn.functional.mse_loss,
+                                                        binary=True
+                                                        )
+    
 class MlpClfExperiment(NNExperiment):
     def create_model(self):
         self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
@@ -515,7 +534,7 @@ ukb_experiment_dict = {
     'xgboost': XGBExperiment,
     'lassonet': LassoNetExperiment,
     'lassonet_classifier': LassoNetClassifierExperiment,
-    'mlp_regressor': NNExperiment,
+    'mlp_regressor': MlpRegressorExperiment,
     'mlp_classifier': MlpClfExperiment
 }
 

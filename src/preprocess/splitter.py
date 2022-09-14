@@ -6,7 +6,7 @@ pd.options.mode.chained_assignment = None # Shush
 import os
 
 from configs.global_config import data_root, sample_qc_ids_path, ukb_loader_dir, ukb_pfile_path, areas_path, superpopulations_path
-from configs.split_config import non_iid_split_name, split_map, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, random_seed
+from configs.split_config import non_iid_split_name, split_map, heterogeneous_split_codes, heterogeneous_split_name, n_heterogeneous_nodes, n_subsample_nodes, n_subsample_samples, random_seed
 from utils.plink import run_plink
 
 class SplitBase(object):
@@ -125,9 +125,15 @@ class SplitTG(SplitBase):
 
         prefix_list = []
             
-        for i in range(max(df.node_index) + 1):
+        for i in range(max(df.node_index) + n_subsample_nodes + 1):
             split_id_path = os.path.join(split_id_dir, f"{i}.csv")
-            df.loc[df.node_index == i, ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
+            
+            if i <= max(df.node_index): # Superpopulation node
+                df.loc[df.node_index == i, ['FID', 'IID']].to_csv(split_id_path, index=False, sep='\t')
+            else: # Subsampled node
+                df.loc[df.node_index == 0, ['FID', 'IID']].sample(n_subsample_samples, random_state=i)\
+                .to_csv(split_id_path, index=False, sep='\t')
+                
             prefix = os.path.join(genotype_dir, f"node_{i}")
             prefix_list.append(prefix)
             

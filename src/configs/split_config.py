@@ -12,6 +12,8 @@ n_heterogeneous_nodes = 11
 FOLDS_NUMBER = 10  # for cross-validation
 tg_split_name = 'tg_split'
 n_tg_nodes = 5
+n_subsample_nodes = 10
+n_subsample_samples = 7500
 
 # Maps ethnic backgrounds to split_ids
 # 0 - white british
