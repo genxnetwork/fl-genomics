@@ -60,7 +60,7 @@ def get_trainer():
     )
 
 
-def log(pruning_threshold, variants_number, accuracy_train, accuracy_validation, accuracy_test):
+def write_to_logfile(pruning_threshold, variants_number, accuracy_train, accuracy_validation, accuracy_test):
     with open(LOG_FILE, 'a') as log_file:
         log_file.write(f'{pruning_threshold} {variants_number} {accuracy_train} {accuracy_validation} {accuracy_test}\n')
 
@@ -129,7 +129,7 @@ def run_experiment(pruning_threshold):
         y_pred, _ = model.predict(test_loader)
         accuracy_test = get_accuracy(y_test, y_pred)
 
-        log(pruning_threshold, variants_number, accuracy_train, accuracy_validation, accuracy_test)
+        write_to_logfile(pruning_threshold, variants_number, accuracy_train, accuracy_validation, accuracy_test)
 
 
 if __name__ == '__main__':

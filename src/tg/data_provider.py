@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 
+from utils.loaders import X, Y
 from nn.lightning import DataModule
 
 
@@ -82,7 +83,7 @@ class DataProvider:
         X_test, y_test = self.load_test_data(node, fold)
 
         return DataModule(
-            X_train, X_validation, X_test,
-            y_train, y_validation, y_test,
+            X(X_train, X_validation, X_test),
+            Y(y_train, y_validation, y_test),
             batch_size=len(X_train)
         )

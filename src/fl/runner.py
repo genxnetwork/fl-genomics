@@ -12,10 +12,10 @@ from fl.node_process import MlflowInfo, Node, TrainerInfo
 from fl.server_process import Server
 
 
-# necessary to add cwd to path when script run 
+# necessary to add cwd to path when script run
 # by slurm (since it executes a copy)
 
-sys.path.append(os.getcwd()) 
+sys.path.append(os.getcwd())
 
 
 def get_cfg_hash(cfg: DictConfig):
@@ -56,15 +56,15 @@ def get_log_dir():
                 old_dirs.append(int(dirname[4:]))
             return f'logs/job-{max(old_dirs) + 1}'
         return f'logs/job-1'
-        
+
 
 @hydra.main(config_path='configs', config_name='default')
 def run(cfg: DictConfig):
-    
+
     configure_logging()
     # we can write ${div:${.max_rounds},${.rounds}} in yaml configs
     # to divide one number by another
-    # we need it to infer number of local epochs in each federated round 
+    # we need it to infer number of local epochs in each federated round
     OmegaConf.register_new_resolver(
         'div', lambda x, y: int(x // y), replace=True
     )
@@ -77,7 +77,7 @@ def run(cfg: DictConfig):
 
     mlflow_url = os.environ.get('MLFLOW_TRACKING_URI', './mlruns')
     print(f'logging mlflow data to server {mlflow_url}')
-    
+
     experiment = mlflow.set_experiment(cfg.experiment.name)
 
     params_hash = get_cfg_hash(cfg)
@@ -111,8 +111,8 @@ def run(cfg: DictConfig):
             node.start()
             print(f'starting node {node_info.index}, name: {node_info.name}')
             node_processes.append(node)
-        
-        # create, start and wait for server to finish 
+
+        # create, start and wait for server to finish
         server = Server(log_dir, queue, params_hash, cfg)
         print(f'SERVER CREATED SUCCESSFULLY')
         server.start()
@@ -120,12 +120,12 @@ def run(cfg: DictConfig):
         # wait for all nodes to finish
         for node in node_processes:
             node.join()
-        
+
         # wait for server to finish
         server.join()
-        
+
         print(f'Nodes are finished')
-    
+
 
 if __name__ == '__main__':
     run()
