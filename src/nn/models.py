@@ -57,6 +57,7 @@ class BaseNet(LightningModule):
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
+        
         mlflow.log_metric('train_loss', avg_loss, self.fl_current_epoch())
         mlflow.log_metric('raw_loss', avg_raw_loss, self.fl_current_epoch())
         mlflow.log_metric('reg', avg_reg, self.fl_current_epoch())
