@@ -150,7 +150,7 @@ class XGBExperiment(LocalExperiment):
     def train(self):
         self.logger.info("Training")
         autolog()
-        self.model.fit(self.x.train, self.y.train, eval_set=[(self.x.val, self.x.val)],
+        self.model.fit(self.x.train, self.y.train, eval_set=[(self.x.val, self.y.val)],
                        early_stopping_rounds=self.cfg.model.early_stopping_rounds, verbose=True)
 
 
@@ -279,6 +279,25 @@ class NNExperiment(LocalExperiment):
         
 
 
+class MlpRegressorExperiment(NNExperiment):
+    def create_model(self):
+        self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                   optim_params=self.cfg.experiment.optimizer,
+                                   scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                   loss=torch.nn.functional.mse_loss,
+                                   binary=True
+                                   )
+
+
+    def load_best_model(self):
+        self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                        nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                                        optim_params=self.cfg.experiment.optimizer,
+                                                        scheduler_params=self.cfg.experiment.get('scheduler', None),
+                                                        loss=torch.nn.functional.mse_loss,
+                                                        binary=True
+                                                        )
+    
 class MlpClfExperiment(NNExperiment):
     def create_model(self):
         self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
@@ -562,7 +581,7 @@ ukb_experiment_dict = {
     'xgboost': XGBExperiment,
     'lassonet': LassoNetExperiment,
     'lassonet_classifier': LassoNetClassifierExperiment,
-    'mlp_regressor': NNExperiment,
+    'mlp_regressor': MlpRegressorExperiment,
     'mlp_classifier': MlpClfExperiment
 }
 

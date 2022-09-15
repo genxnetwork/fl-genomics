@@ -2,32 +2,99 @@ from pathlib import Path
 
 
 FOLD_COUNT = config['fold_count']
-ETHNICITIES = config['ethnicities']
+NODE_COUNT = config['node_count']
 UKB_DATASET = config['ukb_dataset']
 
 PARTS = ['train', 'val', 'test']
 PLINK_EXT = ['bed', 'bim', 'fam']
 PLINK2_EXT = ['pgen', 'pvar', 'psam']
+TRAIN_PCA_EXT = ['acount', 'eigenval', 'eigenvec', 'eigenvec.allele']
 
-PHENOTYPE_CODES=config['phenotype_codes']
+PHENOTYPE_CODES = config['phenotype_codes']
 PHENOTYPE_TYPE = config['phenotype']['type']
 COVARIATES = config['covariates'] 
-SNP_COUNTS = config['snp_counts']
 
 MODELS = ['lassonet', 'lasso', 'mlp']
 
 
 rule ALL:
     input:
-        gwas_results=expand("gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
+        pvals=expand("gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
                             phenotype=list(PHENOTYPE_CODES.keys()),
-                            node=range(len(ETHNICITIES)),
+                            node=range(NODE_COUNT),
                             fold=range(FOLD_COUNT)),
         phenotypes=expand("phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
                           phenotype=list(PHENOTYPE_CODES.keys()),
-                          node=range(len(ETHNICITIES)),
+                          node=range(NODE_COUNT),
                           fold=range(FOLD_COUNT),
                           part=PARTS)
+
+rule save_node_gts:
+    input:
+        split_ids   = "split_ids/node_{node}/fold_{fold}_{part}.tsv",
+        source_genotype    = "genotypes/node_{node}_filtered.pgen"
+    resources:
+        time        = "01:00:00",
+        mem_mb      = 12000,
+        partition   = "gpu_devel"
+    params:
+        in_prefix = "genotypes/node_{node}_filtered",
+        out_prefix = "genotypes/node_{node}/fold_{fold}_{part}"
+    output:
+        genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen"
+    shell:
+        """
+            plink2 --pfile {params.in_prefix} \
+                   --keep {input.split_ids} \
+                   --out {params.out_prefix} \
+                   --make-pgen
+        """
+
+
+
+rule train_pca:
+    input:
+        genotype    = "genotypes/node_{node}/fold_{fold}_train.pgen"
+    resources:
+        time        = "03:00:00",
+        mem_mb      = 16000,
+        partition   = "gpu_devel"
+    threads: 4
+    params:
+        in_prefix = "genotypes/node_{node}/fold_{fold}_train",
+        out_prefix = "pca/node_{node}/fold_{fold}_train_projections"
+    output:
+        train_eigenvec = "pca/node_{node}/fold_{fold}_train_projections.eigenvec"
+    shell:
+        """
+            plink2 --pfile {params.in_prefix} \
+                   --out {params.out_prefix} \
+                   --freq counts --pca allele-wts 20 approx --threads 4
+        """
+
+rule pca_project:
+    input:
+        genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen",
+        train_eigenvec = "pca/node_{node}/fold_{fold}_train_projections.eigenvec"
+    resources:
+        time        = "00:30:00",
+        mem_mb      = 24000,
+        partition   = "gpu_devel"
+    params:
+        in_prefix = "genotypes/node_{node}/fold_{fold}_{part}",
+        eigenvec_allele = "pca/node_{node}/fold_{fold}_train_projections.eigenvec.allele",
+        acount = "pca/node_{node}/fold_{fold}_train_projections.acount",
+        out_prefix = "pca/node_{node}/fold_{fold}_{part}_projections"
+    output:
+        projections = "pca/node_{node}/fold_{fold}_{part}_projections.sscore"
+    shell:
+        """
+            plink2 --pfile {params.in_prefix} \
+                   --read-freq {params.acount}\
+                   --score {params.eigenvec_allele} 2 5 header-read no-mean-imputation variance-standardize\
+                   --score-col-nums 6-25 \
+                   --out {params.out_prefix} --threads 4
+        """
 
 rule prepare_phenotypes_and_covariates:
     input:
@@ -66,7 +133,7 @@ rule gwas:
     threads: 4
     resources:
         time        = "3:30:00",
-        mem_mb      = 24000,
+        mem_mb      = 16000,
         partition   = "gpu_devel"
     params:
         out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
@@ -77,9 +144,9 @@ rule gwas:
         results     = "gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv"
     script:
         "dimred/gwas.py"
-
-
+        
 '''
+
 rule local_datasets:
     input:
         gwas        = rules.gwas.output['results'],
