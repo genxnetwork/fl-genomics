@@ -2,14 +2,18 @@ import multiprocessing
 import sys
 import os
 from socket import gethostname
+from typing import List
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import mlflow
+import pandas
 import hashlib
 import logging
 
+
 from fl.node_process import MlflowInfo, Node, TrainerInfo
 from fl.server_process import Server
+from utils.loaders import calculate_sample_weights
 
 
 # necessary to add cwd to path when script run
@@ -58,6 +62,29 @@ def get_log_dir():
         return f'logs/job-1'
 
 
+def precalc_sample_weights(cfg: DictConfig):
+    for part in ['train', 'val', 'test']:
+        pheno_frames: List[pandas.DataFrame] = []
+        sw_files: List[str] = []
+        active_nodes = get_active_nodes(cfg)
+        for node_info in active_nodes:
+            dotlist = [f'node.name={node_info.name}', f'node.index={node_info.index}']
+            node_cfg = OmegaConf.merge(cfg, OmegaConf.from_dotlist(dotlist))
+            node_pheno = pandas.read_table(node_cfg.data.phenotype[part])
+            pheno_frames.append(node_pheno)
+            sw_files.append(node_cfg.data.phenotype[part] + ".sw")
+
+        pheno = pandas.concat(pheno_frames, axis=0, ignore_index=True)
+        pop_frame = pandas.read_table(cfg.data.pop_file)
+
+        sw = calculate_sample_weights(pop_frame, pheno)
+        start = 0
+        for node_pheno, sw_file in zip(pheno_frames, sw_files):
+            node_pheno.loc[:, 'sample_weight'] = sw[start: start + node_pheno.shape[0]]
+            start = start + node_pheno.shape[0]
+            node_pheno.loc[:, ['IID', 'sample_weight']].to_csv(sw_file, sep='\t')
+
+
 @hydra.main(config_path='configs', config_name='default')
 def run(cfg: DictConfig):
 
@@ -71,7 +98,7 @@ def run(cfg: DictConfig):
     print(cfg)
     # parse command-line runner.py arguments
     queue = multiprocessing.Queue()
-    server_url = f'{gethostname()}:8080'
+    server_url = f'{gethostname()}:{cfg.server.port}'
     log_dir = get_log_dir()
     os.makedirs(log_dir, exist_ok=True)
 
@@ -79,6 +106,8 @@ def run(cfg: DictConfig):
     print(f'logging mlflow data to server {mlflow_url}')
 
     experiment = mlflow.set_experiment(cfg.experiment.name)
+    if cfg.get('sample_weights', False):
+        precalc_sample_weights(cfg)
 
     params_hash = get_cfg_hash(cfg)
     with mlflow.start_run(

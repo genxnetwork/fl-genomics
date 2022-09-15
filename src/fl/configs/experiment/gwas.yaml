@@ -1,7 +1,9 @@
 description: LassoNET on gwas SNPs
-name: federated_lassonet_standing-height
+name: fl-test
 missing: zero
 random_state: 4
 snp_count: 10000
 test_samples_limit: null
-pretrain_on_cov: True
+pretrain_on_cov: substract
+include_genotype: True
+include_covariates: True

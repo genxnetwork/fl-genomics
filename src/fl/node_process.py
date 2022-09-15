@@ -162,8 +162,15 @@ class Node(Process):
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
-            if self.cfg.experiment.pretrain_on_cov:
+            
+            if self.cfg.experiment.pretrain_on_cov == 'weights':
                 cov_weights = self.experiment.pretrain()
                 client.model.set_covariate_weights(cov_weights)
+
+            elif self.cfg.experiment.pretrain_on_cov == 'substract':
+                residual = self.experiment.pretrain_and_substract()
+                self.experiment.data_module.update_y(residual)
+            else:
+                pass
             self._train_model(client)
             

@@ -1,0 +1,34 @@
+name: 'tg_split' 
+path: '/gpfs/gpfs0/ukb_data/test/${.name}'
+nodes: 
+  european:
+    name: 'European'
+    resources:
+      gpus: 0
+    sample_count: 369350
+    index: 0
+  south_asian:
+    name: 'South Asian'
+    resources:
+      gpus: 0
+    sample_count: 7745
+    index: 1
+  african_caribbean:
+    name: 'African + Caribbean'
+    resources:
+      gpus: 0
+    sample_count: 7007
+    index: 2
+  china:
+    name: 'Chinese'
+    resources:
+      gpus: 0
+    sample_count: 2046
+    index: 3
+  other:
+    name: 'Other'
+    resources:
+      gpus: 0
+    sample_count: 414
+    index: 4
+  
