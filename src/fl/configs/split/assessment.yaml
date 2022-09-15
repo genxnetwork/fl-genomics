@@ -1,0 +1,100 @@
+name: 'ac_split' 
+path: '/gpfs/gpfs0/ukb_data/test/${.name}'
+nodes:
+  n0:
+    name: 'Node 0'
+    resources:
+      gpus: 0
+    index: 0
+  n1:
+    name: 'Node 1'
+    resources:
+      gpus: 0
+    index: 1
+  n2:
+    name: 'Node 2'
+    resources:
+      gpus: 0
+    index: 2
+  n3:
+    name: 'Node 3'
+    resources:
+      gpus: 0
+    index: 3
+  n4:
+    name: 'Node 4'
+    resources:
+      gpus: 0
+    index: 4
+  n5:
+    name: 'Node 5'
+    resources:
+      gpus: 0
+    index: 5
+  n6:
+    name: 'Node 6'
+    resources:
+      gpus: 0
+    index: 6
+  n7:
+    name: 'Node 7'
+    resources:
+      gpus: 0
+    index: 7
+  n8:
+    name: 'Node 8'
+    resources:
+      gpus: 0
+    index: 8
+  n9:
+    name: 'Node 9'
+    resources:
+      gpus: 0
+    index: 9
+  n10:
+    name: 'Node 10'
+    resources:
+      gpus: 0
+    index: 10
+  n11:
+    name: 'Node 11'
+    resources:
+      gpus: 0
+    index: 11
+  n12:
+    name: 'Node 12'
+    resources:
+      gpus: 0
+    index: 0
+  n13:
+    name: 'Node 13'
+    resources:
+      gpus: 0
+    index: 13
+  n14:
+    name: 'Node 14'
+    resources:
+      gpus: 0
+    index: 14
+  n15:
+    name: 'Node 15'
+    resources:
+      gpus: 0
+    index: 15
+  n16:
+    name: 'Node 16'
+    resources:
+      gpus: 0
+    index: 16
+  n17:
+    name: 'Node 17'
+    resources:
+      gpus: 0
+    index: 17
+  n18:
+    name: 'Node 18'
+    resources:
+      gpus: 0
+    index: 18
+
+    
