@@ -9,6 +9,7 @@ import mlflow
 from typing import Dict, List, OrderedDict, Tuple, Any
 from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.utilities.model_summary import _format_summary_table, summarize
+from pytorch_lightning.callbacks import EarlyStopping
 from abc import ABC, abstractmethod
 
 from flwr.client import NumPyClient
@@ -91,8 +92,12 @@ class ModelFactory:
 class CallbackFactory:
     @staticmethod
     def create_callbacks(params: DictConfig) -> List[Callback]:
+        callbacks = []
+        # early_stopping = EarlyStopping('val_loss', patience=params.training.max_epochs, check_finite=True)
+        # callbacks.append(early_stopping)
         if params.strategy.name == 'scaffold':
-            return [ScaffoldCallback(params.strategy.args.K, log_grad=params.log_grad, log_diff=params.log_weights)]
+            callbacks.append(ScaffoldCallback(params.strategy.args.K, log_grad=params.log_grad, log_diff=params.log_weights))
+        return callbacks
 
 
 class MetricsLogger(ABC):

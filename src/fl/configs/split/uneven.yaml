@@ -1,0 +1,22 @@
+name: 'uneven_split' 
+path: '/gpfs/gpfs0/ukb_data/test/${.name}'
+nodes: 
+  n2:
+    name: 'Node 2'
+    resources:
+      gpus: 0
+    sample_count: 171578
+    index: 0
+  n3:
+    name: 'Node 3'
+    resources:
+      gpus: 0
+    sample_count: 85813
+    index: 1
+  n4:
+    name: 'Node 4'
+    resources:
+      gpus: 0
+    sample_count: 42884
+    index: 2
+  

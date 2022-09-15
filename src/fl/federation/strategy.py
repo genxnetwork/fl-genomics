@@ -89,6 +89,7 @@ class Checkpointer:
         """    
         os.makedirs(checkpoint_dir, exist_ok=True)
         self.checkpoint_dir = checkpoint_dir
+        logging.info(f'We will save checkpoints to {self.checkpoint_dir}')
         self.history = []
         self.best_metrics = None
         self.last_metrics = None
