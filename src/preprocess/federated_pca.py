@@ -54,6 +54,7 @@ class FederatedPCASimulationRunner:
             self.validation_foldname_template
         ]
 
+        # TODO: move this outside of the constructor since directory creation is weird to be here.
         if not os.path.isdir(result_folder):
             os.mkdir(result_folder)
 
@@ -105,6 +106,8 @@ class FederatedPCASimulationRunner:
             result.to_csv(output_file, sep='\t', index=False, header=True)
 
     def run(self):
+        self.compute_allele_frequencies()
+
         for fold in range(self.folds_number):
             for node in self.nodes:
                 self.run_client_pca(node, fold)

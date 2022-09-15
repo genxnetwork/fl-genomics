@@ -3,7 +3,6 @@ from typing import Tuple, Any
 from omegaconf import DictConfig
 import numpy
 import logging
-from numpy.typing import NDArray
 import omegaconf
 import pandas as pd
 
@@ -34,9 +33,9 @@ class Y:
 
 @dataclass
 class SampleIndex:
-    train: NDArray[numpy.dtype(numpy.uint32)]
-    val: NDArray[numpy.dtype(numpy.uint32)]
-    test: NDArray[numpy.dtype(numpy.uint32)]
+    train: numpy.ndarray
+    val: numpy.ndarray
+    test: numpy.ndarray
 
 
 class ExperimentDataLoader:
