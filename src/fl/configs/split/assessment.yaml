@@ -3,96 +3,115 @@ path: '/gpfs/gpfs0/ukb_data/test/${.name}'
 nodes:
   n0:
     name: 'Node 0'
+    sample_count: 9639
     resources:
       gpus: 0
     index: 0
   n1:
     name: 'Node 1'
+    sample_count: 17775
     resources:
       gpus: 0
     index: 1
   n2:
     name: 'Node 2'
+    sample_count: 33625
     resources:
       gpus: 0
     index: 2
   n3:
     name: 'Node 3'
+    sample_count: 16392
     resources:
       gpus: 0
     index: 3
   n4:
     name: 'Node 4'
+    sample_count: 14036
     resources:
       gpus: 0
     index: 4
   n5:
     name: 'Node 5'
+    sample_count: 10321
     resources:
       gpus: 0
     index: 5
   n6:
     name: 'Node 6'
+    sample_count: 20581
     resources:
       gpus: 0
     index: 6
   n7:
     name: 'Node 7'
+    sample_count: 12426
     resources:
       gpus: 0
     index: 7
   n8:
     name: 'Node 8'
+    sample_count: 14074
     resources:
       gpus: 0
     index: 8
   n9:
     name: 'Node 9'
+    sample_count: 21417
     resources:
       gpus: 0
     index: 9
   n10:
     name: 'Node 10'
+    sample_count: 29631
     resources:
       gpus: 0
     index: 10
   n11:
     name: 'Node 11'
+    sample_count: 21026
     resources:
       gpus: 0
     index: 11
   n12:
     name: 'Node 12'
+    sample_count: 15019
     resources:
       gpus: 0
     index: 0
   n13:
     name: 'Node 13'
+    sample_count: 25798
     resources:
       gpus: 0
     index: 13
   n14:
     name: 'Node 14'
+    sample_count: 24046
     resources:
       gpus: 0
     index: 14
   n15:
     name: 'Node 15'
+    sample_count: 10846
     resources:
       gpus: 0
     index: 15
   n16:
     name: 'Node 16'
+    sample_count: 22662
     resources:
       gpus: 0
     index: 16
   n17:
     name: 'Node 17'
+    sample_count: 19417
     resources:
       gpus: 0
     index: 17
   n18:
     name: 'Node 18'
+    sample_count: 13148
     resources:
       gpus: 0
     index: 18
