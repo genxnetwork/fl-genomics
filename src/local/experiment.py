@@ -324,7 +324,7 @@ class TGNNExperiment(NNExperiment):
         for part, stds in zip(['train', 'val', 'test'], [train_stds, val_stds, test_stds]):
             self.logger.info(f'{part} stds: {numpy.array2string(stds, precision=3, floatmode="fixed")}')
         
-        if self.cfg.data.x_reduces.normalize_stds:
+        if self.cfg.data.x_reduced.normalize_stds:
             self.x.val = self.x.val * (train_stds / val_stds)
             self.x.test = self.x.test * (train_stds / test_stds)
             for part, matrix in zip(['train', 'val', 'test'], [self.x.train, self.x.val, self.x.test]):

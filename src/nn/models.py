@@ -8,6 +8,9 @@ from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, R2Score
 import mlflow
+from mlflow.tracking.client import MlflowClient
+from mlflow.entities import Metric
+import time
 
 from configs.phenotype_config import TYPE_LOSS_DICT
 from nn.lightning import DataModule
@@ -27,6 +30,30 @@ class BaseNet(LightningModule):
         self.optim_params = optim_params
         self.scheduler_params = scheduler_params
         self.current_round = 1
+        self.mlflow_client = MlflowClient()
+        self.history: List[Metric] = []
+        self.logged_count = 0
+
+    def _add_to_history(self, name: str, value, step: int):
+        timestamp = int(time.time() * 1000)
+        self.history.append(Metric(name, value, timestamp, step))
+        if len(self.history) % 50 == 0:
+            self.mlflow_client.log_batch(mlflow.active_run().info.run_id, self.history[-50:])
+            self.logged_count = len(self.history)
+
+    def on_train_end(self) -> None:
+        unlogged = len(self.history) - self.logged_count
+        if unlogged > 0:
+            self.mlflow_client.log_batch(mlflow.active_run().info.run_id, self.history[-unlogged:])
+            self.logged_count = len(self.history)
+        return super().on_train_end()
+
+    def on_validation_end(self) -> None:
+        unlogged = len(self.history) - self.logged_count
+        if unlogged > 0:
+            self.mlflow_client.log_batch(mlflow.active_run().info.run_id, self.history[-unlogged:])
+            self.logged_count = len(self.history)
+        return super().on_validation_end()
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
         x, y = batch
@@ -57,15 +84,32 @@ class BaseNet(LightningModule):
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
+        
+        step = self.fl_current_epoch()
+        self._add_to_history('train_loss', avg_loss, step)
+        self._add_to_history('raw_loss', avg_raw_loss, step)
+        self._add_to_history('reg', avg_reg, step)
+        self._add_to_history('lr', self.get_current_lr(), step)
+
+        '''
+        mlflow.log_metrics({
+            'train_loss': avg_loss,
+            'raw_loss': avg_raw_loss,
+            'reg': avg_reg,
+            'lr': self.get_current_lr()
+        }, step=step)
+        
         mlflow.log_metric('train_loss', avg_loss, self.fl_current_epoch())
         mlflow.log_metric('raw_loss', avg_raw_loss, self.fl_current_epoch())
         mlflow.log_metric('reg', avg_reg, self.fl_current_epoch())
         mlflow.log_metric('lr', self.get_current_lr(), self.fl_current_epoch())
+        '''
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
-        mlflow.log_metric('val_loss', avg_loss, self.fl_current_epoch())
+        self._add_to_history('val_loss', avg_loss, step=self.fl_current_epoch())
+        # mlflow.log_metric('val_loss', avg_loss, self.fl_current_epoch())
         self.log('val_loss', avg_loss, prog_bar=True)    
 
     def fl_current_epoch(self):
