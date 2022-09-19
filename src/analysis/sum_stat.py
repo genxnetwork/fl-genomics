@@ -51,7 +51,7 @@ class SummaryStat(object):
         ss_info['cols'] = cols
         return ss_info
 
-    def __get_dataframe(self, ss: str, ss_info: dict):
+    def __get_dataframe(self, ss: str, ss_info: dict, norm: bool):
         df = pd.read_table(ss + '.filtered', skipinitialspace=True, usecols=ss_info[ss]['cols'])
         df_filtered = \
             df.drop_duplicates(subset=[ss_info[ss]['pos']]) \
@@ -63,6 +63,10 @@ class SummaryStat(object):
                 df_filtered[pvalue] = np.log10(df_filtered[pvalue])
             if df_filtered[pvalue].min() < 0:
                 df_filtered[pvalue] = df_filtered[pvalue].apply(lambda x: x * -1)
+            if norm:
+                logging.info(f'Performing min max normalisation for {ss}...')
+                df_filtered[pvalue] = (df_filtered[pvalue] - df_filtered[pvalue].min()) / \
+                             (df_filtered[pvalue].max() - df_filtered[pvalue].min())
 
         keep_same = {ss_info[ss]['pos'], ss_info[ss]['id']}
         df_filtered.columns = ['{}{}'.format(c, '' if c in keep_same else '_'+ss_info[ss]['tag']) for c in df_filtered.columns]
@@ -79,11 +83,6 @@ class SummaryStat(object):
             previous_ss = pd.merge(df, previous_ss, how="inner", on=["pos", "id"])
 
         return previous_ss
-
-    def __normalise_pvalues(self, df: pandas.DataFrame, ss_info: dict):
-        for pvalue in ss_info['p']:
-            df[pvalue] = (df[pvalue] - df[pvalue].min()) / \
-            (df[pvalue].max() - df[pvalue].min())
 
     def prepare_data(self, *ss_and_tag: tuple[str], working_dir: str, to_file='ss.tsv', norm=True) -> pandas.DataFrame:
         '''
@@ -132,11 +131,7 @@ class SummaryStat(object):
                             shell=True)
 
             logging.info(f'Creating pandas dataframe for {ss}...')
-            df = self.__get_dataframe(ss, ss_info)
-
-            if norm:
-                logging.info(f'Performing min max normalisation for {ss}...')
-                self.__normalise_pvalues(df)
+            df = self.__get_dataframe(ss, ss_info, norm)
 
             df_dict[ss] = df
 
@@ -151,7 +146,7 @@ class SummaryStat(object):
                 df_dict[ss]['id'] = id
 
         logging.info(f'Merging all dataframes into one...')
-        df_combined = self.__merge_data(df_dict, ss_info)
+        df_combined = self.__merge_data(df_dict, ss_info, ss)
         if to_file:
             logging.info(f'Writing resulting dataframe to {to_file}...')
             df_combined.to_csv(to_file, sep="\t", index=False)
@@ -162,14 +157,6 @@ class SummaryStat(object):
              top_snps_list=[10, 20, 30, 40, 50, 100, 1000, 10000],
              to_folder='~'):
 
-        '''
-        Creates a summary statistics plot.
-
-                Parameters:
-                        df (pandas.Dataframe): Dataframe, output of prepare_data
-                        super_pop_list (list[str]): List of super populations
-                        to_folder (str or None): folder to store all plot pngs into
-        '''
         grouping_dict = {k: [] for k in super_pop_list}
         for col in df.columns:
             for pop in super_pop_list:
