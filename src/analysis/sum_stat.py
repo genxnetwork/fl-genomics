@@ -162,6 +162,14 @@ class SummaryStat(object):
              top_snps_list=[10, 20, 30, 40, 50, 100, 1000, 10000],
              to_folder='~'):
 
+        '''
+        Creates a summary statistics plot.
+
+                Parameters:
+                        df (pandas.Dataframe): Dataframe, output of prepare_data
+                        super_pop_list (list[str]): List of super populations
+                        to_folder (str or None): folder to store all plot pngs into
+        '''
         grouping_dict = {k: [] for k in super_pop_list}
         for col in df.columns:
             for pop in super_pop_list:
