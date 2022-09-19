@@ -146,7 +146,7 @@ class SummaryStat(object):
                 df_dict[ss]['id'] = id
 
         logging.info(f'Merging all dataframes into one...')
-        df_combined = self.__merge_data(df_dict, ss_info, ss)
+        df_combined = self.__merge_data(df_dict, ss_info)
         if to_file:
             logging.info(f'Writing resulting dataframe to {to_file}...')
             df_combined.to_csv(to_file, sep="\t", index=False)
@@ -156,6 +156,20 @@ class SummaryStat(object):
              super_pop_list=['AFR', 'AMR', 'EAS', 'EUR', 'SAS'],
              top_snps_list=[10, 20, 30, 40, 50, 100, 1000, 10000],
              to_folder='~'):
+        '''
+        Returns aggregated and intersected summary statistics dataframe.
+        All summary statistics files must contain position column and at least one of them should have id column.
+        All necessary columns will be detected automatically with regex.
+
+                Parameters:
+                        ss_and_tag (tuple): Any number of tuples with format: (path_to_summary_stat.tsv, ancestry_tag)
+                        working_dir (str): Path to a dir to store all lists into
+                        to_file (str or None): Path to output dataframe, if None won't create one
+                        norm (bool): Perform min max normalisation for each p-value column separately
+
+                Returns:
+                        merged_df (pandas.DataFrame): Dataframe with position, id and all -log10(p-values) columns from all input files
+        '''
 
         grouping_dict = {k: [] for k in super_pop_list}
         for col in df.columns:
@@ -190,3 +204,4 @@ class SummaryStat(object):
                 set(title=f'{group}', xlabel='Number of top snps', ylabel='Number of common snps')
             if to_folder:
                 plt.savefig(os.path.join(to_folder, f'{group}.png'))
+                
