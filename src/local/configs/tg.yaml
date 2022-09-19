@@ -22,6 +22,7 @@ data:
     test: ${.root}_test
 
   x_reduced:
+    normalize_std: true
     root: ${split_dir}/pca/${node}/fold_${fold_index}
     train: ${.root}_train_projections.csv.eigenvec.sscore
     val: ${.root}_val_projections.csv.eigenvec.sscore
