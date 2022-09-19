@@ -9,9 +9,9 @@ experiment:
   gpus: 1
   optimizer:
     name: sgd
-    lr: 0.1
+    lr: 0.2
   scheduler:
     rounds: ${model.max_epochs}
     epochs_in_round: 1
     name: exponential_lr
-    gamma: 0.999
+    gamma: 0.9998
