@@ -18,6 +18,11 @@ class SummaryStat(object):
     '''
 
     def __search(self, regex: str, l: list, pvalue=False):
+
+        '''
+        Private method which works like regex.search, but returns the matched string or list of strings
+        '''
+
         results_cords = []
         results_names = []
         for i, name in enumerate(l):
@@ -32,6 +37,11 @@ class SummaryStat(object):
         return False, False
 
     def __get_ss_info(self, header: list, tag: str):
+
+        '''
+        Private method which extracts info about important columns names and positions from header
+        '''
+
         pos_i, pos = self.__search("[Pp][Oo][Ss]*", header)
         id_i, id = self.__search("^[Ii][Dd]*", header)
         p_i, p = self.__search("[Pp].*val*|[Ll][Oo][Gg].*[Pp]*|^[Pp]$", header, pvalue=True)
@@ -53,6 +63,10 @@ class SummaryStat(object):
         return ss_info
 
     def __get_dataframe(self, ss: str, ss_info: dict, norm: bool):
+
+        '''
+        Private method which reads filtered summary statistics file and preprocesses it
+        '''
 
         df = pd.read_table(ss + '.filtered', skipinitialspace=True,
                            usecols=ss_info[ss]['cols'],
@@ -78,7 +92,12 @@ class SummaryStat(object):
                 .reset_index(drop=True)
         return df_filtered
 
-    def __merge_data(self, df_dict: dict, ss_info: dict):
+    def __merge_data(self, df_dict: dict):
+
+        '''
+        Private method which concatenates all summary statistics into one Dataframe
+        '''
+
         df_list = list(df_dict.values())
         for index, _ in enumerate(df_list):
             df_list[index].columns = ['chr', 'pos', 'var', 'pvalue']
@@ -139,7 +158,7 @@ class SummaryStat(object):
             df_dict[ss] = df
 
         logging.info(f'Merging all dataframes into one...')
-        df_combined = self.__merge_data(df_dict, ss_info)
+        df_combined = self.__merge_data(df_dict)
         if to_file:
             logging.info(f'Writing resulting dataframe to {to_file}...')
             df_combined.to_csv(to_file, sep="\t", index=False)
