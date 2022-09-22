@@ -130,12 +130,14 @@ class SummaryStat(object):
 
             logging.info(f'Preparing list of positions for {ss}...')
             pos_list_dist = os.path.join(working_dir, f'pos{i}.list')
+            # Prepares a file which contains all snps coords in format <chr>:<position>
             subprocess.call("awk -F '\t' '{ print $%s, $%s }' %s | tail -n +2 | sort | uniq > %s"
                             % (ss_info[ss]['chr_i'], ss_info[ss]['pos_i'], ss, pos_list_dist),
                             shell=True)
 
         logging.info(f'Making lists of positions intersection...')
         intersection_list_dist = os.path.join(working_dir, f'intersection.list')
+        # Makes intersection list of all files with coords prepared earlier
         subprocess.call("""cat %s | tail -n +2 | sort | uniq -c | awk -F ' ' '{if($1==%s){print $2":"$3}}' > %s"""
                         % (os.path.join(working_dir, 'pos*'), len(ss_info), intersection_list_dist),
                         shell=True)
@@ -145,9 +147,12 @@ class SummaryStat(object):
         for i, ss_tag in enumerate(ss_and_tag):
             ss, tag = ss_tag
             logging.info(f'Filtering rows based on intersection list for {ss}...')
+            # Creates a new column in a summary statistics file containing coords in format <chr>:<position>
             subprocess.call(""" awk '{print $0"\t"$1":"$2;next}' %s > %s"""
                             % (ss, ss + '.mod'),
                             shell=True)
+            # Filters rows of summary statistics file based on intersection
+            # list comparing newly created column with coords with intersection list
             subprocess.call("awk 'NR==FNR{a[$1]; next} FNR==1 || $NF in a' %s %s > %s"
                             % (intersection_list_dist, ss + '.mod', ss + '.filtered'),
                             shell=True)
