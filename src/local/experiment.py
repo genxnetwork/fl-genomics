@@ -61,7 +61,8 @@ class LocalExperiment(object):
         }
         if self.cfg.study == 'tg':
             study_tags = {
-                'node': self.cfg.node
+                'node': self.cfg.node,
+                'fold_index': self.cfg.fold_index
             }
         elif self.cfg.study == 'ukb':
             num_samples = node_size_dict[split][self.cfg.node_index]
