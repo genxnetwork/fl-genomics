@@ -20,6 +20,7 @@ node:
 server:
   rounds: 8
   checkpoint_dir: 'models/${data.phenotype.name}/fold_${fold.index}'
+  port: 8888
 
 data:
   genotype:
