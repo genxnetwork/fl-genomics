@@ -41,4 +41,4 @@ class PlinkPruningRunner(object):
 
         files = ' '.join(file + '.prune.in' for file in self.node_files)
         with open(self.result_filepath, 'w') as result_file:
-            subprocess.run([f'cat {files} | uniq | sort'], shell=True, stdout=result_file)
+            subprocess.run([f'cat {files} | sort | uniq'], shell=True, stdout=result_file)

@@ -1,5 +1,8 @@
 defaults:
-  - node: lassonet
+  - model: lassonet_regressor
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
   - experiment: gwas 
   - split: region
   - data: topk_snps
@@ -9,7 +12,16 @@ defaults:
 fold:
   index: 0
 
+study: ukb
+log_weights: False
+log_grad: False
+
+node:
+  index: ???
+  name: ???
+
 server:
   rounds: 8
-  checkpoint_dir: 'models/${data.phenotype.name}/fold_${fold.index}'
+  checkpoint_dir: 'models/${data.phenotype.name}/fold_${fold.index}/${model.name}_${experiment.name}'
+  port: 8080
   
