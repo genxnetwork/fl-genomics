@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO,
                     )
 logger = logging.getLogger()
 
-ac_split = Split(path.join(data_root, assessment_centre_split_name), 'standing_height', len(assessment_centre_code_map))
+ac_split = Split(path.join(data_root, assessment_centre_split_name), 'standing_height', len(assessment_centre_code_map)+1)
 ac_splitter = SplitAssessmentCentre()
 logger.info("Saving IDs")
 prefix_splits = ac_splitter.split(make_pgen=True)
@@ -32,3 +32,4 @@ splitter = CVSplitter(ac_split)
 logger.info("Splitting for CV")
 for node_index in range(len(assessment_centre_code_map)):
     splitter.split_ids(ids_path=None, node_index=node_index, random_state=0)
+
