@@ -2,9 +2,12 @@ defaults:
   - _self_
   - model: mlp_classifier
   - experiment: tg
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
 
 study: tg
-split_dir: /media/storage/TG/data/chip/superpop_split
+split_dir: /mnt/genx-bio-share/TG/data/chip/superpop_split
 node: ALL
 fold_index: 5
 
@@ -19,6 +22,7 @@ data:
     test: ${.root}_test
 
   x_reduced:
+    normalize_stds: true
     root: ${split_dir}/pca/${node}/fold_${fold_index}
     train: ${.root}_train_projections.csv.eigenvec.sscore
     val: ${.root}_val_projections.csv.eigenvec.sscore

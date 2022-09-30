@@ -1,0 +1,6 @@
+# @package _global_
+
+model:
+  name: linear_regressor
+  batch_size: 64
+  

@@ -1,0 +1,21 @@
+fold_count: 1
+node_count: 18 
+ukb_dataset: '/gpfs/gpfs0/ukb_data/processed_data/fml'
+phenotype: 
+  type: 'real'
+phenotype_codes:
+  standing_height: 50
+# platelet_count: 30080
+  platelet_volume: 30100
+#  body_mass_index: 23104
+#  basal_metabolic_rate: 23105
+#  hls_reticulocyte_count: 30300
+#  forced_vital_capacity: 3062
+  erythrocyte_count: 30010
+#  reticulocyte_count: 30250
+#  mean_sphered_cell_volume: 30270
+#  triglycerides: 30870
+#  alanine_aminotransferase: 30620
+covariates: 
+  '31': 'sex'
+  '21003': 'age' 

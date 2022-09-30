@@ -1,0 +1,21 @@
+phenotype:
+  name: standing_height
+  root: '${split.path}/phenotypes/${.name}/node_${node.index}/fold_${fold.index}'
+  train: '${.root}_train.tsv'
+  val: '${.root}_val.tsv'
+  test: '${.root}_test.tsv'
+covariates:
+  names:
+    - age
+    - sex
+  root: '${split.path}/covariates/${data.phenotype.name}/node_${node.index}/fold_${fold.index}'
+  train: '${.root}_train.tsv'
+  val: '${.root}_val.tsv'
+  test: '${.root}_test.tsv'
+genotype:
+  root: '${split.path}/genotypes/node_${node.index}/fold_${fold.index}'
+  train: '${.root}_train'
+  val: '${.root}_val'
+  test: '${.root}_test'
+gwas: '${split.path}/gwas/${data.phenotype.name}/node_0/fold_${fold.index}.gwas.tsv'
+pop_file: ${split.path}/superpopulations.tsv

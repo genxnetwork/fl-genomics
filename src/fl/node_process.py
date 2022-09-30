@@ -13,11 +13,10 @@ from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
 import flwr
-from sklearn.linear_model import LinearRegression
 
-from nn.lightning import DataModule
-from fl.federation.client import FLClient
-from local.experiment import NNExperiment
+from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
+from local.experiment import NNExperiment, QuadraticNNExperiment, TGNNExperiment
+from fl.federation.callbacks import PlotLandscapeCallback
 
 
 @dataclass
@@ -33,14 +32,14 @@ class TrainerInfo:
     node_index: str
 
     def to_dotlist(self) -> List[str]:
-        return [f'node.name={self.node_name}', 
-                f'node.index={self.node_index}', 
-                f'training.devices={self.devices}', 
+        return [f'node.name={self.node_name}',
+                f'node.index={self.node_index}',
+                f'training.devices={self.devices}',
                 f'training.accelerator={self.accelerator}']
 
 
 class Node(Process):
-    def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo, 
+    def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo,
                  queue: Queue, cfg: DictConfig, trainer_info: TrainerInfo, **kwargs):
         """Process for training on one dataset node
 
@@ -51,7 +50,7 @@ class Node(Process):
             queue (Queue): Queue for communication between processes
             cfg (DictConfig): Full config with fields model, optimizer, scheduler, experiment, data
             trainer_info (TrainerInfo): Where to train node
-        """        
+        """
         Process.__init__(self, **kwargs)
         os.environ['MASTER_PORT'] = str(47000+numpy.random.randint(1000)+hash(trainer_info.node_index) % 100)
         self.node_index = trainer_info.node_index
@@ -62,8 +61,14 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
-        self.experiment = NNExperiment(self.cfg)
-    
+
+        if self.cfg.study == 'tg':
+            self.experiment = TGNNExperiment(self.cfg)
+        elif 'landscape' in self.cfg.experiment.name:
+            self.experiment = QuadraticNNExperiment(self.cfg)
+        else:
+            self.experiment = NNExperiment(self.cfg)
+
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step
         # https://github.com/PyTorchLightning/pytorch-lightning/issues/3431
@@ -77,9 +82,9 @@ class Node(Process):
     def log(self, msg):
         self.logger.info(msg)
 
-    def _start_client_run(self, client: MlflowClient, 
-                        parent_run_id: str, 
-                        experiment_id: str, 
+    def _start_client_run(self, client: MlflowClient,
+                        parent_run_id: str,
+                        experiment_id: str,
                         tags: Dict[str, Any]) -> ActiveRun:
         tags[MLFLOW_PARENT_RUN_ID] = parent_run_id
         # logging.info(f'starting to create mlflow run with parent {parent_run_id}')
@@ -90,38 +95,62 @@ class Node(Process):
         self.log(f'mlflow env vars: {[m for m in os.environ if "MLFLOW" in m]}')
         # logging.info(f'run info id in _start_client_run is {run.info.run_id}')
         return mlflow.start_run(run.info.run_id, nested=True)
-      
+
     def _train_model(self, client: FLClient) -> bool:
         """
-        Trains a model using {client} for FL 
+        Trains a model using {client} for FL
 
         Args:
             client (FLClient): Federation Learning client which should implement weights exchange procedures.
         """
-        for i in range(20):
+        for i in range(2):
             try:
                 print(f'starting numpy client with server {client.server}')
                 flwr.client.start_numpy_client(f'{client.server}', client)
                 return True
             except RpcError as re:
                 # probably server slurm job have not started yet
-                time.sleep(5)
+                print(re)
+                time.sleep(20)
                 continue
             except Exception as e:
+                print(e)
                 self.logger.error(e)
-                self.logger.error(e.with_traceback())
                 raise e
         return False
 
+    def create_callbacks(self):
+        """Init FL client callbacks if they are specified in cfg
+
+        Returns:
+            Optional[List[ClientCallback]]: List of initialized callbacks or None
+        """
+        callbacks_desc = self.cfg.get('callbacks', None)
+        if callbacks_desc is None:
+            return None
+        callbacks = []
+        for node in callbacks_desc:
+            print(node)
+            if node == 'plot_landscape':
+                assert isinstance(self.experiment, QuadraticNNExperiment)
+                callbacks.append(PlotLandscapeCallback(self.experiment.data, self.experiment.y, self.experiment.beta))
+        return callbacks
+
     def run(self) -> None:
         """Runs data loading and training of node
-        """        
+        """
         self._configure_logging()
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
         self.experiment.load_data()
-
-        client = FLClient(self.server_url, self.experiment.data_module, self.cfg, self.logger)
+        metrics_logger = MLFlowMetricsLogger()
+        client_callbacks = self.create_callbacks()
+        client = FLClient(self.server_url,
+                          self.experiment.data_module,
+                          self.cfg,
+                          self.logger,
+                          metrics_logger,
+                          client_callbacks)
 
         self.log(f'client created, starting mlflow run for {self.node_index}')
         with self._start_client_run(
@@ -132,7 +161,6 @@ class Node(Process):
                 'description': self.cfg.experiment.description,
                 'node_index': str(self.node_index),
                 'phenotype': self.cfg.data.phenotype.name,
-                #TODO: make it a parameter
                 'split': self.cfg.split.name,
                 # 'snp_count': str(self.snp_count),
                 # 'sample_count': str(self.sample_count)
@@ -140,8 +168,14 @@ class Node(Process):
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
-            if self.cfg.experiment.pretrain_on_cov:
+
+            if self.cfg.experiment.pretrain_on_cov == 'weights':
                 cov_weights = self.experiment.pretrain()
                 client.model.set_covariate_weights(cov_weights)
+
+            elif self.cfg.experiment.pretrain_on_cov == 'substract':
+                residual = self.experiment.pretrain_and_substract()
+                self.experiment.data_module.update_y(residual)
+            else:
+                pass
             self._train_model(client)
-            

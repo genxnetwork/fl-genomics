@@ -9,10 +9,10 @@ from preprocess.splitter_tg import SplitTGHeter, SplitTGHom
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter
+from configs import pruning_config
 from configs.global_config import TG_BFILE_PATH, SPLIT_DIR, SPLIT_GENO_DIR, FEDERATED_PCA_DIR, SPLIT_ID_DIR, PCA_DIR
 from configs.qc_config import sample_qc_config, variant_qc_config
 from configs.split_config import FOLDS_NUMBER
-from configs.pruning_config import default_pruning
 
 from preprocess.pruning import PlinkPruningRunner
 from preprocess.federated_pca import FederatedPCASimulationRunner
@@ -38,7 +38,7 @@ class Stage:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        'stages', metavar='stage', type=str, nargs='+',
+        'stages', metavar='stage', type=str, nargs='*',
         help=f'Available stages: {Stage.all()}'
     )
     args = parser.parse_args()
@@ -100,7 +100,7 @@ if __name__ == '__main__':
             nodes=nodes,
             result_filepath=os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
             node_filename_template='%s_filtered'
-        ).run(**default_pruning)
+        ).run(**pruning_config.DEFAULT)
 
     # 5. Split each node into K folds
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
@@ -170,7 +170,7 @@ if __name__ == '__main__':
 
     # 6. PCA
     if Stage.FEDERATED_PCA in stages:
-        runner = FederatedPCASimulationRunner(
+        FederatedPCASimulationRunner(
             source_folder=SPLIT_GENO_DIR,
             result_folder=FEDERATED_PCA_DIR,
             variant_ids_file=os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
@@ -203,16 +203,16 @@ if __name__ == '__main__':
                 for part_name in ['train', 'val', 'test']:
                     plink_arguments = [
                         '--pfile', superpop_split.get_pfile_path(
-                                node=node, fold_index=fold_index, part_name=part_name
-                            ),
-                            '--read-freq', superpop_split.get_pca_path(
-                                node='ALL', fold_index=fold_index, part='train', ext='.acount'
-                            ),
-                            '--score', superpop_split.get_pca_path(
-                                node='ALL', fold_index=fold_index, part='train', ext='.eigenvec.allele'
-                            ), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize',
-                            '--score-col-nums', '6-25',
-                            '--out', superpop_split.get_pca_path(node=node, fold_index=fold_index, part=part_name),
+                            node=node, fold_index=fold_index, part_name=part_name
+                        ),
+                        '--read-freq', superpop_split.get_pca_path(
+                            node='ALL', fold_index=fold_index, part='train', ext='.acount'
+                        ),
+                        '--score', superpop_split.get_pca_path(
+                            node='ALL', fold_index=fold_index, part='train', ext='.eigenvec.allele'
+                        ), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize',
+                        '--score-col-nums', '6-25',
+                        '--out', superpop_split.get_pca_path(node=node, fold_index=fold_index, part=part_name),
                     ]
 
                     # Use pruned ids if file is present

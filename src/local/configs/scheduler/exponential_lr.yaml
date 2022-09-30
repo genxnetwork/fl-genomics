@@ -1,0 +1,4 @@
+name: exponential_lr
+rounds: 1
+epochs_in_round: 64
+gamma: 0.999

@@ -12,6 +12,8 @@ n_heterogeneous_nodes = 11
 FOLDS_NUMBER = 10  # for cross-validation
 tg_split_name = 'tg_split'
 n_tg_nodes = 5
+n_subsample_nodes = 10
+n_subsample_samples = 7500
 
 # Maps ethnic backgrounds to split_ids
 # 0 - white british
@@ -63,6 +65,30 @@ ethnic_background_name_map = {
     3004:	'Any other Asian background',
     5: 'Chinese',
     6:	'Other ethnic group'
+}
+
+assessment_centre_split_name = 'ac_split'
+assessment_centre_code_map = {
+    11012: 'Barts',
+    11021: 'Birmingham',
+    11011: 'Bristol',
+    11008: 'Bury',
+    11003: 'Cardiff',
+    11024: 'Cheadle (revisit)',
+    11020: 'Croydon',
+    11005: 'Edinburgh',
+    11004: 'Glasgow',
+    11018: 'Hounslow',
+    11010: 'Leeds',
+    11016: 'Liverpool',
+#     11001: 'Manchester',
+    11017: 'Middlesborough',
+    11009: 'Newcastle',
+    11013: 'Nottingham',
+    11002: 'Oxford',
+    11007: 'Reading',
+    11014: 'Sheffield',
+    11006: 'Stoke'
 }
 
 heterogeneous_split_codes = [1, 1001, 1002, 1003]

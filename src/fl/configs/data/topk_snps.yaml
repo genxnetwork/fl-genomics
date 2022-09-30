@@ -17,4 +17,5 @@ genotype:
   train: '${.root}_train'
   val: '${.root}_val'
   test: '${.root}_test'
-gwas: '${split.path}/${data.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
+gwas: '${split.path}/gwas/${data.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv'
+load_strategy: union
