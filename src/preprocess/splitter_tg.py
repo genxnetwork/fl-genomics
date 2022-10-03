@@ -59,11 +59,12 @@ class SplitTG(SplitBase):
 
         homo_part['split'] = homo_part['index'] % len(self.nums)
         homo_part = homo_part.replace({"split": self.nodes_num_dict})
-        homo_part = homo_part[['IID', 'ancestry', 'split', 'Population name', 'Superpopulation name']]
+        homo_part = homo_part[['IID', 'ancestry', 'split', 'Population name', 'Superpopulation name', 'superpop']]
         homo_counts = homo_part['split'].value_counts()
 
-        heter_part = heter_part.rename(columns={"superpop": "split"})
-        heter_part = heter_part[['IID', 'ancestry', 'Population name', 'Superpopulation name', 'split']]
+        heter_part = heter_part.rename(columns={'superpop': 'split'})
+        heter_part['superpop'] = heter_part['split']
+        heter_part = heter_part[['IID', 'ancestry', 'Population name', 'Superpopulation name', 'split', 'superpop']]
         heter_counts = heter_part['split'].value_counts()
 
         all_parts = pd.concat([heter_part, homo_part])
