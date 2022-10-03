@@ -17,5 +17,6 @@ genotype:
   train: '${.root}_train'
   val: '${.root}_val'
   test: '${.root}_test'
-gwas: '${split.path}/gwas/${data.phenotype.name}/fold_${fold.index}_weighted.gwas.tsv'
+# gwas: '${split.path}/gwas/${data.phenotype.name}/fold_${fold.index}.meta.tsv'
+gwas: '${split.path}/gwas/${data.phenotype.name}/node_19/fold_${fold.index}.gwas.tsv'
 load_strategy: default

@@ -26,10 +26,10 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: 
         FedAvg: flwr Strategy with checkpointing and mlflow logging capabilities
     """    
     default_args = OmegaConf.create({
-        "fraction_fit": 0.99,
-        "fraction_eval": 0.99,
-        "min_fit_clients": node_count,
-        "min_eval_clients": node_count,
+        "fraction_fit": 0.9,
+        "fraction_eval": 0.9,
+        "min_fit_clients": 16,
+        "min_eval_clients": 16,
         "min_available_clients": node_count
     })
     if 'args' in strategy_params:

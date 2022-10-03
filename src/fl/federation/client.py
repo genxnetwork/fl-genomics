@@ -71,7 +71,8 @@ class ModelFactory:
             cov_count=covariate_count, 
             alpha_start=params.model.alpha_start,
             alpha_end=params.model.alpha_end,
-            init_limit=params.model.init_limit
+            init_limit=params.model.init_limit,
+            use_bn=params.model.get('use_bn', True)
         )
 
     @staticmethod

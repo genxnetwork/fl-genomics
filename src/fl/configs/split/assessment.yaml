@@ -78,7 +78,7 @@ nodes:
     sample_count: 15019
     resources:
       gpus: 0
-    index: 0
+    index: 12
   n13:
     name: 'Node 13'
     sample_count: 25798

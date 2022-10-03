@@ -350,6 +350,25 @@ class TGNNExperiment(NNExperiment):
                                                         loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
                                                         )
 
+    def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
+        self.model.eval()
+        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
+        
+        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
+        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
+        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+                
+        metric_train = metric_fun(self.y.train, train_preds)
+        metric_val = metric_fun(self.y.val, val_preds)
+        metric_test = metric_fun(self.y.test, test_preds)
+        
+        print(f"Train {metric_name}: {metric_train}")
+        mlflow.log_metric(f'train_{metric_name}', metric_train)
+        print(f"Val {metric_name}: {metric_val}")
+        mlflow.log_metric(f'val_{metric_name}', metric_val)
+        print(f"Test {metric_name}: {metric_test}")
+        mlflow.log_metric(f'test_{metric_name}', metric_test)
+
 class ClfNNExperiment(NNExperiment):
     def create_model(self):
         self.model = MLPPredictor(input_size=self.x.train.shape[1],
