@@ -7,7 +7,7 @@ from nn.lightning import DataModule
 
 
 class DataProvider:
-    def __init__(self, pca_directory, ancestry_directory, num_components=None):
+    def __init__(self, pca_directory, ancestry_directory, num_components=None, normalize_std=True):
         """
         Data provider relies on the following structure of the directories. PCA directory provides `X`
         matrices for training while `y` values (classes) are taken from the ancestry directory.
@@ -34,6 +34,7 @@ class DataProvider:
         self.pca_directory = pca_directory
         self.ancestry_directory = ancestry_directory
         self.num_components = num_components
+        self.normalize_std = normalize_std
 
     def get_pca_file(self, node, fold, part):
         return os.path.join(
@@ -81,6 +82,14 @@ class DataProvider:
         X_train, y_train = self.load_train_data(node, fold)
         X_validation, y_validation = self.load_validation_data(node, fold)
         X_test, y_test = self.load_test_data(node, fold)
+
+        if self.normalize_std:
+            X_train_std = X_train.std(axis=0)
+            X_validation_std = X_validation.std(axis=0)
+            X_test_std = X_test.std(axis=0)
+
+            X_validation = X_validation * (X_train_std / X_validation_std)
+            X_test = X_test * (X_train_std / X_test_std)
 
         return DataModule(
             X(X_train, X_validation, X_test),
