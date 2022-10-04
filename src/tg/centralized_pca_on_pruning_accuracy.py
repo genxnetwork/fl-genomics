@@ -1,3 +1,5 @@
+import mlflow
+import torch
 import pandas as pd
 import numpy as np
 
@@ -13,8 +15,8 @@ from preprocess.pruning import PlinkPruningRunner
 from tg.data_provider import DataProvider
 
 
-LOG_FILE = '/home/genxadmin/centralized-pca-pruning-accuracy.log'
-SPLIT_DIRECTORY = '/mnt/genx-bio-share/TG/data/chip/superpop_split'
+LOG_FILE = None
+SPLIT_DIRECTORY = None
 
 
 def get_model(num_classes, num_features, trainer=None):
@@ -23,13 +25,13 @@ def get_model(num_classes, num_features, trainer=None):
         'nfeat': num_features,
         'optim_params': {
             'name': 'sgd',
-            'lr': 0.1
+            'lr': 0.2
         },
         'scheduler_params': {
-            'rounds': '10000',
+            'rounds': '8192',
             'epochs_in_round': 1,
             'name': 'exponential_lr',
-            'gamma': 0.999
+            'gamma': 0.9998
         },
         'loss': cross_entropy
     }
@@ -43,11 +45,11 @@ def get_model(num_classes, num_features, trainer=None):
 
 def get_trainer():
     return Trainer(
-        max_epochs=10000,
+        max_epochs=8192,
         callbacks=[
             EarlyStopping(
                 monitor='val_loss',
-                patience=1000,
+                patience=1024,
                 strict=False,
                 verbose=False,
                 mode='min'
@@ -73,7 +75,8 @@ def run_experiment(pruning_threshold):
     data_provider = DataProvider(
         f'{SPLIT_DIRECTORY}/pca',
         f'{SPLIT_DIRECTORY}/only_phenotypes/ancestry',
-        num_components=20
+        num_components=20,
+        normalize_std=True
     )
 
     # Run pruning
@@ -94,7 +97,7 @@ def run_experiment(pruning_threshold):
             '--pfile', f'{SPLIT_DIRECTORY}/genotypes/ALL/fold_{fold}_train',
             '--extract', f'{SPLIT_DIRECTORY}/genotypes/ALL.prune.in',
             '--freq', 'counts',
-            '--out',  f'{SPLIT_DIRECTORY}/pca/fold_{fold}_train_projections',
+            '--out',  f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_train_projections',
             '--pca', 'allele-wts', '20'
         ]
 
@@ -109,7 +112,7 @@ def run_experiment(pruning_threshold):
                 '--score', f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_train_projections.eigenvec.allele',
                     '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize',
                 '--score-col-nums', '6-25',
-                '--out', f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_{part}_projections.csv.eigenvec.sscore'
+                '--out', f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_{part}_projections.csv.eigenvec'
             ]
 
             run_plink(args_list=plink_arguments)
@@ -126,6 +129,8 @@ def run_experiment(pruning_threshold):
         )
 
         trainer = get_trainer()
+        mlflow.set_experiment('tg')
+        mlflow.start_run()
         trainer.fit(model, data_module)
 
         model = get_model(
@@ -134,21 +139,29 @@ def run_experiment(pruning_threshold):
             trainer=trainer
         )
 
-        train_loader, validation_loader, test_loader = data_module.predict_dataloader()
-        y_pred, _ = model.predict(train_loader)
-        accuracy_train = get_accuracy(y_train, y_pred)
+        model.eval()
+        y_train_pred, y_validation_pred, y_test_pred = trainer.predict(model, data_module)
 
-        y_pred, _ = model.predict(validation_loader)
-        accuracy_validation = get_accuracy(y_validation, y_pred)
+        # train_loader, validation_loader, test_loader = data_module.predict_dataloader()
+        # y_pred, _ = model.predict(train_loader)
+        accuracy_train = get_accuracy(y_train, torch.cat(y_train_pred).squeeze().cpu().numpy())
 
-        y_pred, _ = model.predict(test_loader)
-        accuracy_test = get_accuracy(y_test, y_pred)
+        # y_pred, _ = model.predict(validation_loader)
+        accuracy_validation = get_accuracy(y_validation, torch.cat(y_validation_pred).squeeze().cpu().numpy())
+
+        # y_pred, _ = model.predict(test_loader)
+        accuracy_test = get_accuracy(y_test, torch.cat(y_test_pred).squeeze().cpu().numpy())
 
         write_to_logfile(pruning_threshold, variants_number, accuracy_train, accuracy_validation, accuracy_test)
+        mlflow.end_run()
 
 
 if __name__ == '__main__':
     with open(LOG_FILE, 'w') as log_file:
         log_file.write('Accuracy on pruning threshold parameter for the model with centralized PCA\n')
-    for pruning_threshold in [0.001, 0.002, 0.0035, 0.005, 0.0075, 0.01, 0.015, 0.02, 0.035, 0.05, 0.1, 0.15, 0.2, 0.25]:
+    for pruning_threshold in [
+        0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01,
+        0.02,  0.03,  0.04,  0.05,  0.06,  0.07,  0.08,  0.09,  0.1,   0.11,
+        0.12,  0.13,  0.14,  0.15,  0.16,  0.17,  0.18,  0.19,  0.2
+    ]:
         run_experiment(pruning_threshold)
