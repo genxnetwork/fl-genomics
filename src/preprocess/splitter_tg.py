@@ -51,21 +51,27 @@ class SplitTG(SplitBase):
         pop_val_counts = y['ancestry'].value_counts()
         y = y[y['ancestry'].isin(pop_val_counts[pop_val_counts >= min_samples_in_pop].index)]
 
-        # Split in homo and hetero parts
-        y = y.sample(len(y)).reset_index()
-        start = int(len(y) * (1 - alpha))
-        heter_part = y.iloc[start:]
-        homo_part = y.iloc[:start]
+        ancestries = y.groupby('ancestry')
+        groups_hetero = []
+        groups_homo = []
+        for name, group in ancestries:
+            group = group.sample(len(group)).reset_index()
+            start = int(len(group) * (1 - alpha))
+            groups_hetero.append(group.iloc[start:])
+            groups_homo.append(group.iloc[:start])
+
+        heter_part = pd.concat(groups_hetero, ignore_index=True)
+        homo_part = pd.concat(groups_homo, ignore_index=True)
 
         homo_part['split'] = homo_part['index'] % len(self.nums)
         homo_part = homo_part.replace({"split": self.nodes_num_dict})
         homo_part = homo_part[['IID', 'ancestry', 'split', 'Population name', 'Superpopulation name', 'superpop']]
-        homo_counts = homo_part['split'].value_counts()
+        homo_counts = homo_part['ancestry'].value_counts()
 
         heter_part = heter_part.rename(columns={'superpop': 'split'})
         heter_part['superpop'] = heter_part['split']
         heter_part = heter_part[['IID', 'ancestry', 'Population name', 'Superpopulation name', 'split', 'superpop']]
-        heter_counts = heter_part['split'].value_counts()
+        heter_counts = heter_part['ancestry'].value_counts()
 
         all_parts = pd.concat([heter_part, homo_part])
 
