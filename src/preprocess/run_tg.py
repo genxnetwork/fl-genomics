@@ -5,7 +5,7 @@ import argparse
 import pandas as pd
 
 from preprocess.qc import QC
-from preprocess.splitter_tg import SplitTGHeter, SplitTGHom
+from preprocess.splitter_tg import SplitTG
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter
@@ -75,11 +75,11 @@ if __name__ == '__main__':
         QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config)
 
     # 2. Split into ethnic datasets and then QC each local dataset
-    splitter = SplitTGHeter()
-    nodes = splitter.nodes
+    splitter_anc = SplitTG()
+    nodes = splitter_anc.nodes
     if Stage.POPULATION_SPLIT in stages:
         logger.info('Splitting ethnic dataset')
-        splitter.split(input_prefix=varqc_prefix, make_pgen=True)
+        splitter_anc.split(input_prefix=varqc_prefix, make_pgen=True, alpha=1)
 
     # 3. Perform sample QC on each node separately
     if Stage.SAMPLE_QC in stages:
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         logger.info('making k-fold split for the TG dataset')
         splitter = CVSplitter(superpop_split)
 
-        ancestry_df = SplitTGHeter().get_target()
+        ancestry_df = splitter_anc.df
         for node in nodes:
             splitter.split_ids(
                 ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'),
