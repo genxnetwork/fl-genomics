@@ -13,12 +13,12 @@ from visualisations.dash_shared import DashApp
 
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 
-CURRENT_EXPERIMENT_NAME = "federated-tg-avg-epochs-rounds"
+CURRENT_EXPERIMENT_NAME = "ac-split-local-models"
 
 SELECTED_TAGS = ['tags.phenotype', 'tags.model', 'tags.dataset', 'tags.snp_count',
-                 'tags.full_WB_gwas', 'tags.sample_count', 'tags.ethnicity']
+                 'tags.full_WB_gwas', 'tags.sample_count', 'tags.ethnicity',
+                 'tags.fold_index']
 SELECTED_METRICS = ['metrics.test_r2', 'metrics.val_r2', 'metrics.train_r2']
-GRAPH_ELEMENTS = ['x', 'y', 'color', 'line_dash', 'symbol']
 
 def ethnicity_from_dataset(df: pd.DataFrame):
     df['tags.ethnicity'] = df['tags.dataset'].str.split('_').str[0]
