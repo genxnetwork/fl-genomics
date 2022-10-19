@@ -15,8 +15,8 @@ from preprocess.pruning import PlinkPruningRunner
 from tg.data_provider import DataProvider
 
 
-LOG_FILE = None
-SPLIT_DIRECTORY = None
+LOG_FILE = "/home/genxadmin/accuracy_0.0.log"
+SPLIT_DIRECTORY = "/mnt/genx-bio-share/TG/data/chip/diss_0.0"
 
 
 def get_model(num_classes, num_features, trainer=None):
@@ -82,7 +82,7 @@ def run_experiment(pruning_threshold):
     # Run pruning
     PlinkPruningRunner(
         source_directory=f'{SPLIT_DIRECTORY}/genotypes',
-        nodes=['AFR', 'AMR', 'EAS', 'SAS', 'EUR'],
+        nodes=['EUR'],
         result_filepath=f'{SPLIT_DIRECTORY}/genotypes/ALL.prune.in',
         node_filename_template='%s_filtered'
     ).run(window_size=1000, step=50, threshold=pruning_threshold)
@@ -94,10 +94,10 @@ def run_experiment(pruning_threshold):
     # Run Centralized PCA
     for fold in range(FOLDS_NUMBER):
         plink_arguments = [
-            '--pfile', f'{SPLIT_DIRECTORY}/genotypes/ALL/fold_{fold}_train',
-            '--extract', f'{SPLIT_DIRECTORY}/genotypes/ALL.prune.in',
+            '--pfile', f'{SPLIT_DIRECTORY}/genotypes/EUR/fold_{fold}_train',
+           # '--extract', f'{SPLIT_DIRECTORY}/genotypes/ALL.prune.in',
             '--freq', 'counts',
-            '--out',  f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_train_projections',
+            '--out',  f'{SPLIT_DIRECTORY}/pca/EUR/fold_{fold}_train_projections',
             '--pca', 'allele-wts', '20'
         ]
 
@@ -106,22 +106,22 @@ def run_experiment(pruning_threshold):
         # Project ALL only
         for part in ['train', 'val', 'test']:
             plink_arguments = [
-                '--pfile', f'{SPLIT_DIRECTORY}/genotypes/ALL/fold_{fold}_{part}',
-                '--extract', f'{SPLIT_DIRECTORY}/genotypes/ALL.prune.in',
-                '--read-freq', f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_train_projections.acount',
-                '--score', f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_train_projections.eigenvec.allele',
+                '--pfile', f'{SPLIT_DIRECTORY}/genotypes/EUR/fold_{fold}_{part}',
+               # '--extract', f'{SPLIT_DIRECTORY}/genotypes/ALL.prune.in',
+                '--read-freq', f'{SPLIT_DIRECTORY}/pca/EUR/fold_{fold}_train_projections.acount',
+                '--score', f'{SPLIT_DIRECTORY}/pca/EUR/fold_{fold}_train_projections.eigenvec.allele',
                     '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize',
                 '--score-col-nums', '6-25',
-                '--out', f'{SPLIT_DIRECTORY}/pca/ALL/fold_{fold}_{part}_projections.csv.eigenvec'
+                '--out', f'{SPLIT_DIRECTORY}/pca/EUR/fold_{fold}_{part}_projections.csv.eigenvec'
             ]
 
             run_plink(args_list=plink_arguments)
 
         # Fit model and log accuracy
-        _, y_train = data_provider.load_train_data('ALL', fold)
-        _, y_validation = data_provider.load_validation_data('ALL', fold)
-        _, y_test = data_provider.load_test_data('ALL', fold)
-        data_module = data_provider.create_data_module('ALL', fold)
+        _, y_train = data_provider.load_train_data('EUR', fold)
+        _, y_validation = data_provider.load_validation_data('EUR', fold)
+        _, y_test = data_provider.load_test_data('EUR', fold)
+        data_module = data_provider.create_data_module('EUR', fold)
 
         model = get_model(
             num_classes=len(np.unique(y_train)),
@@ -159,9 +159,4 @@ def run_experiment(pruning_threshold):
 if __name__ == '__main__':
     with open(LOG_FILE, 'w') as log_file:
         log_file.write('Accuracy on pruning threshold parameter for the model with centralized PCA\n')
-    for pruning_threshold in [
-        0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01,
-        0.02,  0.03,  0.04,  0.05,  0.06,  0.07,  0.08,  0.09,  0.1,   0.11,
-        0.12,  0.13,  0.14,  0.15,  0.16,  0.17,  0.18,  0.19,  0.2
-    ]:
-        run_experiment(pruning_threshold)
+    run_experiment(0.018)
