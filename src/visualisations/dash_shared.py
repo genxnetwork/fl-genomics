@@ -11,7 +11,7 @@ from utils.mlflow import mlflow_get_results_table
 
 mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
 
-GRAPH_ELEMENTS = ['x', 'y', 'color', 'line_dash', 'symbol']
+GRAPH_ELEMENTS = ['x', 'y', 'color', 'line_dash', 'symbol', 'errorbar_0.8']
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -63,13 +63,23 @@ class DashApp(object):
         if (n_clicks > 0) & ('x' in elements) & ('y' in elements):
             dfc = self.df.copy()
             line_args = {}
+            original_columns = dfc.columns.copy()
             for i, (element, value) in enumerate(zip(elements, values)):
                 if element == 'filter':
                     if value != 'All':
-                        dfc = dfc[dfc.iloc[:, i] == value]
+                        dfc = dfc[dfc[original_columns[i]] == value]
+                elif element == 'errorbar_0.8':
+                    dfc = dfc.groupby([x for x in dfc.columns if (x != 'tags.fold_index') & (x != 'metric_value')])['metric_value'].quantile([0.1, 0.5, 0.9]).unstack()
+                    dfc['metric_value'] = dfc[0.5]
+                    dfc['error_lower'] = dfc[0.5] - dfc[0.1]
+                    dfc['error_upper'] = dfc[0.9] - dfc[0.5]
+                    dfc = dfc.reset_index()
+                    line_args['error_y'] = 'error_upper'
+                    line_args['error_y_minus'] = 'error_lower'
+                    pass
                 else:
-                    line_args[element] = dfc.columns[i]
-            fig = px.line(dfc.sort_values(dfc.columns[elements.index('x')]), **line_args, hover_data=self.df.columns,
+                    line_args[element] = original_columns[i]
+            fig = px.line(dfc.sort_values(dfc.columns[elements.index('x')]), **line_args, hover_data=dfc.columns,
                           markers=True)
             if if_x_category:
                 fig.update_xaxes(type='category')
