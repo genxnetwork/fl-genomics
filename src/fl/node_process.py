@@ -172,5 +172,10 @@ class Node(Process):
                 self.experiment.data_module.update_y(residual)
             else:
                 pass
-            self._train_model(client)
+            
+            try:
+                self._train_model(client)
+            except Exception as e:
+                self.logger.info(e)
+                self.logger.error(e)
             
