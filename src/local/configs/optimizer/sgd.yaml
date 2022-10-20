@@ -1,4 +1,4 @@
 name: sgd
-lr: 1e-1
+lr: 0.1
 weight_decay: 0.0
   # momentum: 0.5

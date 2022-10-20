@@ -96,7 +96,7 @@ class ExperimentDataLoader:
         elif load_strategy == 'union':
             # we do not need gwas file
             # SNPs were already selected and written to a separate genotype file
-            gwas_path = None 
+            gwas_path = None
             snp_count = self._get_snp_count()
         else:
             raise ValueError(f'load_strategy should be one of ["default", "union"]')
@@ -174,7 +174,7 @@ class ExperimentDataLoader:
     def load_sample_weights(self) -> Y:
         if self.cfg.study != 'ukb' or not self.cfg.get('sample_weights', False):
             # all samples will have equal weights during evaluation
-            return Y(None, None, None) 
+            return Y(None, None, None)
         self.logger.info("Loading sample weights")
         train_sw = self._sample_weights(self.cfg.data.phenotype.train)
         val_sw = self._sample_weights(self.cfg.data.phenotype.val)
@@ -188,18 +188,20 @@ def calculate_sample_weights(populations_frame: pd.DataFrame, pheno_frame: pd.Da
     merged = pheno_frame.merge(populations_frame, how='inner', on='IID')
     populations = merged['node_index'].values
     unique, counts = numpy.unique(populations, return_counts=True)
-        
+
         # populations contains values from [0, number of populations)
     sw = [populations.shape[0]/counts[p] for p in populations]
-        
+
     return sw
 
 def load_plink_pcs(path, order_as_in_file=None):
     """ Loads PLINK's eigenvector matrix (e.g. to be used as X for TG). If @order_as_in_file is not None,
      reorder rows of the matrix to match (IID-wise) rows of the file """
-    df = pd.read_csv(path, sep='\t').rename(columns={'#IID': 'IID'}).set_index('IID').filter(regex='^PC*')
+    df = pd.read_csv(path, sep='\t').rename(columns={'#IID': 'IID'}).set_index('IID').iloc[:, 2:]
+
     if order_as_in_file is not None:
         y = pd.read_csv(order_as_in_file, sep='\t').set_index('IID')
         assert len(df) == len(y)
         df = df.reindex(y.index)
+
     return df
