@@ -30,8 +30,15 @@ class Stage:
     @classmethod
     def all(cls):
         return {
+            cls.VARIANT_QC, cls.POPULATION_SPLIT, cls.SAMPLE_QC, cls.PRUNING,
+            cls.FOLD_SPLIT, cls.CENTRALIZED_PCA, cls.FEDERATED_PCA
+        }
+
+    @classmethod
+    def centralized(cls):
+        return {
             cls.VARIANT_QC, cls.POPULATION_SPLIT, cls.SAMPLE_QC,
-            cls.PRUNING, cls.FOLD_SPLIT, cls.CENTRALIZED_PCA
+            cls.FOLD_SPLIT, cls.CENTRALIZED_PCA,
         }
 
 
@@ -42,7 +49,7 @@ if __name__ == '__main__':
         help=f'Available stages: {Stage.all()}'
     )
     args = parser.parse_args()
-    stages = set(args.stages) if args.stages else Stage.all()
+    stages = set(args.stages) if args.stages else Stage.centralized()
 
 
     logging.basicConfig(
@@ -100,7 +107,7 @@ if __name__ == '__main__':
             nodes=nodes,
             result_filepath=os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
             node_filename_template='%s_filtered'
-        ).run(**pruning_config.DEFAULT)
+        ).run(**pruning_config.FEDERATED_PCA_OPTIMAL)
 
     # 5. Split each node into K folds
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
@@ -174,7 +181,7 @@ if __name__ == '__main__':
             source_folder=SPLIT_GENO_DIR,
             result_folder=FEDERATED_PCA_DIR,
             variant_ids_file=os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
-            n_components=10,
+            n_components=20,
             method='P-STACK',
             nodes=nodes
         ).run()
