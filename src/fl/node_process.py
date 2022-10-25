@@ -12,11 +12,12 @@ from mlflow import ActiveRun
 from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
+import torch
 import flwr
 
 from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
 from local.experiment import NNExperiment, QuadraticNNExperiment
-from fl.federation.callbacks import PlotLandscapeCallback
+from fl.federation.callbacks import PlotLandscapeCallback, CovariateWeightsCallback
 
 
 @dataclass
@@ -62,6 +63,7 @@ class Node(Process):
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
         self.experiment = NNExperiment(self.cfg) if 'landscape' not in self.cfg.experiment.name else QuadraticNNExperiment(self.cfg)
+        torch.set_num_threads(1)
     
     def _configure_logging(self):
         # to disable printing GPU TPU IPU info for each trainer each FL step
@@ -128,6 +130,11 @@ class Node(Process):
             if node == 'plot_landscape':
                 assert isinstance(self.experiment, QuadraticNNExperiment)
                 callbacks.append(PlotLandscapeCallback(self.experiment.data, self.experiment.y, self.experiment.beta))
+
+        if self.cfg.experiment.pretrain_on_cov == 'weights':
+            cov_weights = self.experiment.pretrain()
+            cw_callback = CovariateWeightsCallback(cov_weights)
+            callbacks.append(cw_callback)
         return callbacks        
 
     def run(self) -> None:
@@ -163,15 +170,9 @@ class Node(Process):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
             
-            if self.cfg.experiment.pretrain_on_cov == 'weights':
-                cov_weights = self.experiment.pretrain()
-                client.model.set_covariate_weights(cov_weights)
-
-            elif self.cfg.experiment.pretrain_on_cov == 'substract':
+            if self.cfg.experiment.pretrain_on_cov == 'substract':
                 residual = self.experiment.pretrain_and_substract()
                 self.experiment.data_module.update_y(residual)
-            else:
-                pass
             
             try:
                 self._train_model(client)
