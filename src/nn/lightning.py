@@ -11,6 +11,7 @@ NArr = numpy.ndarray
 
 
 class DataModule(LightningDataModule):
+
     def __init__(self, x: X, y: Y, x_cov: X = None, sample_weights: Y = None, batch_size: int = None):
         super().__init__()
         self.train_dataset = XyCovDataset(x.train, y.train, x_cov.train if x_cov is not None else None)
@@ -31,7 +32,7 @@ class DataModule(LightningDataModule):
     def train_dataloader(self) -> DataLoader:
         loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
         return loader
-    
+
     def val_dataloader(self) -> DataLoader:
         if self.sw is not None and self.sw.val is not None:
             sampler = WeightedRandomSampler(self.sw.val, num_samples=int(self.sw.val.shape[0]*self.sw.val.mean()), replacement=True)
@@ -39,7 +40,7 @@ class DataModule(LightningDataModule):
         else:
             loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
         return loader
-    
+
     def test_dataloader(self) -> DataLoader:
         if self.sw is not None and self.sw.test is not None:
             sampler = WeightedRandomSampler(self.sw.test, num_samples=int(self.sw.test.shape[0]*self.sw.test.mean()), replacement=True)
@@ -59,18 +60,18 @@ class DataModule(LightningDataModule):
         return [train_loader, val_loader, test_loader]
 
     def _dataset_len(self, dataset: TensorDataset):
-        return len(dataset) // self.batch_size + int(len(dataset) % self.batch_size > 0) 
+        return len(dataset) // self.batch_size + int(len(dataset) % self.batch_size > 0)
 
     def train_len(self):
         if self.sw is not None and self.sw.train is not None:
             return int(self.sw.train.shape[0]*self.sw.train.mean())
         return len(self.train_dataset)
-    
+
     def val_len(self):
         if self.sw is not None and self.sw.val is not None:
             return int(self.sw.val.shape[0]*self.sw.val.mean())
         return len(self.val_dataset)
-    
+
     def test_len(self):
         if self.sw is not None and self.sw.test is not None:
             return int(self.sw.test.shape[0]*self.sw.test.mean())

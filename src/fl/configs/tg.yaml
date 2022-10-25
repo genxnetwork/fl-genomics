@@ -20,6 +20,7 @@ node:
 server:
   rounds: 8
   checkpoint_dir: 'models/${data.phenotype.name}/fold_${fold.index}'
+  port: 8888
 
 data:
   genotype:
@@ -29,11 +30,11 @@ data:
     test: ${.root}_test
 
   x_reduced:
-    root: ${split.path}/pca/${node.index}/fold_${fold.index}
+    normalize_stds: True
+    root: ${split.path}/federated_pca/${node.index}/fold_${fold.index}
     train: ${.root}_train_projections.csv.eigenvec.sscore
     val: ${.root}_val_projections.csv.eigenvec.sscore
     test: ${.root}_test_projections.csv.eigenvec.sscore
-    normalize_stds: True
 
   phenotype:
     name: ancestry

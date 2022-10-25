@@ -2,8 +2,8 @@
 model:
   name: mlp_classifier
   precision: 32
-  max_epochs: 10000
-  patience: 1000
+  max_epochs: 8192
+  patience: 1024
 
 experiment:
   gpus: 1
@@ -14,4 +14,4 @@ experiment:
     rounds: ${model.max_epochs}
     epochs_in_round: 1
     name: exponential_lr
-    gamma: 0.999
+    gamma: 0.9999
