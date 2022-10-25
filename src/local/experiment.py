@@ -67,6 +67,7 @@ class LocalExperiment(object):
         elif self.cfg.study == 'ukb':
             num_samples = node_size_dict[split][self.cfg.node_index]
             study_tags={
+                'fold_index': str(self.cfg.fold_index),
                 'node_index': str(self.cfg.node_index),
                 'snp_count': str(self.cfg.experiment.snp_count),
                 'sample_count': str(round(num_samples, -2)),
@@ -231,7 +232,7 @@ class NNExperiment(LocalExperiment):
         train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
         val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
         test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
-
+        
         metric_train = metric_fun(self.y.train, train_preds, sample_weight=self.sw.train)
         metric_val = metric_fun(self.y.val, val_preds, sample_weight=self.sw.val)
         metric_test = metric_fun(self.y.test, test_preds, sample_weight=self.sw.test)
@@ -542,7 +543,7 @@ class LassoNetExperiment(NNExperiment):
         self.model.layer.weight = torch.nn.Parameter(weight)
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
-
+        
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
         print("Fitted")
