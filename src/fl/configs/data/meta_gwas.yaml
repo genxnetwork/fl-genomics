@@ -12,11 +12,7 @@ covariates:
   train: '${.root}_train.tsv'
   val: '${.root}_val.tsv'
   test: '${.root}_test.tsv'
-genotype:
-  root: '${split.path}/genotypes/node_${node.index}/fold_${fold.index}'
-  train: '${.root}_train'
-  val: '${.root}_val'
-  test: '${.root}_test'
+genotype: ${split.path}/genotypes/node_${node.index}
 # gwas: '${split.path}/gwas/${data.phenotype.name}/fold_${fold.index}.meta.tsv'
 gwas: '${split.path}/gwas/${data.phenotype.name}/node_19/fold_${fold.index}.gwas.tsv'
 load_strategy: default

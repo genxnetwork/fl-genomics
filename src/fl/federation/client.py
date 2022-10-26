@@ -186,8 +186,6 @@ class FLClient(NumPyClient):
         return fit_result
 
     def fit(self, parameters: Weights, config):
-        # self.log(f'started fitting with config {config}')
-        self.logger.error(f'test error logging!!!')
         try:
             # to catch spurious error "weakly-referenced object no longer exists"
             # probably ref to some model parameter tensor get lost
