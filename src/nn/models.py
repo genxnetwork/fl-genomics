@@ -61,7 +61,17 @@ class BaseNet(LightningModule):
         raw_loss = self.calculate_loss(y_hat, y)
         reg = self.regularization()
         loss = raw_loss + reg
-        return {'loss': loss, 'raw_loss': raw_loss.detach(), 'reg': reg.detach(), 'batch_len': x.shape[0]}
+
+        y_pred = torch.argmax(y_hat, dim=1)
+        accuracy = (y_pred == y).float().mean()
+
+        return {
+            'loss': loss,
+            'raw_loss': raw_loss.detach(),
+            'reg': reg.detach(),
+            'batch_len': x.shape[0],
+            'accuracy': accuracy
+        }
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError('subclasses of BaseNet should implement loss calculation')
@@ -84,9 +94,11 @@ class BaseNet(LightningModule):
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
+        avg_accuracy = self.calculate_avg_epoch_metric(outputs, 'accuracy')
 
         step = self.fl_current_epoch()
         self._add_to_history('train_loss', avg_loss, step)
+        self._add_to_history('train_accuracy', avg_accuracy, step)
         self._add_to_history('raw_loss', avg_raw_loss, step)
         self._add_to_history('reg', avg_reg, step)
         self._add_to_history('lr', self.get_current_lr(), step)
