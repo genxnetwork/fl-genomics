@@ -34,15 +34,17 @@ def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, sample_indic
         raise ValueError(f'snp_count {snp_count} should be not greater than max_snp_count {max_snp_count}')
     
     snp_count = max_snp_count if snp_count is None else snp_count
-    array = numpy.empty((sample_count, snp_count), dtype=numpy.int8)
+    array = -numpy.ones((sample_count, snp_count), dtype=numpy.int8)
     
     if snp_count is None or snp_count == max_snp_count:
         reader.read_range(0, max_snp_count, array, sample_maj=True)
     else:
         snp_indices = get_snp_list(pfile_path, gwas_path, snp_count)
         reader.read_list(snp_indices, array, sample_maj=True)
+    if any(array -= -1):
+        raise ValueError('Not all requested SNPs were found in the genotype file')
     if missing == 'zero':
-        array[array < 0] = 0
+        array[array == -9] = 0
     elif missing == 'mean':
         array = numpy.where(numpy.isnan(array), numpy.nanmean(array, axis=0), array) 
     return array
