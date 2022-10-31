@@ -21,14 +21,14 @@ rule ALL:
     input:
         gwas=expand("gwas/{phenotype}/node_{node}/fold_{fold}.gwas.tsv",
                             phenotype=list(PHENOTYPE_CODES.keys()),
-                            node=range(NODE_COUNT),
+                            node=range(NODE_COUNT+1),
                             fold=range(FOLD_COUNT)),
         metagwas=expand("gwas/{phenotype}/fold_{fold}.meta.tsv",
                         fold=range(FOLD_COUNT),
                         phenotype=list(PHENOTYPE_CODES.keys())),
         phenotypes=expand("phenotypes/{phenotype}/node_{node}/fold_{fold}_{part}.tsv",
                           phenotype=list(PHENOTYPE_CODES.keys()),
-                          node=range(NODE_COUNT),
+                          node=range(NODE_COUNT+1),
                           fold=range(FOLD_COUNT),
                           part=PARTS)
 
@@ -60,8 +60,9 @@ rule train_pca:
         genotype    = "genotypes/node_{node}/fold_{fold}_train.pgen"
     resources:
         time        = "05:00:00",
-        mem_mb      = 32000,
-        partition   = "gpu_devel"
+        mem_mb      = 24000,
+        partition   = "gpu",
+        gpus        = 1
     threads: 4
     params:
         in_prefix = "genotypes/node_{node}/fold_{fold}_train",
@@ -137,7 +138,8 @@ rule gwas:
     resources:
         time        = "3:30:00",
         mem_mb      = 16000,
-        partition   = "gpu_devel"
+        partition   = "gpu",
+        gpus        = 1,
     params:
         out_prefix      = "gwas/{phenotype}/node_{node}/fold_{fold}",
         phenotype_name  = lambda wildcards: wildcards.phenotype,
