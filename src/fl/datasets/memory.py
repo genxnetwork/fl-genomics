@@ -41,7 +41,7 @@ def load_from_pgen(pfile_path: str, gwas_path: str, snp_count: int, sample_indic
     else:
         snp_indices = get_snp_list(pfile_path, gwas_path, snp_count)
         reader.read_list(snp_indices, array, sample_maj=True)
-    if any(array -= -1):
+    if (array == -1).any():
         raise ValueError('Not all requested SNPs were found in the genotype file')
     if missing == 'zero':
         array[array == -9] = 0
