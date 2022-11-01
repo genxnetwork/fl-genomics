@@ -61,35 +61,7 @@ class BaseNet(LightningModule):
         raw_loss = self.calculate_loss(y_hat, y)
         reg = self.regularization()
         loss = raw_loss + reg
-
-        y_pred = torch.argmax(y_hat, dim=1)
-        accuracy = (y_pred == y).float().mean()
-
-        return {
-            'loss': loss,
-            'raw_loss': raw_loss.detach(),
-            'reg': reg.detach(),
-            'batch_len': x.shape[0],
-            'accuracy': accuracy
-        }
-
-    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
-        x, y = batch
-        y_hat = self(x)
-        raw_loss = self.calculate_loss(y_hat, y)
-        reg = self.regularization()
-        loss = raw_loss + reg
-
-        y_pred = torch.argmax(y_hat, dim=1)
-        accuracy = (y_pred == y).float().mean()
-
-        return {
-            'loss': loss,
-            'raw_loss': raw_loss.detach(),
-            'reg': reg.detach(),
-            'batch_len': x.shape[0],
-            'accuracy': accuracy
-        }
+        return {'loss': loss, 'raw_loss': raw_loss.detach(), 'reg': reg.detach(), 'batch_len': x.shape[0]}
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError('subclasses of BaseNet should implement loss calculation')
@@ -112,11 +84,9 @@ class BaseNet(LightningModule):
         avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
         avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
         avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
-        avg_accuracy = self.calculate_avg_epoch_metric(outputs, 'accuracy')
 
         step = self.fl_current_epoch()
         self._add_to_history('train_loss', avg_loss, step)
-        self._add_to_history('train_accuracy', avg_accuracy, step)
         self._add_to_history('raw_loss', avg_raw_loss, step)
         self._add_to_history('reg', avg_reg, step)
         self._add_to_history('lr', self.get_current_lr(), step)
@@ -137,17 +107,10 @@ class BaseNet(LightningModule):
         # self.log('train_loss', avg_loss)
 
     def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
-        avg_loss = self.calculate_avg_epoch_metric(outputs, 'loss')
-        avg_raw_loss = self.calculate_avg_epoch_metric(outputs, 'raw_loss')
-        avg_reg = self.calculate_avg_epoch_metric(outputs, 'reg')
-        avg_accuracy = self.calculate_avg_epoch_metric(outputs, 'accuracy')
-
-        step = self.fl_current_epoch()
-        self._add_to_history('val_loss', avg_loss, step)
-        self._add_to_history('val_accuracy', avg_accuracy, step)
-        self._add_to_history('val_loss', avg_raw_loss, step)
-        self._add_to_history('reg', avg_reg, step)
-        self._add_to_history('lr', self.get_current_lr(), step)
+        avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
+        self._add_to_history('val_loss', avg_loss, step=self.fl_current_epoch())
+        # mlflow.log_metric('val_loss', avg_loss, self.fl_current_epoch())
+        self.log('val_loss', avg_loss, prog_bar=True)
 
     def fl_current_epoch(self):
         return (self.current_round - 1) * self.scheduler_params['epochs_in_round'] + self.current_epoch
@@ -377,6 +340,48 @@ class MLPClassifier(BaseNet):
 
     def calculate_loss(self, y_hat, y):
         return self.loss(y_hat.squeeze(1), y)
+
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
+        x, y = batch
+        y_hat = self(x)
+        raw_loss = self.calculate_loss(y_hat, y)
+        reg = self.regularization()
+        loss = raw_loss + reg
+
+        y_pred = torch.argmax(y_hat, dim=1)
+        accuracy = (y_pred == y).float().mean()
+
+        return {
+            'loss': loss,
+            'raw_loss': raw_loss.detach(),
+            'reg': reg.detach(),
+            'batch_len': x.shape[0],
+            'accuracy': accuracy
+        }
+
+    def training_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
+        super(MLPClassifier, self).training_epoch_end(outputs)
+
+        step = self.fl_current_epoch()
+        avg_accuracy = self.calculate_avg_epoch_metric(outputs, 'accuracy')
+        self._add_to_history('train_accuracy', avg_accuracy, step)
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
+        x, y = batch
+        y_hat = self(x)
+        loss = self.calculate_loss(y_hat, y)
+
+        y_pred = torch.argmax(y_hat, dim=1)
+        accuracy = (y_pred == y).float().mean()
+
+        return {'val_loss': loss, 'val_accuracy': accuracy, 'batch_len': x.shape[0]}
+
+    def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
+        avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
+        avg_accuracy = self.calculate_avg_epoch_metric(outputs, 'val_accuracy')
+        self._add_to_history('val_loss', avg_loss, step=self.fl_current_epoch())
+        self._add_to_history('val_accuracy', avg_accuracy, step=self.fl_current_epoch())
+        self.log('val_loss', avg_loss, prog_bar=True)
 
     def _pred_metrics(self, prefix: str, y_pred: torch.Tensor, y_true: torch.Tensor) -> Metrics:
         loss = self.calculate_loss(y_pred, y_true)
