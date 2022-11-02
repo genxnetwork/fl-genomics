@@ -67,6 +67,7 @@ for each node:
     Variant QC:
         in: Unfiltered genotype
         out: Filtered genotype
+        params: MAF cutoff 0.05, missing genotype rate cutoff: 0.02
 
     Cross validation split:
         in: sample IDs
