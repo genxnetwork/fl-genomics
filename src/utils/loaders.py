@@ -96,7 +96,7 @@ class ExperimentDataLoader:
         elif load_strategy == 'union':
             # we do not need gwas file
             # SNPs were already selected and written to a separate genotype file
-            gwas_path = None 
+            gwas_path = None
             snp_count = self._get_snp_count()
         else:
             raise ValueError(f'load_strategy should be one of ["default", "union"]')
@@ -174,7 +174,7 @@ class ExperimentDataLoader:
     def load_sample_weights(self) -> Y:
         if self.cfg.study != 'ukb' or not self.cfg.get('sample_weights', False):
             # all samples will have equal weights during evaluation
-            return Y(None, None, None) 
+            return Y(None, None, None)
         self.logger.info("Loading sample weights")
         train_sw = self._sample_weights(self.cfg.data.phenotype.train)
         val_sw = self._sample_weights(self.cfg.data.phenotype.val)
@@ -188,10 +188,10 @@ def calculate_sample_weights(populations_frame: pd.DataFrame, pheno_frame: pd.Da
     merged = pheno_frame.merge(populations_frame, how='inner', on='IID')
     populations = merged['node_index'].values
     unique, counts = numpy.unique(populations, return_counts=True)
-        
-        # populations contains values from [0, number of populations)
+
+    # populations contains values from [0, number of populations)
     sw = [populations.shape[0]/counts[p] for p in populations]
-        
+
     return sw
 
 def load_plink_pcs(path, order_as_in_file=None):
