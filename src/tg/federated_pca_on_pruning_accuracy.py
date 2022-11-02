@@ -1,3 +1,5 @@
+import gc
+import mlflow
 import pandas as pd
 import numpy as np
 
@@ -14,7 +16,7 @@ from preprocess.federated_pca import FederatedPCASimulationRunner
 
 
 LOG_FILE = '/home/genxadmin/federated-pca-pruning-accuracy.log'
-SPLIT_DIRECTORY = '/mnt/genx-bio-share/TG/data/chip/superpop_split'
+SPLIT_DIRECTORY = '/mnt/genx-bio-share/TG/data/chip/BAR-200'
 
 
 def get_model(num_classes, num_features, trainer=None):
@@ -23,13 +25,13 @@ def get_model(num_classes, num_features, trainer=None):
         'nfeat': num_features,
         'optim_params': {
             'name': 'sgd',
-            'lr': 0.1
+            'lr': 0.2
         },
         'scheduler_params': {
-            'rounds': '10000',
+            'rounds': '8192',
             'epochs_in_round': 1,
             'name': 'exponential_lr',
-            'gamma': 0.999
+            'gamma': 0.9998
         },
         'loss': cross_entropy
     }
@@ -43,11 +45,11 @@ def get_model(num_classes, num_features, trainer=None):
 
 def get_trainer():
     return Trainer(
-        max_epochs=10000,
+        max_epochs=8192,
         callbacks=[
             EarlyStopping(
                 monitor='val_loss',
-                patience=1000,
+                patience=1024,
                 strict=False,
                 verbose=False,
                 mode='min'
@@ -71,9 +73,10 @@ def run_experiment(pruning_threshold):
     """
 
     data_provider = DataProvider(
-        f'{SPLIT_DIRECTORY}/pca',
+        f'{SPLIT_DIRECTORY}/federated_pca',
         f'{SPLIT_DIRECTORY}/only_phenotypes/ancestry',
-        num_components=20
+        num_components=20,
+        normalize_std=True
     )
 
     # Run pruning
@@ -111,6 +114,8 @@ def run_experiment(pruning_threshold):
         )
 
         trainer = get_trainer()
+        mlflow.set_experiment('tg')
+        mlflow.start_run()
         trainer.fit(model, data_module)
 
         model = get_model(
@@ -131,9 +136,23 @@ def run_experiment(pruning_threshold):
 
         write_to_logfile(pruning_threshold, variants_number, accuracy_train, accuracy_validation, accuracy_test)
 
+        gc.collect()
+        mlflow.end_run()
+
 
 if __name__ == '__main__':
     with open(LOG_FILE, 'w') as log_file:
         log_file.write('Accuracy on pruning threshold parameter for the model with federated PCA\n')
-    for pruning_threshold in [0.005, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25]:
+    for pruning_threshold in [
+        0.01, 0.012, 0.014, 0.016, 0.018, 0.02, 0.021, 0.022, 0.023, 0.024, 0.025
+    ]:
+    # for pruning_threshold in [
+    #     0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01,
+    #     0.02,  0.03,  0.04
+    # ]:
+    # for pruning_threshold in [
+    #     0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009, 0.01,
+    #     0.02,  0.03,  0.04,  0.05,  0.06,  0.07,  0.08,  0.09,  0.1,   0.11,
+    #     0.12,  0.13,  0.14,  0.15,  0.16,  0.17,  0.18,  0.19,  0.2
+    # ]:
         run_experiment(pruning_threshold)

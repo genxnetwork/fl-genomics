@@ -5,7 +5,7 @@ import argparse
 import pandas as pd
 
 from preprocess.qc import QC
-from preprocess.splitter_tg import SplitTGHeter, SplitTGHom
+from preprocess.splitter_tg import SplitTG
 from utils.plink import run_plink
 from utils.split import Split
 from preprocess.train_val_split import CVSplitter
@@ -30,8 +30,15 @@ class Stage:
     @classmethod
     def all(cls):
         return {
+            cls.VARIANT_QC, cls.POPULATION_SPLIT, cls.SAMPLE_QC, cls.PRUNING,
+            cls.FOLD_SPLIT, cls.CENTRALIZED_PCA, cls.FEDERATED_PCA
+        }
+
+    @classmethod
+    def centralized(cls):
+        return {
             cls.VARIANT_QC, cls.POPULATION_SPLIT, cls.SAMPLE_QC,
-            cls.PRUNING, cls.FOLD_SPLIT, cls.CENTRALIZED_PCA
+            cls.FOLD_SPLIT, cls.CENTRALIZED_PCA,
         }
 
 
@@ -42,7 +49,7 @@ if __name__ == '__main__':
         help=f'Available stages: {Stage.all()}'
     )
     args = parser.parse_args()
-    stages = set(args.stages) if args.stages else Stage.all()
+    stages = set(args.stages) if args.stages else Stage.centralized()
 
 
     logging.basicConfig(
@@ -75,11 +82,11 @@ if __name__ == '__main__':
         QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config)
 
     # 2. Split into ethnic datasets and then QC each local dataset
-    splitter = SplitTGHeter()
-    nodes = splitter.nodes
+    splitter_anc = SplitTG()
+    nodes = splitter_anc.nodes
     if Stage.POPULATION_SPLIT in stages:
         logger.info('Splitting ethnic dataset')
-        splitter.split(input_prefix=varqc_prefix, make_pgen=True)
+        splitter_anc.split(input_prefix=varqc_prefix, make_pgen=True, alpha=1)
 
     # 3. Perform sample QC on each node separately
     if Stage.SAMPLE_QC in stages:
@@ -100,7 +107,7 @@ if __name__ == '__main__':
             nodes=nodes,
             result_filepath=os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
             node_filename_template='%s_filtered'
-        ).run(**pruning_config.DEFAULT)
+        ).run(**pruning_config.FEDERATED_PCA_OPTIMAL)
 
     # 5. Split each node into K folds
     superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
@@ -108,7 +115,7 @@ if __name__ == '__main__':
         logger.info('making k-fold split for the TG dataset')
         splitter = CVSplitter(superpop_split)
 
-        ancestry_df = SplitTGHeter().get_target()
+        ancestry_df = splitter_anc.df
         for node in nodes:
             splitter.split_ids(
                 ids_path=os.path.join(SPLIT_GENO_DIR, f'{node}_filtered.psam'),
@@ -174,7 +181,7 @@ if __name__ == '__main__':
             source_folder=SPLIT_GENO_DIR,
             result_folder=FEDERATED_PCA_DIR,
             variant_ids_file=os.path.join(SPLIT_GENO_DIR, 'ALL.prune.in'),
-            n_components=10,
+            n_components=20,
             method='P-STACK',
             nodes=nodes
         ).run()

@@ -30,7 +30,7 @@ class DataModule(LightningDataModule):
         self.test_dataset.y = y.test
 
     def train_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0)
+        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=True)
         return loader
 
     def val_dataloader(self) -> DataLoader:
@@ -38,7 +38,7 @@ class DataModule(LightningDataModule):
             sampler = WeightedRandomSampler(self.sw.val, num_samples=int(self.sw.val.shape[0]*self.sw.val.mean()), replacement=True)
             loader = DataLoader(self.val_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
-            loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+            loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=True)
         return loader
 
     def test_dataloader(self) -> DataLoader:
@@ -46,7 +46,7 @@ class DataModule(LightningDataModule):
             sampler = WeightedRandomSampler(self.sw.test, num_samples=int(self.sw.test.shape[0]*self.sw.test.mean()), replacement=True)
             loader = DataLoader(self.test_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
-            loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+            loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=True)
         return loader
 
     def predict_dataloader(self) -> List[DataLoader]:
@@ -54,7 +54,7 @@ class DataModule(LightningDataModule):
             sampler = WeightedRandomSampler(self.sw.train, num_samples=int(self.sw.train.shape[0]*self.sw.train.mean()), replacement=True)
             train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
-            train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0)
+            train_loader = self.train_dataloader()
         val_loader = self.val_dataloader()
         test_loader = self.test_dataloader()
         return [train_loader, val_loader, test_loader]

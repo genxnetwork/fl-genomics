@@ -1,5 +1,5 @@
-fold_count: 1
-node_count: 18 
+fold_count: 10
+node_count: 19 
 ukb_dataset: '/gpfs/gpfs0/ukb_data/processed_data/fml'
 phenotype: 
   type: 'real'

@@ -84,7 +84,7 @@ class ExperimentDataLoader:
         return x, y
 
     def _get_snp_count(self):
-        pvar_path = self.cfg.data.genotype.train + '.pvar'
+        pvar_path = self.cfg.data.genotype + '.pvar'
         pvar = pd.read_table(pvar_path)
         return pvar.shape[0]
 
@@ -102,17 +102,17 @@ class ExperimentDataLoader:
             raise ValueError(f'load_strategy should be one of ["default", "union"]')
 
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
-        X_train = numpy.hstack((load_from_pgen(self.cfg.data.genotype.train,
+        X_train = numpy.hstack((load_from_pgen(self.cfg.data.genotype,
                                                gwas_path,
                                                snp_count=snp_count,
                                                sample_indices=sample_index.train),
                                load_covariates(self.cfg.data.covariates.train).astype(numpy.float16)))
-        X_val = numpy.hstack((load_from_pgen(self.cfg.data.genotype.val,
+        X_val = numpy.hstack((load_from_pgen(self.cfg.data.genotype,
                                              gwas_path,
                                              snp_count=snp_count,
                                              sample_indices=sample_index.val),
                                load_covariates(self.cfg.data.covariates.val).astype(numpy.float16)))
-        X_test = numpy.hstack((load_from_pgen(self.cfg.data.genotype.test,
+        X_test = numpy.hstack((load_from_pgen(self.cfg.data.genotype,
                                               gwas_path,
                                               snp_count=snp_count,
                                               sample_indices=sample_index.test),
@@ -122,15 +122,15 @@ class ExperimentDataLoader:
 
 
     def _load_genotype(self, sample_index: SampleIndex) -> X:
-        X_train = load_from_pgen(self.cfg.data.genotype.train,
+        X_train = load_from_pgen(self.cfg.data.genotype,
                                       gwas_path=self.cfg.data.get('gwas', None),
                                       snp_count=self.cfg.experiment.get('snp_count', None),
                                       sample_indices=sample_index.train)
-        X_val = load_from_pgen(self.cfg.data.genotype.val,
+        X_val = load_from_pgen(self.cfg.data.genotype,
                                     gwas_path=self.cfg.data.get('gwas', None),
                                     snp_count=self.cfg.experiment.get('snp_count', None),
                                     sample_indices=sample_index.val)
-        X_test = load_from_pgen(self.cfg.data.genotype.test,
+        X_test = load_from_pgen(self.cfg.data.genotype,
                                      gwas_path=self.cfg.data.get('gwas', None),
                                      snp_count=self.cfg.experiment.get('snp_count', None),
                                      sample_indices=sample_index.test)
@@ -158,11 +158,11 @@ class ExperimentDataLoader:
     def _load_sample_indices(self) -> SampleIndex:
         self.logger.info("Loading sample indices")
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
-        si_train = get_sample_indices(self.cfg.data.genotype.train,
+        si_train = get_sample_indices(self.cfg.data.genotype,
                                                        self.cfg.data.phenotype.train)
-        si_val = get_sample_indices(self.cfg.data.genotype.val,
+        si_val = get_sample_indices(self.cfg.data.genotype,
                                                      self.cfg.data.phenotype.val)
-        si_test = get_sample_indices(self.cfg.data.genotype.test,
+        si_test = get_sample_indices(self.cfg.data.genotype,
                                                       self.cfg.data.phenotype.test,
                                                       indices_limit=test_samples_limit)
         return SampleIndex(si_train, si_val, si_test)
@@ -197,9 +197,11 @@ def calculate_sample_weights(populations_frame: pd.DataFrame, pheno_frame: pd.Da
 def load_plink_pcs(path, order_as_in_file=None):
     """ Loads PLINK's eigenvector matrix (e.g. to be used as X for TG). If @order_as_in_file is not None,
      reorder rows of the matrix to match (IID-wise) rows of the file """
-    df = pd.read_csv(path, sep='\t').rename(columns={'#IID': 'IID'}).set_index('IID').filter(regex='^PC*')
+    df = pd.read_csv(path, sep='\t').rename(columns={'#IID': 'IID'}).set_index('IID').iloc[:, 2:]
+
     if order_as_in_file is not None:
         y = pd.read_csv(order_as_in_file, sep='\t').set_index('IID')
         assert len(df) == len(y)
         df = df.reindex(y.index)
+
     return df
