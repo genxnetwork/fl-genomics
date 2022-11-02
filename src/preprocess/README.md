@@ -50,17 +50,48 @@ Asian or Asian British            41
 
 Black or Black British            26
 
-## Data directory structure
-```
+## Preprocessing
 
-$data_root
-|- pca/...
-|- figures/...
-|- $split_name -+- genotypes/...
-|               +- phenotypes/...
-|               +- split_ids/...
-|- valid_ids.csv  
+Our preprocessing pipeline for the assessment center split consists of the following steps.
 
+Sample QC:
+  in: genotype (all samples and variants)
+  out: list of samples that pass QC
+  qc steps: --mind, --king-cutoff (second degree relatives)
 
-```
+Splitting based on assessment centers:
+  in: list of samples that passed QC, UKB assessment center data field
+  out: split_ids for each node
+
+for each node:
+    Variant QC:
+        in: Unfiltered genotype
+        out: Filtered genotype
+        params: MAF cutoff 0.05, missing genotype rate cutoff: 0.02
+
+    Cross validation split:
+        in: sample IDs
+        out: train/val/test IDs
+
+    for each CV fold:
+        PCA (train):
+            in: Filtered train genotype
+            out: PCA eigenvecs
+
+        PCA (project):
+            in: Filtered train/val/test genotype
+            out: Projected train/val/test PCs
+
+        for each phenotype:
+            Load phenotype
+            Load covariates
+            Normalize covariates
+            GWAS:
+                in: train phenotype, genotype, covariates, PCs
+                out: GWAS report
+
+for each phenotype, CV fold:
+    Meta analysis:
+        in: GWAS reports for all nodes
+        out: Meta analysis report
 
