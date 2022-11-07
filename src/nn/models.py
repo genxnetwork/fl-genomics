@@ -412,7 +412,7 @@ class LassoNetRegressor(BaseNet):
                  optim_params: Dict, scheduler_params: Dict,
                  cov_count: int = 0,
                  alpha_start: float = -1, alpha_end: float = -1, init_limit: float = 0.01,
-                 logger = None) -> None:
+                 use_batch_norm: bool = False, logger = None) -> None:
         super().__init__(input_size, optim_params, scheduler_params)
 
         assert alpha_end > alpha_start
@@ -421,13 +421,12 @@ class LassoNetRegressor(BaseNet):
         self.input_size = input_size
         self.cov_count = cov_count
         self.layer = Linear(self.input_size, self.hidden_size)
-        self.bn = BatchNorm1d(self.input_size)
         self.r2_score = R2Score(num_outputs=self.hidden_size, multioutput='raw_values')
         init_uniform_(self.layer.weight, a=-init_limit, b=init_limit)
         self.stdout_logger = logger
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        out = self.layer(self.bn(x))
+            out = self.layer(self.bn(x) if use_batch_norm else x)
         return out
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
