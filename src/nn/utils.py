@@ -157,7 +157,7 @@ class LassoNetRegMetrics(Metrics):
     def to_result_dict(self) -> Dict:
         return {'metrics': pickle.dumps(self)}
 
-    def reduce(self, reduction='mean'):
+    def reduce(self, reduction='lassonet_best'):
         """Reduces LassoNET metrics on hidden_size axis
         i.e. averages over all Lasso models with different l1 regularization parameter 
         or chooses the best model based on validation metrics
@@ -165,7 +165,7 @@ class LassoNetRegMetrics(Metrics):
         Args:
             reduction (str, optional): If 'mean', then it averages metrics over all lasso models. 
                 If 'lassonet_best', then it chooses the best lasso model based on validation r2 and returns just its metrics. 
-                Defaults to 'mean'.
+                Defaults to 'lassonet_best'.
 
         Returns:
             RegMetrics: Returns RegMetrics object with one train, one val and one test RegLoaderMetrics

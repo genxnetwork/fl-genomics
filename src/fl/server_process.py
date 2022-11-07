@@ -28,8 +28,8 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: 
     default_args = OmegaConf.create({
         "fraction_fit": 0.9,
         "fraction_eval": 0.9,
-        "min_fit_clients": 16 if node_count >= 16 else node_count,
-        "min_eval_clients": 16 if node_count >= 16 else node_count,
+        "min_fit_clients": node_count,
+        "min_eval_clients": node_count,
         "min_available_clients": node_count
     })
     if 'args' in strategy_params:

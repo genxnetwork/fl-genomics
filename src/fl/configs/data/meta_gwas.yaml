@@ -13,6 +13,6 @@ covariates:
   val: '${.root}_val.tsv'
   test: '${.root}_test.tsv'
 genotype: ${split.path}/genotypes/node_${node.index}
-# gwas: '${split.path}/gwas/${data.phenotype.name}/fold_${fold.index}.meta.tsv'
-gwas: '${split.path}/gwas/${data.phenotype.name}/node_19/fold_${fold.index}.gwas.tsv'
+gwas: '${split.path}/gwas/${data.phenotype.name}/fold_${fold.index}.meta.tsv'
+# gwas: '${split.path}/gwas/${data.phenotype.name}/node_19/fold_${fold.index}.gwas.tsv'
 load_strategy: default
