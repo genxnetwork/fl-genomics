@@ -1,6 +1,6 @@
-name: 'superpop_split' 
+name: 'superpop_split'
 path: '/mnt/genx-bio-share/TG/data/chip/${.name}'
-nodes: 
+nodes:
   AMR:
     name: 'North America'
     resources:

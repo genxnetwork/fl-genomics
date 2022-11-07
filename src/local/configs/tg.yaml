@@ -9,7 +9,7 @@ defaults:
 study: tg
 split_dir: /mnt/genx-bio-share/TG/data/chip/superpop_split
 node: ALL
-fold_index: 5
+fold_index: 0
 
 phenotype:
   name: ancestry

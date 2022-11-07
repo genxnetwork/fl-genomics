@@ -189,7 +189,7 @@ def calculate_sample_weights(populations_frame: pd.DataFrame, pheno_frame: pd.Da
     populations = merged['node_index'].values
     unique, counts = numpy.unique(populations, return_counts=True)
 
-        # populations contains values from [0, number of populations)
+    # populations contains values from [0, number of populations)
     sw = [populations.shape[0]/counts[p] for p in populations]
 
     return sw
