@@ -232,7 +232,7 @@ class NNExperiment(LocalExperiment):
         train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
         val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
         test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
-        
+
         metric_train = metric_fun(self.y.train, train_preds, sample_weight=self.sw.train)
         metric_val = metric_fun(self.y.val, val_preds, sample_weight=self.sw.val)
         metric_test = metric_fun(self.y.test, test_preds, sample_weight=self.sw.test)
@@ -332,9 +332,12 @@ class TGNNExperiment(NNExperiment):
             for part, matrix in zip(['train', 'val', 'test'], [self.x.train, self.x.val, self.x.test]):
                 self.logger.info(f'{part} normalized stds: {numpy.array2string(matrix.std(axis=0), precision=3, floatmode="fixed")}')
 
-        self.data_module = DataModule(self.x,
-                                      self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
-                                      batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
+        self.data_module = DataModule(
+            self.x,
+            self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+            batch_size=self.cfg.model.get('batch_size', len(self.x.train)),
+            drop_last=False
+        )
 
     def create_model(self):
         self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
@@ -543,7 +546,7 @@ class LassoNetExperiment(NNExperiment):
         self.model.layer.weight = torch.nn.Parameter(weight)
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
                                     max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
-        
+
         print("Fitting")
         self.trainer.fit(self.model, self.data_module)
         print("Fitted")

@@ -11,14 +11,16 @@ NArr = numpy.ndarray
 
 
 class DataModule(LightningDataModule):
-
-    def __init__(self, x: X, y: Y, x_cov: X = None, sample_weights: Y = None, batch_size: int = None):
+    def __init__(
+        self, x: X, y: Y, x_cov: X = None, sample_weights: Y = None, batch_size: int = None, drop_last: bool = True
+    ):
         super().__init__()
         self.train_dataset = XyCovDataset(x.train, y.train, x_cov.train if x_cov is not None else None)
         self.val_dataset = XyCovDataset(x.val, y.val, x_cov.val if x_cov is not None else None)
         self.test_dataset = XyCovDataset(x.test, y.test, x_cov.test if x_cov is not None else None)
         self.sw = sample_weights
         self.batch_size = batch_size
+        self.drop_last = drop_last
 
     def update_y(self, y: Y):
         assert self.train_dataset.y.shape[0] == y.train.shape[0]
@@ -30,7 +32,9 @@ class DataModule(LightningDataModule):
         self.test_dataset.y = y.test
 
     def train_dataloader(self) -> DataLoader:
-        loader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=True)
+        loader = DataLoader(
+            self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=0, drop_last=self.drop_last
+        )
         return loader
 
     def val_dataloader(self) -> DataLoader:
@@ -38,7 +42,9 @@ class DataModule(LightningDataModule):
             sampler = WeightedRandomSampler(self.sw.val, num_samples=int(self.sw.val.shape[0]*self.sw.val.mean()), replacement=True)
             loader = DataLoader(self.val_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
-            loader = DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=True)
+            loader = DataLoader(
+                self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=self.drop_last
+            )
         return loader
 
     def test_dataloader(self) -> DataLoader:
@@ -46,7 +52,9 @@ class DataModule(LightningDataModule):
             sampler = WeightedRandomSampler(self.sw.test, num_samples=int(self.sw.test.shape[0]*self.sw.test.mean()), replacement=True)
             loader = DataLoader(self.test_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
-            loader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=True)
+            loader = DataLoader(
+                self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=self.drop_last
+            )
         return loader
 
     def predict_dataloader(self) -> List[DataLoader]:
