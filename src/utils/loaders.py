@@ -63,11 +63,10 @@ class ExperimentDataLoader:
         test_samples_limit = self.cfg.experiment.get('test_samples_limit', None)
         y = Y(y_train, y_val, y_test[:test_samples_limit])
 
-        sample_index = self._load_sample_indices()
-
         assert self.cfg.experiment.include_genotype or self.cfg.experiment.include_covariates
 
         if self.cfg.study == 'ukb':
+            sample_index = self._load_sample_indices()
             if self.cfg.experiment.include_genotype and self.cfg.experiment.include_covariates:
                 x = self._load_genotype_and_covariates(sample_index)
             elif self.cfg.experiment.include_genotype:
