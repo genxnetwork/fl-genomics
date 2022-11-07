@@ -341,6 +341,48 @@ class MLPClassifier(BaseNet):
     def calculate_loss(self, y_hat, y):
         return self.loss(y_hat.squeeze(1), y)
 
+    def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
+        x, y = batch
+        y_hat = self(x)
+        raw_loss = self.calculate_loss(y_hat, y)
+        reg = self.regularization()
+        loss = raw_loss + reg
+
+        y_pred = torch.argmax(y_hat, dim=1)
+        accuracy = (y_pred == y).float().mean()
+
+        return {
+            'loss': loss,
+            'raw_loss': raw_loss.detach(),
+            'reg': reg.detach(),
+            'batch_len': x.shape[0],
+            'accuracy': accuracy
+        }
+
+    def training_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
+        super(MLPClassifier, self).training_epoch_end(outputs)
+
+        step = self.fl_current_epoch()
+        avg_accuracy = self.calculate_avg_epoch_metric(outputs, 'accuracy')
+        self._add_to_history('train_accuracy', avg_accuracy, step)
+
+    def validation_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
+        x, y = batch
+        y_hat = self(x)
+        loss = self.calculate_loss(y_hat, y)
+
+        y_pred = torch.argmax(y_hat, dim=1)
+        accuracy = (y_pred == y).float().mean()
+
+        return {'val_loss': loss, 'val_accuracy': accuracy, 'batch_len': x.shape[0]}
+
+    def validation_epoch_end(self, outputs: List[Dict[str, Any]]) -> None:
+        avg_loss = self.calculate_avg_epoch_metric(outputs, 'val_loss')
+        avg_accuracy = self.calculate_avg_epoch_metric(outputs, 'val_accuracy')
+        self._add_to_history('val_loss', avg_loss, step=self.fl_current_epoch())
+        self._add_to_history('val_accuracy', avg_accuracy, step=self.fl_current_epoch())
+        self.log('val_loss', avg_loss, prog_bar=True)
+
     def _pred_metrics(self, prefix: str, y_pred: torch.Tensor, y_true: torch.Tensor) -> Metrics:
         loss = self.calculate_loss(y_pred, y_true)
         accuracy = Accuracy(num_classes=self.nclass)

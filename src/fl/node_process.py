@@ -15,6 +15,7 @@ from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
 import torch
 import flwr
+import torch
 
 from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
 from local.experiment import NNExperiment, QuadraticNNExperiment, TGNNExperiment
@@ -82,6 +83,8 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
+        torch.set_num_threads(1)
+
         torch.set_num_threads(1)
 
         if self.cfg.study == 'tg':

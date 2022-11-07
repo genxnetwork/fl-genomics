@@ -10,7 +10,8 @@ from local.config import node_size_dict
 
 def calculate_memory(node_index, split, snp_count):
     # Heuristic for dependence of memory requirement on number of samples*features
-    mem = int(8000+node_size_dict[split][node_index]*snp_count/32000)
+    #mem = int(8000+node_size_dict[split][node_index]*snp_count/32000)
+    mem = 16000 # 16GB is enough for local experiments for now
     return mem
 
 def append_args_to_wrapper(arg_list: list):
@@ -39,7 +40,7 @@ def append_args_to_wrapper(arg_list: list):
     gpu_models = ['mlp', 'lassonet']
     if model_name in gpu_models: # Request gpu from Slurm if required
         wrapper = wrapper.replace('#gpu_placeholder', '#SBATCH --gpus 1')    
-    partition_type = 'gpu' if (model_name in gpu_models and mem > 58000) else ('gpu_devel' if mem < 58000 else 'cpu')
+    partition_type = 'gpu' if (model_name in gpu_models and mem > 58000) else ('gpu' if mem < 58000 else 'cpu')
     wrapper = wrapper.replace('$PARTITION_TYPE', partition_type)    
     wrapper += f"+model={model_name} "
 

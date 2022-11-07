@@ -67,6 +67,7 @@ class LocalExperiment(object):
         elif self.cfg.study == 'ukb':
             num_samples = node_size_dict[split][self.cfg.node_index]
             study_tags={
+                'fold_index': str(self.cfg.fold_index),
                 'node_index': str(self.cfg.node_index),
                 'snp_count': str(self.cfg.experiment.snp_count),
                 'sample_count': str(round(num_samples, -2)),
@@ -331,9 +332,12 @@ class TGNNExperiment(NNExperiment):
             for part, matrix in zip(['train', 'val', 'test'], [self.x.train, self.x.val, self.x.test]):
                 self.logger.info(f'{part} normalized stds: {numpy.array2string(matrix.std(axis=0), precision=3, floatmode="fixed")}')
 
-        self.data_module = DataModule(self.x,
-                                      self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
-                                      batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
+        self.data_module = DataModule(
+            self.x,
+            self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+            batch_size=self.cfg.model.get('batch_size', len(self.x.train)),
+            drop_last=False
+        )
 
     def create_model(self):
         self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],

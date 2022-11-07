@@ -94,5 +94,6 @@ class DataProvider:
         return DataModule(
             X(X_train, X_validation, X_test),
             Y(y_train, y_validation, y_test),
-            batch_size=len(X_train)
+            batch_size=len(X_train),
+            drop_last=False
         )
