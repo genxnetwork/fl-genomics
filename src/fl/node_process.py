@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Union
 import time
 from grpc import RpcError
 import os
+import socket
 
 from omegaconf import DictConfig, OmegaConf
 import mlflow
@@ -38,6 +39,25 @@ class TrainerInfo:
                 f'training.devices={self.devices}',
                 f'training.accelerator={self.accelerator}']
 
+def is_port_available(port: int):
+    result = False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("0.0.0.0", port))
+            result = True
+        except:
+            print(f'Port {port} is in use')
+    return result
+
+def get_available_port(node_index: int, attempts: int = 10) -> int:
+    
+    for attempt in range(attempts):
+        new_port = 47000+numpy.random.randint(1000)+hash(node_index) % 100
+        if is_port_available(new_port):
+            return new_port
+        
+    print(f'after attempting to find an available port {attempts} times we failed')
+    raise RuntimeError(f'There are no available port after {attempts}')
 
 class Node(Process):
     def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo,
@@ -53,7 +73,7 @@ class Node(Process):
             trainer_info (TrainerInfo): Where to train node
         """
         Process.__init__(self, **kwargs)
-        os.environ['MASTER_PORT'] = str(47000+numpy.random.randint(1000)+hash(trainer_info.node_index) % 100)
+        os.environ['MASTER_PORT'] = str(get_available_port(trainer_info.node_index))
         self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
         self.trainer_info = trainer_info
