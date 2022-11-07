@@ -81,7 +81,7 @@ rule pca_project:
         genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen",
         train_eigenvec = "pca/node_{node}/fold_{fold}_train_projections.eigenvec"
     resources:
-        time        = "00:30:00",
+        time        = "01:30:00",
         mem_mb      = 32000,
         partition   = "gpu_devel"
     params:
