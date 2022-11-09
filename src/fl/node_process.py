@@ -33,32 +33,13 @@ class TrainerInfo:
     accelerator: str
     node_name: str
     node_index: str
+    port: int
 
     def to_dotlist(self) -> List[str]:
         return [f'node.name={self.node_name}',
                 f'node.index={self.node_index}',
                 f'training.devices={self.devices}',
                 f'training.accelerator={self.accelerator}']
-
-def is_port_available(port: int):
-    result = False
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        try:
-            sock.bind(("0.0.0.0", port))
-            result = True
-        except:
-            print(f'Port {port} is in use')
-    return result
-
-def get_available_port(node_index: int, attempts: int = 10) -> int:
-    
-    for attempt in range(attempts):
-        new_port = 47000+numpy.random.randint(1000)+hash(node_index) % 100
-        if is_port_available(new_port):
-            return new_port
-        
-    print(f'after attempting to find an available port {attempts} times we failed')
-    raise RuntimeError(f'There are no available port after {attempts}')
 
 class Node(Process):
     def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo,
@@ -74,7 +55,7 @@ class Node(Process):
             trainer_info (TrainerInfo): Where to train node
         """
         Process.__init__(self, **kwargs)
-        os.environ['MASTER_PORT'] = str(get_available_port(trainer_info.node_index))
+        os.environ['MASTER_PORT'] = str(trainer_info.port)
         self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
         self.trainer_info = trainer_info
