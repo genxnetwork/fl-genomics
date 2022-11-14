@@ -95,6 +95,7 @@ class Checkpointer:
         self.last_metrics = None
 
     def add_loss_to_history(self, metrics: Metrics) -> None:
+        logging.info(f'adding metrics {metrics} to history')
         self.history.append(metrics.val_loss)
 
     def set_best_metrics(self, metrics: Metrics) -> None:
@@ -109,20 +110,21 @@ class Checkpointer:
             aggregated_parameters (Parameters): Aggregated model parameters
         """        
         if aggregated_parameters is not None:
-            if len(self.history) == 0 or (len(self.history) > 0 and self.history[-1] == min(self.history)):
-                # Save aggregated_weights
-                aggregated_weights = parameters_to_weights(aggregated_parameters)
-                # print(f"round {rnd}\tmin_val_loss: {self.history[-1]:.2f}\tsaving_checkpoint to {self.checkpoint_dir}")
-                numpy.savez(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt'), *aggregated_weights)
+            aggregated_weights = parameters_to_weights(aggregated_parameters)
+            numpy.savez(os.path.join(self.checkpoint_dir, f'round-{rnd}.ckpt'), *aggregated_weights)
         else:
             pass
     
     def load_best_parameters(self) -> Parameters:
-        weights = list(numpy.load(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz')).values())
+        best_rnd = numpy.argmin(self.history)
+        logging.info(f'history is {self.history}')
+        logging.info(f'best round: {best_rnd}\tval_loss: {self.history[best_rnd]}')
+        weights = list(numpy.load(os.path.join(self.checkpoint_dir, f'round-{best_rnd}.ckpt.npz')).values())
         return weights_to_parameters(weights)
     
     def copy_best_model(self, best_model_path: str):
-        shutil.copy2(os.path.join(self.checkpoint_dir, f'best_temp_model.ckpt.npz'), best_model_path)
+        best_rnd = numpy.argmin(self.history)
+        shutil.copy2(os.path.join(self.checkpoint_dir, f'round-{best_rnd}.ckpt.npz'), best_model_path)
 
 
 class MCMixin:

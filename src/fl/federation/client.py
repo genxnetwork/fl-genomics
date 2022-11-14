@@ -71,7 +71,8 @@ class ModelFactory:
             cov_count=covariate_count, 
             alpha_start=params.model.alpha_start,
             alpha_end=params.model.alpha_end,
-            init_limit=params.model.init_limit
+            init_limit=params.model.init_limit,
+            use_bn=params.model.get('use_bn', True)
         )
 
     @staticmethod
@@ -185,8 +186,6 @@ class FLClient(NumPyClient):
         return fit_result
 
     def fit(self, parameters: Weights, config):
-        # self.log(f'started fitting with config {config}')
-
         try:
             # to catch spurious error "weakly-referenced object no longer exists"
             # probably ref to some model parameter tensor get lost
@@ -197,26 +196,31 @@ class FLClient(NumPyClient):
             self.model = ModelFactory.create_model(self.data_module.feature_count(), self.data_module.covariate_count(), self.params)
             self.set_parameters(parameters)
 
-        self.on_before_fit()
-        
-        old_parameters = [p.copy() for p in parameters]
-        start = time()    
-        # self.log('fit after set parameters')            
-        self.model.train()
-        # self.log('set model to train')
-        self.model.current_round = config['current_round']
-        # because train_dataloader will get the same seed and return the same permutation of training samples each federated round
-        self._reseed_torch()
-        trainer = Trainer(logger=False, **{**self.params.training, **{'callbacks': self.callbacks}})
-        
-        # self.log('trainer created')
-        trainer.fit(self.model, datamodule=self.data_module)
-        # self.log('model fitted by trainer')
-        end = time()
-        self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
-        new_params = self.get_parameters()
-        self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=old_parameters, new_params=new_params)
-        fit_result = self.on_after_fit()
+        try:
+            self.on_before_fit()
+            
+            old_parameters = [p.copy() for p in parameters]
+            start = time()    
+            # self.log('fit after set parameters')            
+            self.model.train()
+            # self.log('set model to train')
+            self.model.current_round = config['current_round']
+            # because train_dataloader will get the same seed and return the same permutation of training samples each federated round
+            self._reseed_torch()
+            trainer = Trainer(logger=False, **{**self.params.training, **{'callbacks': self.callbacks}})
+            
+            # self.log('trainer created')
+            trainer.fit(self.model, datamodule=self.data_module)
+            # self.log('model fitted by trainer')
+            end = time()
+            self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
+            new_params = self.get_parameters()
+            self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=old_parameters, new_params=new_params)
+            fit_result = self.on_after_fit()
+        except Exception as e:
+            self.log(f'ERROR: {e}')
+            self.logger.error(f'ERROR: {e}', exc_info=True)
+            
         return new_params, self.data_module.train_len(), fit_result
 
     def evaluate(self, parameters: Weights, config):

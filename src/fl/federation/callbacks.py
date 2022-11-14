@@ -34,6 +34,21 @@ class ClientCallback:
         pass
 
 
+class CovariateWeightsCallback(ClientCallback):
+    """Sets covariate weights in on_before_fit only the first time on_before_fit is called
+
+    """        
+    def __init__(self, cov_weights: numpy.ndarray):
+        super().__init__()
+        self.cov_weights = cov_weights
+        self.cov_weights_set = False
+        
+    def on_before_fit(self, model: BaseNet):
+        if not self.cov_weights_set:
+            model.set_covariate_weights(self.cov_weights)        
+            self.cov_weights_set = True
+
+
 class PlotLandscapeCallback(ClientCallback):
     """FLCLient callback for drawing the loss landscape for linear model with two parameters as a contour plot
     """    

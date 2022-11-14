@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Union
 import time
 from grpc import RpcError
 import os
+import socket
 
 from omegaconf import DictConfig, OmegaConf
 import mlflow
@@ -12,12 +13,13 @@ from mlflow import ActiveRun
 from mlflow.tracking import MlflowClient
 from mlflow.utils.mlflow_tags import MLFLOW_PARENT_RUN_ID
 import numpy
+import torch
 import flwr
 import torch
 
 from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
 from local.experiment import NNExperiment, QuadraticNNExperiment, TGNNExperiment
-from fl.federation.callbacks import PlotLandscapeCallback
+from fl.federation.callbacks import PlotLandscapeCallback, CovariateWeightsCallback
 
 
 @dataclass
@@ -38,6 +40,25 @@ class TrainerInfo:
                 f'training.devices={self.devices}',
                 f'training.accelerator={self.accelerator}']
 
+def is_port_available(port: int):
+    result = False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("0.0.0.0", port))
+            result = True
+        except:
+            print(f'Port {port} is in use')
+    return result
+
+def get_available_port(node_index: int, attempts: int = 10) -> int:
+    
+    for attempt in range(attempts):
+        new_port = 47000+numpy.random.randint(1000)+hash(node_index) % 100
+        if is_port_available(new_port):
+            return new_port
+        
+    print(f'after attempting to find an available port {attempts} times we failed')
+    raise RuntimeError(f'There are no available port after {attempts}')
 
 class Node(Process):
     def __init__(self, server_url: str, log_dir: str, mlflow_info: MlflowInfo,
@@ -53,7 +74,7 @@ class Node(Process):
             trainer_info (TrainerInfo): Where to train node
         """
         Process.__init__(self, **kwargs)
-        os.environ['MASTER_PORT'] = str(47000+numpy.random.randint(1000)+hash(trainer_info.node_index) % 100)
+        os.environ['MASTER_PORT'] = str(get_available_port(trainer_info.node_index))
         self.node_index = trainer_info.node_index
         self.mlflow_info = mlflow_info
         self.trainer_info = trainer_info
@@ -62,6 +83,7 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
+        torch.set_num_threads(1)
 
         torch.set_num_threads(1)
 
@@ -137,7 +159,12 @@ class Node(Process):
             if node == 'plot_landscape':
                 assert isinstance(self.experiment, QuadraticNNExperiment)
                 callbacks.append(PlotLandscapeCallback(self.experiment.data, self.experiment.y, self.experiment.beta))
-        return callbacks
+
+        if self.cfg.experiment.pretrain_on_cov == 'weights':
+            cov_weights = self.experiment.pretrain()
+            cw_callback = CovariateWeightsCallback(cov_weights)
+            callbacks.append(cw_callback)
+        return callbacks        
 
     def run(self) -> None:
         """Runs data loading and training of node
@@ -171,14 +198,14 @@ class Node(Process):
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
-
-            if self.cfg.experiment.pretrain_on_cov == 'weights':
-                cov_weights = self.experiment.pretrain()
-                client.model.set_covariate_weights(cov_weights)
-
-            elif self.cfg.experiment.pretrain_on_cov == 'substract':
+            
+            if self.cfg.experiment.pretrain_on_cov == 'substract':
                 residual = self.experiment.pretrain_and_substract()
                 self.experiment.data_module.update_y(residual)
-            else:
-                pass
-            self._train_model(client)
+            
+            try:
+                self._train_model(client)
+            except Exception as e:
+                self.logger.info(e)
+                self.logger.error(e)
+            
