@@ -1,0 +1,15 @@
+# @package _global_
+
+experiment:
+  name: local-models-local-snps-centralized-metrics
+  snp_count: 10000
+  
+node_index: 19
+train_experiment_name: local-models-local-snps
+train_node_index: 2
+
+data:
+  gwas: ${split_dir}/gwas/${data.phenotype.name}/node_${train_node_index}/fold_${fold_index}.gwas.tsv
+  
+model:
+  batch_size: 1024

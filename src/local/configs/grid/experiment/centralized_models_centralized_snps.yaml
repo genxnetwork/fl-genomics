@@ -1,0 +1,14 @@
+# @package _global_
+
+split_dir: /trinity/home/s.mishra/test2/ac_split
+fold_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+node_index: [19]
+#node_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+experiment:
+  snp_count: [10000]
+  run: centralized_models_centralized_snps
+model:
+  name: ['lassonet_centralized']
+data:
+  phenotype:
+    name: ['standing_height', 'erythrocyte_count', 'platelet_volume']
