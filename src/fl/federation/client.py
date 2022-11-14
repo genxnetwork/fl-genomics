@@ -97,7 +97,12 @@ class CallbackFactory:
         # early_stopping = EarlyStopping('val_loss', patience=params.training.max_epochs, check_finite=True)
         # callbacks.append(early_stopping)
         if params.strategy.name == 'scaffold':
-            callbacks.append(ScaffoldCallback(params.strategy.args.K, log_grad=params.log_grad, log_diff=params.log_weights))
+            callbacks.append(
+                ScaffoldCallback(params.strategy.args.K, 
+                                 log_grad=params.log_grad, 
+                                 log_diff=params.log_weights, 
+                                 grad_lr=params.strategy.args.grad_lr)
+            )
         return callbacks
 
 
@@ -158,12 +163,18 @@ class FLClient(NumPyClient):
     def _get_layer_names(self) -> List[str]:
         return list(self.model.state_dict().keys())
 
-    def update_callbacks(self, update_params: Dict, **kwargs):
+    def update_callbacks_before_fit(self, update_params: Dict, **kwargs):
         if self.callbacks is None:
             return
         for callback in self.callbacks:
             if isinstance(callback, ScaffoldCallback):
                 callback.c_global = weights_to_module_params(self._get_layer_names(), bytes_to_weights(update_params['c_global']))
+                
+    def update_callbacks_after_fit(self, update_params: Dict, **kwargs):
+        if self.callbacks is None:
+            return
+        for callback in self.callbacks:
+            if isinstance(callback, ScaffoldCallback):
                 callback.update_c_local(
                     kwargs['eta'], callback.c_global, 
                     old_params=weights_to_module_params(self._get_layer_names(), kwargs['old_params']),
@@ -173,12 +184,14 @@ class FLClient(NumPyClient):
     def _reseed_torch(self):
         torch.manual_seed(hash(self.params.node.index) + self.model.current_round)
 
-    def on_before_fit(self):
+    def on_before_fit(self, config: Dict):
+        self.update_callbacks_before_fit(config)
         if self.client_callbacks is not None:
             for callback in self.client_callbacks:
                 callback.on_before_fit(self.model)
 
-    def on_after_fit(self):
+    def on_after_fit(self, old_params: Weights, new_params: Weights):
+        self.update_callbacks_after_fit(None, old_params=old_params, new_params=new_params, eta=self.model.get_current_lr())
         fit_result = {}
         if self.client_callbacks is not None:
             for callback in self.client_callbacks:
@@ -197,26 +210,21 @@ class FLClient(NumPyClient):
             self.set_parameters(parameters)
 
         try:
-            self.on_before_fit()
+            self.on_before_fit(config)
             
             old_parameters = [p.copy() for p in parameters]
             start = time()    
-            # self.log('fit after set parameters')            
             self.model.train()
-            # self.log('set model to train')
             self.model.current_round = config['current_round']
             # because train_dataloader will get the same seed and return the same permutation of training samples each federated round
             self._reseed_torch()
             trainer = Trainer(logger=False, **{**self.params.training, **{'callbacks': self.callbacks}})
             
-            # self.log('trainer created')
             trainer.fit(self.model, datamodule=self.data_module)
-            # self.log('model fitted by trainer')
             end = time()
             self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
             new_params = self.get_parameters()
-            self.update_callbacks(config, eta=self.model.get_current_lr(), old_params=old_parameters, new_params=new_params)
-            fit_result = self.on_after_fit()
+            fit_result = self.on_after_fit(old_params=old_parameters, new_params=new_params)
         except Exception as e:
             self.log(f'ERROR: {e}')
             self.logger.error(f'ERROR: {e}', exc_info=True)

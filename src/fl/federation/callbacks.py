@@ -99,19 +99,21 @@ class ScaffoldCallback(Callback):
     c_global: ModuleParams
     c_local: ModuleParams
 
-    def __init__(self, K: int = 1, log_grad=False, log_diff=False) -> None:
+    def __init__(self, K: int = 1, log_grad=False, log_diff=False, grad_lr: float = 1.0) -> None:
         """Init function
 
         Args:
             K (int, optional): Number of training steps, i.e. number of batches used for training a model. Defaults to 1.
             log_grad (bool, optional): If True, logs gradient l2 norm to mlflow. Defaults to False.
             log_diff (bool, optional): If True, logs l2 norm of difference between local and global varaites to mlflow. Defaults to False.
+            grad_lr (float, optional): Scales c_global - c_local gradient adjustment. 
         """        
         self.K = K
         self.c_global = None
         self.c_local = None
         self.log_grad = log_grad
         self.log_diff = log_diff
+        self.grad_lr = grad_lr
         super().__init__()
 
     def on_after_backward(self, trainer: Trainer, pl_module: LightningModule) -> None:
@@ -119,7 +121,7 @@ class ScaffoldCallback(Callback):
         for name, v in params:
             # print(f'on_after_backward: {name}: {v.shape}, {v.grad}')
             if v.grad is not None and self.c_local is not None:
-                v.grad.data += (self.c_global[name].to(v.grad.data.device) - self.c_local[name].to(v.grad.data.device))
+                v.grad.data += self.grad_lr * (self.c_global[name].to(v.grad.data.device) - self.c_local[name].to(v.grad.data.device))
                 global_fl_step = trainer.max_steps*pl_module.fl_current_epoch()+trainer.global_step
                 if global_fl_step % 10 == 0 and self.log_grad:
                     mlflow.log_metric(f'{name}.grad.l2', v.grad.data.norm().detach().item(), global_fl_step)

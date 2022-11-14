@@ -274,7 +274,7 @@ class MCFedAdam(MCMixin,FedAdam):
 
 
 class Scaffold(FedAvg):
-    def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, **kwargs) -> None:
+    def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, grad_lr: float = 1.0, **kwargs) -> None:
         """FL strategy for heterogenious data which uses control variates for adjusting gradients on nodes.
         c_global variate is an estimation of true gradient of all clients.
         c_local variate is an estimation of node gradient.
@@ -289,6 +289,7 @@ class Scaffold(FedAvg):
         self.K = K
         self.local_lr = local_lr
         self.global_lr = global_lr
+        self.grad_lr = grad_lr
         self.c_global = None
         self.old_weights = None
         super().__init__(**kwargs)
