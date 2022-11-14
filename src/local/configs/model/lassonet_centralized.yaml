@@ -3,7 +3,7 @@
 model:
   name: lassonet
   precision: 32
-  batch_size: 16
+  batch_size: 64 
   max_epochs: 128
   hidden_size: 256
   alpha_start: -3
