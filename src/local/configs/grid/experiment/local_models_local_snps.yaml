@@ -10,4 +10,16 @@ model:
   name: ['lassonet']
 data:
   phenotype:
-    name: ['standing_height', 'erythrocyte_count', 'platelet_volume']
+    name:
+#         - standing_height
+#         - erythrocyte_count
+#         - platelet_volume
+        - triglycerides
+        - hdl_cholesterol
+        - vitamin_d
+        - creatinine
+        - alkaline_phosphatase
+        - cystatin_c
+        - gamma_glutamyltransferase
+        - apolipoprotein_a
+        - shbg
