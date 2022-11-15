@@ -73,9 +73,7 @@ class LocalExperiment(object):
                 'sample_count': str(round(num_samples, -2)),
                 'sample_count_exact': str(num_samples),
                 'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
-                'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas)),
-                'covariates': str(int(self.cfg.experiment.include_covariates)),
-                'snps': str(int(self.cfg.experiment.include_genotype))
+                'gwas': self.cfg.data.gwas
             }
         elif self.cfg.study == 'simulation':
             study_tags = {
@@ -564,7 +562,7 @@ class LassoNetExperiment(NNExperiment):
             signature = ModelSignature(inputs=input_schema, outputs=output_schema)
             mlflow.pytorch.log_model(self.model,
                                      artifact_path='lassonet-model',
-                                     registered_model_name=f"lassonet_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node_index}",
+                                     registered_model_name=f"lassonet_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node_index}_fold_{self.cfg.fold_index}",
                                      signature=signature,
                                      pickle_protocol=4)
 
@@ -578,6 +576,8 @@ class LassoNetExperiment(NNExperiment):
         metrics.log_to_mlflow()
         print(f'metrics: {metrics}')
         mlflow.log_metric('best_alpha', self.model.alphas[metrics.best_col])
+        mlflow.log_metric('best_alpha_index', metrics.best_col)
+        
 
 
 class LassoNetClassifierExperiment(LassoNetExperiment):

@@ -1,0 +1,6 @@
+# @package _global_
+
+experiment:
+  name: local-models-local-snps
+  snp_count: 10000
+  log_model: True

@@ -81,7 +81,7 @@ rule pca_project:
         genotype    = "genotypes/node_{node}/fold_{fold}_{part}.pgen",
         train_eigenvec = "pca/node_{node}/fold_{fold}_train_projections.eigenvec"
     resources:
-        time        = "00:30:00",
+        time        = "01:30:00",
         mem_mb      = 32000,
         partition   = "gpu_devel"
     params:
@@ -105,6 +105,10 @@ rule prepare_phenotypes_and_covariates:
         split_ids   = "split_ids/node_{node}/fold_{fold}_{part}.tsv",
         pca         = "pca/node_{node}/fold_{fold}_{part}_projections.sscore",
         dataset     = UKB_DATASET
+    resources:
+        time = "0:10:00",
+        mem_mb = 1000,
+        partition = "cpu"
     params:
         phenotype_name  = lambda wildcards: wildcards.phenotype,
         phenotype_code  = lambda wildcards: PHENOTYPE_CODES[wildcards.phenotype],
@@ -121,6 +125,10 @@ rule prepare_phenotypes_and_covariates:
 rule normalize_covariates:
     input:
         train   = "covariates/{phenotype}/node_{node}/fold_{fold}_train.tsv"
+    resources:
+        time = "0:10:00",
+        mem_mb = 1000,
+        partition = "cpu"
     params:
         to_normalize = ['age']
     log: "logs/normalize_covariates/{phenotype}/node_{node}/fold_{fold}_train.log"

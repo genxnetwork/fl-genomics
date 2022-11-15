@@ -8,17 +8,18 @@ MEAN_PHENO_DICT = {'standing_height': 170.0,
 
 QUANTITATIVE_PHENO_LIST = [
     'standing_height',
-    'platelet_count',
     'platelet_volume',
-    'body_mass_index',
-    'basal_metabolic_rate',
-    'hls_reticulocyte_count',
-    'forced_vital_capacity',
     'erythrocyte_count',
-    'reticulocyte_count',
-    'mean_sphered_cell_volume',
     'triglycerides',
-    'alanine_aminotransferase']
+    'hdl_cholesterol',
+    'vitamin_d',
+    'creatinine',
+    'alkaline_phosphatase',
+    'cystatin_c',
+    'gamma_glutamyltransferase',
+    'ebmd',
+    'apolipoprotein_a',
+    'shbg']
 
 PHENO_TYPE_DICT = {'ancestry': 'discrete',
                    'simulated': 'continuous',
