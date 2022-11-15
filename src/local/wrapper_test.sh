@@ -15,4 +15,4 @@ set +o allexport
 cd /trinity/home/$USER/uk-biobank/src
 
 singularity exec --nv -B /gpfs/gpfs0/ukb_data,/gpfs/gpfs0/$USER \
-  ../image.sif /trinity/home/$USER/.conda/envs/fl/bin/python -u -m local.centralized_metrics +experiment=centralized_metrics_meta "$@"
+  ../image.sif /trinity/home/$USER/.conda/envs/fl/bin/python -u -m local.cross_node_model_eval +experiment=centralized_metrics_local "$@"

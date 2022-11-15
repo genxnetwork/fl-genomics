@@ -6,9 +6,9 @@ from local.experiment import LassoNetExperiment
 
 
 @hydra.main(config_path='configs', config_name='default')
-def centralized_metrics(cfg: DictConfig):
+def cross_node_model_eval(cfg: DictConfig):
     """
-    Loads a trained model from a specified experiment/parameters and test it on
+    Loads a trained model from a specified experiment/parameters and tests it on
     another node, logging the results.
     """
     print(OmegaConf.to_yaml(cfg))
@@ -49,4 +49,4 @@ def centralized_metrics(cfg: DictConfig):
         mlflow.log_metric('test_r2', metrics.test[best_alpha_index].r2)
 
 if __name__ == '__main__':
-    centralized_metrics()
+    cross_node_model_eval()
