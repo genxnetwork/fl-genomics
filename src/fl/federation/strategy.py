@@ -101,14 +101,24 @@ class Checkpointer:
     def set_best_metrics(self, metrics: Metrics) -> None:
         if self.history[-1] == min(self.history):
             self.best_metrics = metrics
+            
+    def _clear_old_checkpoints(self, start_rnd: int, current_rnd: int) -> None:
+        best_rnd = numpy.argmin(self.history)
+        for old_rnd in range(start_rnd, current_rnd):
+            if old_rnd != best_rnd:
+                os.remove(os.path.join(self.checkpoint_dir, f'round-{old_rnd}.ckpt.npz'))
 
     def save_checkpoint(self, rnd: int, aggregated_parameters: Parameters) -> None:
-        """Checks if current model has minimum loss and if so, saves it to 'best_temp_model.ckpt'
+        """Saves current round weights to {self.checkpoint_dir}/round-{rnd}.ckpt
+        Removes old checkpoint with loss worse then minimum each 10 rounds
 
         Args:
             rnd (int): Current FL round
             aggregated_parameters (Parameters): Aggregated model parameters
         """        
+        if rnd != 0 and rnd % 10 == 0:
+            self._clear_old_checkpoints(max(1, rnd - 10), rnd)
+            
         if aggregated_parameters is not None:
             aggregated_weights = parameters_to_weights(aggregated_parameters)
             numpy.savez(os.path.join(self.checkpoint_dir, f'round-{rnd}.ckpt'), *aggregated_weights)
