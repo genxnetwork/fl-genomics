@@ -1,3 +1,4 @@
+import logging
 from typing import Dict, OrderedDict
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.trainer import Trainer
@@ -45,6 +46,7 @@ class CovariateWeightsCallback(ClientCallback):
         
     def on_before_fit(self, model: BaseNet):
         if not self.cov_weights_set:
+            logging.info(f'CovariateWeightsCallback is setting weights before fit: {self.cov_weights}')
             model.set_covariate_weights(self.cov_weights)        
             self.cov_weights_set = True
 

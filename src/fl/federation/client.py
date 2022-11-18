@@ -226,7 +226,6 @@ class FLClient(NumPyClient):
             new_params = self.get_parameters()
             fit_result = self.on_after_fit(old_params=old_parameters, new_params=new_params)
         except Exception as e:
-            self.log(f'ERROR: {e}')
             self.logger.error(f'ERROR: {e}', exc_info=True)
             
         return new_params, self.data_module.train_len(), fit_result

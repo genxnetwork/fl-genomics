@@ -131,20 +131,23 @@ class Node(Process):
         Returns:
             Optional[List[ClientCallback]]: List of initialized callbacks or None
         """
+        callbacks = []
+        if self.cfg.experiment.pretrain_on_cov == 'weights':
+            cov_weights = self.experiment.pretrain()
+            cw_callback = CovariateWeightsCallback(cov_weights)
+            callbacks.append(cw_callback)
+            self.log(f'Created CovariateWeightsCallback')
+
         callbacks_desc = self.cfg.get('callbacks', None)
         if callbacks_desc is None:
-            return None
-        callbacks = []
+            return callbacks
+        
         for node in callbacks_desc:
             print(node)
             if node == 'plot_landscape':
                 assert isinstance(self.experiment, QuadraticNNExperiment)
                 callbacks.append(PlotLandscapeCallback(self.experiment.data, self.experiment.y, self.experiment.beta))
 
-        if self.cfg.experiment.pretrain_on_cov == 'weights':
-            cov_weights = self.experiment.pretrain()
-            cw_callback = CovariateWeightsCallback(cov_weights)
-            callbacks.append(cw_callback)
         return callbacks        
 
     def run(self) -> None:
