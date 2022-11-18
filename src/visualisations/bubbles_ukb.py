@@ -32,7 +32,10 @@ if __name__ == '__main__':
                                   custom_transform=ethnicity_from_dataset)
     df = pd.concat([df_local, df_centr])
     df = folds_to_quantiles(df.query("metric_name == 'metrics.val_r2'"), fold_col='tags.fold_index', val_col='metric_value')
+
+
     # fig = px.strip(df.query("metric_name == 'metrics.val_r2'"), x='tags.phenotype', y='metric_value')
-    fig = px.scatter(df, x='tags.dataset', facet_col='tags.phenotype', y='metric_value')
-    fig.write_html()
+    # fig = px.scatter(df, x='tags.dataset', facet_col='tags.phenotype', y='median')
+    fig = px.bar(df, color='tags.dataset', x='tags.phenotype', y='median', barmode='group')
+    fig.write_html('/home/genxadmin/tmp.html')
     pass

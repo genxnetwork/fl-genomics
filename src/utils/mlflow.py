@@ -6,9 +6,10 @@ import pandas as pd
 
 
 def folds_to_quantiles(dfc, fold_col='tags.fold_index', val_col='metric_value', q=dict(lower=0.1, median=0.5, upper=0.9)):
-    print(2+2)
+    """ Transforms dataframe with multiple folds """
     df = dfc.groupby([x for x in dfc.columns if (x != fold_col) & (x != val_col)])[val_col].quantile(list(q.values())).unstack()
-    return df
+    df.columns = list(q.keys())
+    return df.reset_index()
 
 
 def mlflow_get_results_table(client, experiment_name, selected_tags, selected_metric,
