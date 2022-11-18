@@ -20,6 +20,11 @@ def ethnicity_from_dataset(df: pd.DataFrame):
     return df
 
 
+def normalize_by_centr_median(df: pd.DataFrame):
+    df.loc[:, ['lower', 'median', 'upper']] = df.loc[:, ['lower', 'median', 'upper']] / df.loc[df['tags.dataset'].str.contains('Centralized'), 'median'].squeeze()
+    return df
+
+
 if __name__ == '__main__':
     df_local = mlflow_get_results_table(client=MlflowClient(), experiment_name='local-models-local-snps',
                                   selected_tags=SELECTED_TAGS, selected_metric=SELECTED_METRICS,
@@ -32,10 +37,13 @@ if __name__ == '__main__':
                                   custom_transform=ethnicity_from_dataset)
     df = pd.concat([df_local, df_centr])
     df = folds_to_quantiles(df.query("metric_name == 'metrics.val_r2'"), fold_col='tags.fold_index', val_col='metric_value')
-
+    df = df.groupby(['tags.phenotype', 'tags.model'], as_index=True)[['tags.dataset', 'lower', 'median',
+       'upper']].apply(normalize_by_centr_median).reset_index()
 
     # fig = px.strip(df.query("metric_name == 'metrics.val_r2'"), x='tags.phenotype', y='metric_value')
     # fig = px.scatter(df, x='tags.dataset', facet_col='tags.phenotype', y='median')
-    fig = px.bar(df, color='tags.dataset', x='tags.phenotype', y='median', barmode='group')
+    df['error_up'] = df['upper'] - df['median']
+    df['error_down'] = df['median'] - df['lower']
+    fig = px.bar(df, color='tags.dataset', x='tags.phenotype', y='median', barmode='group', error_y=df['error_up'], error_y_minus=df['error_down'])
     fig.write_html('/home/genxadmin/tmp.html')
     pass
