@@ -14,6 +14,7 @@ import logging
 from fl.node_process import MlflowInfo, Node, TrainerInfo
 from fl.server_process import Server
 from utils.loaders import calculate_sample_weights
+from utils.network import get_available_ports
 
 
 # necessary to add cwd to path when script run
@@ -128,14 +129,15 @@ def run(cfg: DictConfig):
         # assigning gpus to nodes and creating process objects
         gpu_index = -1
         active_nodes = get_active_nodes(cfg)
+        node_ports = get_available_ports(len(active_nodes))
         node_processes = []
-        for node_info in active_nodes:
+        for node_info, node_port in zip(active_nodes, node_ports):
             need_gpu = node_info.resources.get('gpus', 0)
             if need_gpu:
                 gpu_index += 1
-                trainer_info = TrainerInfo([gpu_index], 'gpu', node_info.name, node_info.index)
+                trainer_info = TrainerInfo([gpu_index], 'gpu', node_info.name, node_info.index, node_port)
             else:
-                trainer_info = TrainerInfo(1, 'cpu', node_info.name, node_info.index)
+                trainer_info = TrainerInfo(1, 'cpu', node_info.name, node_info.index, node_port)
             node = Node(server_url, log_dir, info, queue, cfg, trainer_info)
             node.start()
             print(f'starting node {node_info.index}, name: {node_info.name}')
