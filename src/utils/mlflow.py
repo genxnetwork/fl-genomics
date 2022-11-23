@@ -15,10 +15,12 @@ def folds_to_quantiles(dfc, fold_col='tags.fold_index', val_col='metric_value', 
 def mlflow_get_results_table(client, experiment_name, selected_tags, selected_metric,
                              rename_cols={},
                              cols_to_int=[],
+                             dropna_col=[],
                              custom_transform=None):
     """ Retrieve local models from an mlflow client """
     exp_id = client.get_experiment_by_name(experiment_name).experiment_id
     df = mlflow.search_runs(experiment_ids=[exp_id]).rename(columns=rename_cols)
+    df = df.dropna(subset=dropna_col)
     df[cols_to_int] = df[cols_to_int].astype(int)
     if custom_transform is not None:
         df = custom_transform(df)
