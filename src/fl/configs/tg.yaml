@@ -6,7 +6,7 @@ defaults:
   - scheduler: exponential_lr
   - training: default
   - split: superpop
-  - strategy: fedavg
+  - strategy: scaffold
 
 study: tg
 log_weights: False
