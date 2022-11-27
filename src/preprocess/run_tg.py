@@ -11,7 +11,7 @@ from utils.split import Split
 from preprocess.train_val_split import CVSplitter
 from configs import pruning_config
 from configs.global_config import TG_BFILE_PATH, SPLIT_DIR, SPLIT_GENO_DIR, FEDERATED_PCA_DIR, SPLIT_ID_DIR, PCA_DIR
-from configs.qc_config import sample_qc_config, variant_qc_config
+from configs.qc_config import sample_qc_config, variant_qc_config_tg
 from configs.split_config import FOLDS_NUMBER
 
 from preprocess.pruning import PlinkPruningRunner
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     varqc_prefix = TG_BFILE_PATH + '_varqc'
     if Stage.VARIANT_QC in stages:
         logger.info('Centralised variant QC')
-        QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config)
+        QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config_tg)
 
     # 2. Split into ethnic datasets and then QC each local dataset
     splitter_anc = SplitTG()
