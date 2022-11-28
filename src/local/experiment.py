@@ -334,7 +334,7 @@ class TGNNExperiment(NNExperiment):
             self.x,
             self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
             batch_size=self.cfg.model.get('batch_size', len(self.x.train)),
-            drop_last=False
+            drop_last=True
         )
 
     def create_model(self):

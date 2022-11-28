@@ -43,7 +43,7 @@ class DataModule(LightningDataModule):
             loader = DataLoader(self.val_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
             loader = DataLoader(
-                self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=self.drop_last
+                self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=False
             )
         return loader
 
@@ -53,7 +53,7 @@ class DataModule(LightningDataModule):
             loader = DataLoader(self.test_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
             loader = DataLoader(
-                self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=self.drop_last
+                self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=False
             )
         return loader
 

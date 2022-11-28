@@ -336,7 +336,9 @@ class Scaffold(FedAvg):
     def _get_mean_local_lr(self, rnd: int):
         assert rnd > 0
         start_lr = self.local_lr*self.local_gamma**((rnd - 1)*self.epochs_in_round)
+        logging.info(f'start_lr is {start_lr} for rnd {rnd}')
         end_lr = self.local_lr*self.local_gamma**(rnd*self.epochs_in_round - 1)
+        logging.info(f'end_lr is {end_lr} for round {rnd}')
         mean_lr = numpy.mean(numpy.geomspace(start_lr, end_lr))
         return mean_lr
     
@@ -347,7 +349,33 @@ class Scaffold(FedAvg):
             count = batches_per_epoch * self.epochs_in_round
             counts.append(self.K) # temporary, for debugging purposes
         return counts
+    
+    def _get_c_delta_coefs(self, rnd: int, results: List[Tuple[ClientProxy, FitRes]]) -> List[float]:
+        """Calculates average K*\eta_l for local control variate updating
+        It is important when we have learning rate decay on clients
+        \sum_i^p K_i eta_{l,i} where p is the number of epochs in round 
 
+        Args:
+            rnd (int): _description_
+            results (List[Tuple[ClientProxy, FitRes]]): _description_
+
+        Returns:
+            List[int]: _description_
+        """        
+        coefs = []
+        for _, result in results:
+            batches_per_epoch = result.num_examples // self.batch_size + (result.num_examples % self.batch_size > 0)
+            max_epochs_from_steps = self.K // batches_per_epoch + (self.K % batches_per_epoch > 0)
+            coef = 0.0
+            for epoch in range(0, max_epochs_from_steps):
+                epoch_lr = self.local_lr*self.local_gamma**((rnd - 1)*self.epochs_in_round + epoch)
+                if epoch == max_epochs_from_steps - 1 and self.K % batches_per_epoch > 0:
+                    coef += self.K % batches_per_epoch*epoch_lr
+                else:
+                    coef += batches_per_epoch*epoch_lr
+            coefs.append(coef)
+        return coefs        
+                
     def aggregate_fit(
         self, rnd: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[BaseException]
     ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
@@ -356,15 +384,12 @@ class Scaffold(FedAvg):
         # self._plot_2d_landscape(rnd, results)
         client_weights = [parameters_to_weights(fit_res.parameters) for _, fit_res in results]
 
-        mean_local_lr = self._get_mean_local_lr(rnd)
-        batch_counts = self._get_batch_counts(results)
-        logging.info(f'batch_counts are {batch_counts}')
-        logging.info(f'mean_local_lr is {mean_local_lr} for rnd {rnd} and epochs in round {self.epochs_in_round}')
-        
+        c_delta_coefs = self._get_c_delta_coefs(rnd, results)        
+        logging.info(f'c_delta_coefs are {c_delta_coefs} for rnd {rnd}')
         for layer_index, old_layer_weight in enumerate(self.old_weights):
             cg_layer = self.c_global[layer_index]
-            c_deltas = [-cg_layer + (1/(bc*mean_local_lr))*(old_layer_weight - cw[layer_index]) \
-                for bc, cw in zip(batch_counts, client_weights)]
+            c_deltas = [-cg_layer + (1/cdc)*(old_layer_weight - cw[layer_index]) \
+                for cdc, cw in zip(c_delta_coefs, client_weights)]
             c_avg_delta = sum(c_deltas)/len(client_weights)
             # logging.info(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
             for i, cw in enumerate(client_weights):
@@ -372,7 +397,7 @@ class Scaffold(FedAvg):
             
             self.c_global[layer_index] = cg_layer + c_avg_delta
 
-        new_weights = aggregate([(cw, bc) for bc, cw in zip(batch_counts, client_weights)])
+        new_weights = aggregate([(cw, 1) for cw in client_weights])
         for layer_index, (old_layer_weight, new_layer_weight) in enumerate(zip(self.old_weights, new_weights)):
             # print('weights aggregation: ', layer_index, type(old_layer_weight), type(new_layer_weight))
             # print(old_layer_weight.shape, new_layer_weight.shape)
