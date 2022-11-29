@@ -66,8 +66,6 @@ class Node(Process):
         self.cfg = OmegaConf.merge(cfg, node_cfg)
         torch.set_num_threads(1)
 
-        torch.set_num_threads(1)
-
         if self.cfg.study == 'tg':
             self.experiment = TGNNExperiment(self.cfg)
         elif 'landscape' in self.cfg.experiment.name:

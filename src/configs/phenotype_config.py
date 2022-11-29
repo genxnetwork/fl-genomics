@@ -18,6 +18,8 @@ QUANTITATIVE_PHENO_LIST = [
     'reticulocyte_count',
     'mean_sphered_cell_volume',
     'triglycerides',
+    'hdl_cholesterol',
+    'vitamin_d',
     'alanine_aminotransferase']
 
 PHENO_TYPE_DICT = {'ancestry': 'discrete',
