@@ -110,10 +110,10 @@ if __name__ == '__main__':
         ).run(**pruning_config.FEDERATED_PCA_OPTIMAL)
 
     # 5. Split each node into K folds
-    superpop_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
+    current_split = Split(SPLIT_DIR, 'ancestry', nodes=nodes)
     if Stage.FOLD_SPLIT in stages:
         logger.info('making k-fold split for the TG dataset')
-        splitter = CVSplitter(superpop_split)
+        splitter = CVSplitter(current_split)
 
         ancestry_df = splitter_anc.df
         for node in nodes:
@@ -131,7 +131,7 @@ if __name__ == '__main__':
                 ids = []
 
                 for node in nodes:
-                    ids_filepath = superpop_split.get_ids_path(
+                    ids_filepath = current_split.get_ids_path(
                         fold_index=fold_index,
                         part_name=part_name,
                         node=node
@@ -139,7 +139,7 @@ if __name__ == '__main__':
 
                     ids.extend(pd.read_csv(ids_filepath, sep='\t')['IID'].to_list())
 
-                centralised_ids_filepath = superpop_split.get_ids_path(
+                centralised_ids_filepath = current_split.get_ids_path(
                     fold_index=fold_index,
                     part_name=part_name,
                     node='ALL'
@@ -147,21 +147,21 @@ if __name__ == '__main__':
 
                 pd.DataFrame({'IID': ids}).to_csv(centralised_ids_filepath, sep='\t', index=False)
 
-        logger.info(f"Processing split {superpop_split.root_dir}")
+        logger.info(f"Processing split {current_split.root_dir}")
         os.makedirs(os.path.join(SPLIT_GENO_DIR, 'ALL'), exist_ok=True)
         os.makedirs(os.path.join(SPLIT_DIR, 'only_phenotypes', 'ancestry', 'ALL'), exist_ok=True)
         for node in nodes + ['ALL']:
             logger.info(f"Saving train, val, test genotypes for node {node}")
             for fold_index in range(FOLDS_NUMBER):
                 for part_name in ['train', 'val', 'test']:
-                    ids_path = superpop_split.get_ids_path(node=node, fold_index=fold_index, part_name=part_name)
+                    ids_path = current_split.get_ids_path(node=node, fold_index=fold_index, part_name=part_name)
 
                     # Extract and save genotypes
                     run_plink(
                         args_dict={
-                            '--pfile': superpop_split.get_source_pfile_path(node=node),
+                            '--pfile': current_split.get_source_pfile_path(node=node),
                             '--keep': ids_path,
-                            '--out':  superpop_split.get_pfile_path(
+                            '--out':  current_split.get_pfile_path(
                                 node=node, fold_index=fold_index, part_name=part_name
                             )
                         },
@@ -171,7 +171,7 @@ if __name__ == '__main__':
                     # write ancestries aka phenotypes
                     relevant_ids = ancestry_df['IID'].isin(pd.read_csv(ids_path, sep='\t')['IID'])
                     ancestry_df.loc[relevant_ids, ['IID', 'ancestry']].to_csv(
-                        superpop_split.get_phenotype_path(node=node, fold_index=fold_index, part=part_name),
+                        current_split.get_phenotype_path(node=node, fold_index=fold_index, part=part_name),
                         sep='\t', index=False
                     )
 
@@ -193,9 +193,9 @@ if __name__ == '__main__':
 
             plink_arguments = [
                 '--pfile', os.path.join(SPLIT_GENO_DIR, 'ALL_filtered'),
-                '--keep', superpop_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
+                '--keep', current_split.get_ids_path(fold_index=fold_index, part_name='train', node='ALL'),
                 '--freq', 'counts',
-                '--out', superpop_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext=''),
+                '--out', current_split.get_pca_path(node='ALL', fold_index=fold_index, part='train', ext=''),
                 '--pca', 'allele-wts', '20'
             ]
 
@@ -209,17 +209,17 @@ if __name__ == '__main__':
             for node in nodes + ['ALL']:
                 for part_name in ['train', 'val', 'test']:
                     plink_arguments = [
-                        '--pfile', superpop_split.get_pfile_path(
+                        '--pfile', current_split.get_pfile_path(
                             node=node, fold_index=fold_index, part_name=part_name
                         ),
-                        '--read-freq', superpop_split.get_pca_path(
+                        '--read-freq', current_split.get_pca_path(
                             node='ALL', fold_index=fold_index, part='train', ext='.acount'
                         ),
-                        '--score', superpop_split.get_pca_path(
+                        '--score', current_split.get_pca_path(
                             node='ALL', fold_index=fold_index, part='train', ext='.eigenvec.allele'
                         ), '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize',
                         '--score-col-nums', '6-25',
-                        '--out', superpop_split.get_pca_path(node=node, fold_index=fold_index, part=part_name),
+                        '--out', current_split.get_pca_path(node=node, fold_index=fold_index, part=part_name),
                     ]
 
                     # Use pruned ids if file is present
