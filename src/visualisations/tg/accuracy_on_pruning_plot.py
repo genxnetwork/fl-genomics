@@ -42,7 +42,6 @@ class AccuracyOnPruningPlot:
         self.federated_pattern_pool = [None, 'x', '.']
         self.n_federated_pattern = 0
 
-        # ---
         self.fig.update_layout(
             xaxis=dict(title='Number of SNPs'),
             xaxis2=dict(title='Communication costs (GB)', anchor='free', overlaying='x', side='top', position=0.8),
