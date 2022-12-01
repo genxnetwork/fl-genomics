@@ -29,7 +29,7 @@ class ModelFactory:
     Raises:
         ValueError: If model is not one of the linear_regressor, mlp_regressor, lassonet_regressor
 
-    """    
+    """
     @staticmethod
     def _create_linear_regressor(input_size: int, covariate_count: int, params: Any) -> LinearRegressor:
         return LinearRegressor(
@@ -68,7 +68,7 @@ class ModelFactory:
             hidden_size=params.model.hidden_size,
             optim_params=params.optimizer,
             scheduler_params=params.scheduler,
-            cov_count=covariate_count, 
+            cov_count=covariate_count,
             alpha_start=params.model.alpha_start,
             alpha_end=params.model.alpha_end,
             init_limit=params.model.init_limit,
@@ -98,9 +98,9 @@ class CallbackFactory:
         # callbacks.append(early_stopping)
         if params.strategy.name == 'scaffold':
             callbacks.append(
-                ScaffoldCallback(params.strategy.args.K, 
-                                 log_grad=params.log_grad, 
-                                 log_diff=params.log_weights, 
+                ScaffoldCallback(params.strategy.args.K,
+                                 log_grad=params.log_grad,
+                                 log_diff=params.log_weights,
                                  grad_lr=params.strategy.args.grad_lr)
             )
         return callbacks
@@ -110,7 +110,7 @@ class MetricsLogger(ABC):
     @abstractmethod
     def log_eval_metric(self, metric: Metrics):
         pass
-    
+
     @abstractmethod
     def log_weights(self, rnd: int, layers: List[str], old_weights: Weights, new_weights: Weights):
         pass
@@ -122,7 +122,7 @@ class MLFlowMetricsLogger(MetricsLogger):
 
     def log_weights(self, rnd: int, layers: List[str], old_weights: Weights, new_weights: Weights):
         # logging.info(f'weights shape: {[w.shape for w in new_weights]}')
-        
+
         client_diffs = {layer: numpy.linalg.norm(cw - aw).item() for layer, cw, aw in zip(layers, old_weights, new_weights)}
         for layer, diff in client_diffs.items():
             mlflow.log_metric(f'{layer}.l2', diff, rnd)
@@ -138,7 +138,7 @@ class FLClient(NumPyClient):
             params (DictConfig): OmegaConf DictConfig with subnodes strategy and node. `node` should have `model`, and `training` parameters
             logger (Logger): Process-specific logger of text messages
             metrics_logger (MetricsLogger): Process-specific logger of metrics and weights (mlflow, neptune, etc)
-        """        
+        """
         self.server = server
         self.model = ModelFactory.create_model(data_module.feature_count(), data_module.covariate_count(), params)
         self.callbacks = CallbackFactory.create_callbacks(params)
@@ -169,18 +169,18 @@ class FLClient(NumPyClient):
         for callback in self.callbacks:
             if isinstance(callback, ScaffoldCallback):
                 callback.c_global = weights_to_module_params(self._get_layer_names(), bytes_to_weights(update_params['c_global']))
-                
+
     def update_callbacks_after_fit(self, update_params: Dict, **kwargs):
         if self.callbacks is None:
             return
         for callback in self.callbacks:
             if isinstance(callback, ScaffoldCallback):
                 callback.update_c_local(
-                    kwargs['eta'], callback.c_global, 
+                    kwargs['eta'], callback.c_global,
                     old_params=weights_to_module_params(self._get_layer_names(), kwargs['old_params']),
                     new_params=weights_to_module_params(self._get_layer_names(), kwargs['new_params'])
                 )
-    
+
     def _reseed_torch(self):
         torch.manual_seed(hash(self.params.node.index) + self.model.current_round)
 
@@ -211,15 +211,15 @@ class FLClient(NumPyClient):
 
         try:
             self.on_before_fit(config)
-            
+
             old_parameters = [p.copy() for p in parameters]
-            start = time()    
+            start = time()
             self.model.train()
             self.model.current_round = config['current_round']
             # because train_dataloader will get the same seed and return the same permutation of training samples each federated round
             self._reseed_torch()
             trainer = Trainer(logger=False, **{**self.params.training, **{'callbacks': self.callbacks}})
-            
+
             trainer.fit(self.model, datamodule=self.data_module)
             end = time()
             self.log(f'node: {self.params.node.index}\tfit elapsed: {end-start:.2f}s')
@@ -227,7 +227,7 @@ class FLClient(NumPyClient):
             fit_result = self.on_after_fit(old_params=old_parameters, new_params=new_params)
         except Exception as e:
             self.logger.error(f'ERROR: {e}', exc_info=True)
-            
+
         return new_params, self.data_module.train_len(), fit_result
 
     def evaluate(self, parameters: Weights, config):
@@ -238,9 +238,9 @@ class FLClient(NumPyClient):
         self.set_parameters(parameters)
         self.model.eval()
 
-        start = time()                
+        start = time()
         need_test_eval = 'current_round' in config and config['current_round'] == -1
-        unreduced_metrics = self.model.predict_and_eval(self.data_module, 
+        unreduced_metrics = self.model.predict_and_eval(self.data_module,
                                                         test=need_test_eval)
 
         self.metrics_logger.log_eval_metric(unreduced_metrics)
@@ -248,6 +248,6 @@ class FLClient(NumPyClient):
         end = time()
         self.log(f'node: {self.params.node.index}\tround: {self.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
         # print(f'round: {self.model.current_round}\t' + str(unreduced_metrics))
-        
+
         results = unreduced_metrics.to_result_dict()
         return unreduced_metrics.val_loss, val_len, results
