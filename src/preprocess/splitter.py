@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from ukb_loader import UKBDataLoader
 from numpy.random import seed, choice
 import pandas as pd
 pd.options.mode.chained_assignment = None # Shush
@@ -23,6 +22,7 @@ class SplitBase(object):
         drops rows with missing values and returns a DataFrame formatted to be used
         for downstream analysis with PLINK.
         """
+        from ukb_loader import UKBDataLoader
         loader = UKBDataLoader(ukb_loader_dir, 'split', '21000', ['31'])
         df = pd.concat((loader.load_train(), loader.load_val(), loader.load_test()))
         df.columns = ['sex', 'ethnic_background']
@@ -148,6 +148,7 @@ class SplitAssessmentCentre(SplitBase):
         '''
         Splits UKB samples based on Assessment Centres
         '''
+        from ukb_loader import UKBDataLoader
         loader = UKBDataLoader(ukb_loader_dir, 'split', '54', ['31'])
         df = pd.concat((loader.load_train(), loader.load_val(), loader.load_test()))
         df['FID'] = df['IID'] = df.index
