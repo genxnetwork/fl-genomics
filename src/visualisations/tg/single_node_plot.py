@@ -10,6 +10,14 @@ from plotly import subplots
 
 
 class SingleNodePlot:
+    """
+    The plot shows dependence of loss on the total number of epochs for a single node.
+    The plot visualizes convergence of the training process. There are two subplots:
+
+    1. Left subplot: full epochs' range is shown.
+    2. Right subplot: only several rounds of communication are shown.
+    """
+
     def __init__(self, yaxis='Loss', title='Learning curve', color=px_colors.qualitative.Plotly[0]):
         self.fig = subplots.make_subplots(rows=1, cols=2)
         self.color = color

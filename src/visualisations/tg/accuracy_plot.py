@@ -10,6 +10,21 @@ from plotly import subplots
 
 
 class AccuracyPlot:
+    """
+    The plot shows models' accuracy on total number of epochs and total number of rounds for different
+    federated strategies. It consists of two subplots:
+
+    1. Left subplot: dependece of accuracy on the total number of epochs;
+    2. Right subplot: dependence of accuracy on the total number of rounds.
+
+    Since the total number of rounds dirrectly corresponds to the communication costs, rounds can be
+    easily tranformed into costs by multiplying on the cost per round factor (see `cost_per_round_mb`
+    parameter in the constructor).
+
+    Communication costs are shown in the right subplot with the secondary x-axis. Vertical line
+    denotes the communication costs which are spent on the federated PCA.
+    """
+
     def __init__(self, yaxis='Accuracy', colors=px_colors.qualitative.Plotly, cost_per_round_mb=None):
         self.fig = subplots.make_subplots(rows=1, cols=2)
         self.colors = colors

@@ -8,6 +8,12 @@ import plotly.express.colors as px_colors
 
 
 class LossPlot:
+    """
+    Shows dependence of loss on the total number of epochs for different strategies.
+    The plot visualizes convergence of the training process. Color palette is cotrolled
+    by the `colors` parameter of the constructor.
+    """
+
     def __init__(self, yaxis='Loss', colors=px_colors.qualitative.Plotly):
         self.fig = go.Figure()
         self.colors = colors

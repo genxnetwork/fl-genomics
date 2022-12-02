@@ -8,21 +8,32 @@ import plotly.express.colors as px_colors
 
 
 class AccuracyOnPruningPlot:
+    """
+    Shows accuracy of the centralized MLP trained with PCs obtained with centralized or
+    federated PCA. Median and error bands are shown X-axis corrensponds to the total number
+    of variants which are used in PCA. Number of variants is controlled by the `plink` pruning
+    parameter during data preprocessing.
+
+    Communication costs for the federated PCA depends linearly on the number of variants.
+    The number can be transformed into costs by multiplying by a factor. Communication costs
+    are shown with the secondary x-axis.
+
+    This plot is used to select a number of variants as a point where accuracy's median
+    and error bands are stabilized. Selected number of variants is marked with a vertical
+    line (see `set_selected_variants_number` method).
+    """
+
     EMPTY_LINE = dict(color='rgba(0, 0, 0, 0)')
 
     def __init__(
             self,
             trace_colors=px_colors.qualitative.Plotly,
-            band_colors=px_colors.qualitative.Plotly,
-            cost_per_snp_mb=None
+            band_colors=px_colors.qualitative.Plotly
         ):
 
         self.fig = go.Figure()
         self.traces = []
         self.bands = []
-
-        assert cost_per_snp_mb is not None
-        self.cost_per_snp_mb = cost_per_snp_mb
 
         assert len(trace_colors) > 1 and len(band_colors) > 1
         self.centralized_trace_color = trace_colors[0]
