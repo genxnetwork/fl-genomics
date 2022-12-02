@@ -39,7 +39,7 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: 
 
     logging.info(f'strategy args: {args}')
 
-    mlflow_logger = MlflowLogger(epochs_in_round, model_type)
+    mlflow_logger = MlflowLogger(epochs_in_round)
     checkpointer = Checkpointer(checkpoint_dir)
     if strategy_params.name == 'fedavg':
         return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)

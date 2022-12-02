@@ -18,7 +18,7 @@ import flwr
 import torch
 
 from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
-from local.experiment import NNExperiment, QuadraticNNExperiment, TGNNExperiment
+from local.experiment import NNExperiment, TGNNExperiment
 from fl.federation.callbacks import PlotLandscapeCallback, CovariateWeightsCallback
 
 
@@ -140,12 +140,6 @@ class Node(Process):
         if callbacks_desc is None:
             return callbacks
         
-        for node in callbacks_desc:
-            print(node)
-            if node == 'plot_landscape':
-                assert isinstance(self.experiment, QuadraticNNExperiment)
-                callbacks.append(PlotLandscapeCallback(self.experiment.data, self.experiment.y, self.experiment.beta))
-
         return callbacks        
 
     def run(self) -> None:
@@ -158,7 +152,7 @@ class Node(Process):
         metrics_logger = MLFlowMetricsLogger()
         client_callbacks = self.create_callbacks()
         client = FLClient(self.server_url,
-                          self.experiment.data_module,
+                          self.experiment,
                           self.cfg,
                           self.logger,
                           metrics_logger,
@@ -185,9 +179,4 @@ class Node(Process):
                 residual = self.experiment.pretrain_and_substract()
                 self.experiment.data_module.update_y(residual)
             
-            try:
-                self._train_model(client)
-            except Exception as e:
-                self.logger.info(e)
-                self.logger.error(e)
-            
+            self._train_model(client)
