@@ -48,8 +48,13 @@ if __name__ == '__main__':
         'stages', metavar='stage', type=str, nargs='*',
         help=f'Available stages: {Stage.all()}'
     )
+    parser.add_argument(
+        'diss', type=float, default=1.0,
+        help='Dissimilarity degree: 1 means heterogeneous and 0 means homogeneous'
+    )
     args = parser.parse_args()
     stages = set(args.stages) if args.stages else Stage.centralized()
+    dissimilarity = args.diss
 
 
     logging.basicConfig(
@@ -86,7 +91,7 @@ if __name__ == '__main__':
     nodes = splitter_anc.nodes
     if Stage.POPULATION_SPLIT in stages:
         logger.info('Splitting ethnic dataset')
-        splitter_anc.split(input_prefix=varqc_prefix, make_pgen=True, alpha=1)
+        splitter_anc.split(input_prefix=varqc_prefix, make_pgen=True, alpha=dissimilarity)
 
     # 3. Perform sample QC on each node separately
     if Stage.SAMPLE_QC in stages:
