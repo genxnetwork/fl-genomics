@@ -5,7 +5,7 @@ defaults:
   - optimizer: sgd
   - scheduler: exponential_lr
   - training: default
-  - split: homogeneous
+  - split: homogeneous2
   - strategy: scaffold
 
 study: tg

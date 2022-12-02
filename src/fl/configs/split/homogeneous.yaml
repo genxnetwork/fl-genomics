@@ -1,4 +1,4 @@
-name: 'homo_split' 
+name: 'diss_0.0'
 path: '/mnt/genx-bio-share/TG/data/chip/${.name}'
 nodes: 
   n0:
