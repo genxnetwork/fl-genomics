@@ -153,7 +153,7 @@ class FLClient(NumPyClient):
     def log(self, msg):
         self.logger.info(msg)
 
-    def get_parameters(self) -> Weights:
+    def get_parameters(self, config=None) -> Weights:
         return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
 
     def set_parameters(self, weights: Weights):
