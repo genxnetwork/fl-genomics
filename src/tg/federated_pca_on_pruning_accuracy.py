@@ -9,7 +9,7 @@ from pytorch_lightning.trainer import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
 
 from nn.models import MLPClassifier
-from configs.phenotype_config import get_accuracy
+from utils.metrics import get_accuracy
 from configs.split_config import FOLDS_NUMBER
 from preprocess.pruning import PlinkPruningRunner
 from tg.data_provider import DataProvider
