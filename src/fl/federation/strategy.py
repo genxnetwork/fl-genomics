@@ -285,7 +285,7 @@ class MCFedAdam(MCMixin,FedAdam):
 
 class Scaffold(FedAvg):
     def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, grad_lr: float = 1.0, 
-                 local_gamma: float = 1.0, epochs_in_round: int = 1, batch_size: int = 64,
+                 local_gamma: float = 1.0, epochs_in_round: int = 1, batch_size: int = 64, global_lr_decay: float = 1.0,
                  **kwargs) -> None:
         """FL strategy for heterogenious data which uses control variates for adjusting gradients on nodes.
         c_global variate is an estimation of true gradient of all clients.
@@ -305,6 +305,7 @@ class Scaffold(FedAvg):
         self.local_gamma = local_gamma
         self.epochs_in_round = epochs_in_round
         self.batch_size = batch_size
+        self.global_lr_decay = global_lr_decay
         self.c_global = None
         self.old_weights = None
         super().__init__(**kwargs)
@@ -363,6 +364,8 @@ class Scaffold(FedAvg):
             List[int]: _description_
         """        
         coefs = []
+        batch_counts = self._get_batch_counts(results)
+        return [self.K*(self.local_lr * self.local_gamma** (rnd - 1)) for bc, _ in zip(batch_counts, results)]
         for _, result in results:
             batches_per_epoch = result.num_examples // self.batch_size + (result.num_examples % self.batch_size > 0)
             max_epochs_from_steps = self.K // batches_per_epoch + (self.K % batches_per_epoch > 0)
@@ -386,18 +389,22 @@ class Scaffold(FedAvg):
 
         c_delta_coefs = self._get_c_delta_coefs(rnd, results)        
         logging.info(f'c_delta_coefs are {c_delta_coefs} for rnd {rnd}')
+        batch_counts = self._get_batch_counts(results)
+        
         for layer_index, old_layer_weight in enumerate(self.old_weights):
             cg_layer = self.c_global[layer_index]
             c_deltas = [-cg_layer + (1/cdc)*(old_layer_weight - cw[layer_index]) \
                 for cdc, cw in zip(c_delta_coefs, client_weights)]
-            c_avg_delta = sum(c_deltas)/len(client_weights)
+            
+            c_avg_delta = sum([cd*bc for cd, bc in zip(c_deltas, batch_counts)])/(len(client_weights)*sum(batch_counts))
             # logging.info(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
             for i, cw in enumerate(client_weights):
                 logging.debug(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
             
             self.c_global[layer_index] = cg_layer + c_avg_delta
 
-        new_weights = aggregate([(cw, 1) for cw in client_weights])
+        logging.info(f'batch counts are {batch_counts} for rnd {rnd}')
+        new_weights = aggregate([(cw, bc) for cw, bc in zip(client_weights, batch_counts)])
         for layer_index, (old_layer_weight, new_layer_weight) in enumerate(zip(self.old_weights, new_weights)):
             # print('weights aggregation: ', layer_index, type(old_layer_weight), type(new_layer_weight))
             # print(old_layer_weight.shape, new_layer_weight.shape)
@@ -406,7 +413,8 @@ class Scaffold(FedAvg):
             if not isinstance(new_layer_weight, numpy.ndarray):
                 continue
                 # new_layer_weight = numpy.array([new_layer_weight])
-            self.old_weights[layer_index] += self.global_lr * (new_layer_weight - old_layer_weight)
+            
+            self.old_weights[layer_index] += (self.global_lr**(self.global_lr_decay**(rnd - 1))) * (new_layer_weight - old_layer_weight)
 
         return weights_to_parameters(self.old_weights), {}
 

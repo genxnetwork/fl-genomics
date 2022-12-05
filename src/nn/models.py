@@ -157,14 +157,39 @@ class BaseNet(LightningModule):
         optimizer = torch.optim.SGD([
             {
                 'params': self.parameters(),
-                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**last_epoch if self.scheduler_params is not None else self.optim_params['lr'],
+                'lr': self.optim_params['lr']*self.scheduler_params['gamma']**(self.current_round - 1) if self.scheduler_params is not None else self.optim_params['lr'],
                 'initial_lr': self.optim_params['lr'],
             }], lr=self.optim_params['lr'], weight_decay=self.optim_params.get('weight_decay', 0))
 
+        '''
         schedulers = [torch.optim.lr_scheduler.ExponentialLR(
             optimizer, gamma=self.scheduler_params['gamma'], last_epoch=last_epoch
         )] if self.scheduler_params is not None else None
-        return [optimizer], schedulers
+        '''
+        lambda_lr = self._configure_lambda_lr(optimizer)
+        return [optimizer], [lambda_lr] if lambda_lr is not None else None
+    
+    def _configure_step_lr(self, optimizer):
+        if self.scheduler_params is None:
+            return None
+        steps_in_round = self.scheduler_params.get('batches_in_round', None)
+        epochs_in_round = self.scheduler_params.get('epochs_in_round', None)
+        if steps_in_round is None:
+            steps_in_round = epochs_in_round
+        last_epoch = (self.current_round - 1) * steps_in_round if self.scheduler_params is not None else 0
+        scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, gamma=self.scheduler_params['gamma'], last_epoch=last_epoch, step_size=steps_in_round
+        )
+        return scheduler
+    
+    def _configure_lambda_lr(self, optimizer):
+        if self.scheduler_params is None:
+            return None
+        scheduler = torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            lr_lambda=lambda epoch: self.scheduler_params['gamma']**(self.current_round - 1)
+        )
+        return scheduler
 
     def configure_optimizers(self):
         optim_init = {

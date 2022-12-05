@@ -116,10 +116,12 @@ class ScaffoldCallback(Callback):
         self.log_grad = log_grad
         self.log_diff = log_diff
         self.grad_lr = grad_lr
+        self.batch_steps = 0
         super().__init__()
 
     def on_after_backward(self, trainer: Trainer, pl_module: LightningModule) -> None:
         params = pl_module.named_parameters()
+        self.batch_steps += 1
         for name, v in params:
             # print(f'on_after_backward: {name}: {v.shape}, {v.grad}')
             if v.grad is not None and self.c_local is not None:
@@ -149,6 +151,8 @@ class ScaffoldCallback(Callback):
             cg, op, np = c_global[layer], old_params[layer], new_params[layer]
             # print(f'update_c_local layer {layer}: {cg.shape}, {op.shape}, {np.shape}')
             self.c_local[layer] -= (cg - (1/(self.K*eta))*(op - np))
+            
+        self.batch_steps = 0
 
     
         
