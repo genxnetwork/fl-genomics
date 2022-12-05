@@ -1,7 +1,7 @@
 import os
 
 import plotly.io as pio
-pio.kaleido.scope.mathjax = None
+# pio.kaleido.scope.mathjax = None
 
 import plotly.graph_objs as go
 import plotly.express.colors as px_colors

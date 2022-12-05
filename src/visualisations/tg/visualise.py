@@ -1,6 +1,7 @@
 import os
 import math
 
+import pandas as pd
 import plotly.express.colors as px_colors
 
 from argparse import ArgumentParser
@@ -80,6 +81,7 @@ if __name__ == '__main__':
     parser.add_argument('--directory-pca', dest='directory_pca') # for federated PCA only
     parser.add_argument('--directory-16k-epochs', dest='directory_16k_epochs')
     parser.add_argument('--directory-4k-rounds', dest='directory_4k_rounds')
+    parser.add_argument('--add-trace', dest='add_trace')
     parser.add_argument('--export', dest='export_filename')
     args = parser.parse_args()
 
@@ -138,7 +140,13 @@ if __name__ == '__main__':
                 loss=experiments_data.get(strategy, 'ALL', 'median', metric),
                 name=strategy.capitalize()
             )
-
+        if args.add_trace is not None:
+            trace_df = pd.read_csv(args.add_trace, header=None, sep=' ')
+            trace_df = trace_df[trace_df[2] > 0]
+            plot.add_model_trace(epoch=trace_df[2], loss=trace_df[1], name='custom', line={'color': 'black', 'width': 3})
+            tracedf2 = pd.read_csv('/home/genxadmin/mlflow_homo/multirun/2022-12-01/19-00-50/0/mlruns/1/003e6078f72d43d8930c290a1756028b/metrics/val_loss', header=None, sep=' ')
+            tracedf2 = tracedf2[tracedf2[2] > 0].sort_values(2)
+            plot.add_model_trace(epoch=tracedf2[2], loss=tracedf2[1], name='scaffold_homo', line={'color': 'brown', 'width': 3})
         if args.export_filename is not None:
             plot.export(args.export_filename)
         else:

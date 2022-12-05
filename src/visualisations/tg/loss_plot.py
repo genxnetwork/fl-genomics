@@ -1,7 +1,7 @@
 import os
 
 import plotly.io as pio
-pio.kaleido.scope.mathjax = None
+#pio.kaleido.scope.mathjax = None
 
 import plotly.graph_objs as go
 import plotly.express.colors as px_colors
@@ -63,5 +63,8 @@ class LossPlot:
             pio.write_image(self.fig, filename, format='png', scale=3)
         elif format == 'pdf':
             pio.write_image(self.fig, filename, format='pdf')
+        elif format == 'html':
+            self.fig.update_layout(autosize=True, width=None, height=None)
+            self.fig.write_html(filename)
         else:
             raise ValueError(f'Unsupported format: {format}')
