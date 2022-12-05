@@ -16,14 +16,15 @@ class ClfMetrics(DatasetMetrics):
     
     loss: float
     accuracy: float
+    auc: float
     epoch: int
     samples: int
     
     def to_dict(self) -> Dict[str, float]:
-        return {'loss': self.loss, 'accuracy': self.accuracy}
+        return {'loss': self.loss, 'accuracy': self.accuracy, 'auc': self.auc}
     
     def __str__(self) -> str:
-        return f'loss={self.loss:.4f}\taccuracy={self.accuracy:.4f}'
+        return f'loss={self.loss:.4f}\taccuracy={self.accuracy:.4f}\tauc={self.auc:.4f}'
     
 
 @dataclass
