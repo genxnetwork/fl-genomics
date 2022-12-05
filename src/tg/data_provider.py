@@ -74,7 +74,7 @@ class DataProvider:
     def load_test_data(self, node, fold):
         return self.load_data(node, fold, 'test')
 
-    def create_data_module(self, node, fold):
+    def create_data_module(self, node, fold, batch_size=64):
         """
         Creates data module for training.
         """
@@ -94,6 +94,6 @@ class DataProvider:
         return DataModule(
             X(X_train, X_validation, X_test),
             Y(y_train, y_validation, y_test),
-            batch_size=len(X_train),
+            batch_size=batch_size,
             drop_last=False
         )

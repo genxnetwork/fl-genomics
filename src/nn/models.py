@@ -410,7 +410,7 @@ class MLPClassifier(BaseNet):
 class LassoNetRegressor(BaseNet):
     def __init__(self, input_size: int, hidden_size: int,
                  optim_params: Dict, scheduler_params: Dict,
-                 cov_count: int = 0, 
+                 cov_count: int = 0,
                  alpha_start: float = -1, alpha_end: float = -1, init_limit: float = 0.01, use_bn: bool = True,
                  logger = None) -> None:
         super().__init__(input_size, optim_params, scheduler_params)
@@ -432,7 +432,7 @@ class LassoNetRegressor(BaseNet):
         if self.use_bn:
             x = self.bn(x)
         out = self.layer(x)
-        return out 
+        return out
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))

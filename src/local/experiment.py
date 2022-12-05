@@ -29,7 +29,8 @@ from nn.train import prepare_trainer
 from nn.utils import LassoNetRegMetrics
 from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
-    TYPE_METRIC_DICT, get_accuracy
+    TYPE_METRIC_DICT
+from utils.metrics import get_accuracy
 from utils.loaders import Y, ExperimentDataLoader
 from utils.landscape import plot_loss_landscape
 
