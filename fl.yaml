@@ -8,16 +8,17 @@ dependencies:
     - pandas
     - matplotlib
     - numpy
-    - pytorch
+    - pytorch==1.10.1
     - scikit-learn
     - cython
     - plink2
     - snakemake
     - zarr
+    - xgboost
     - omegaconf
     - pip
     - pip:
-      - pytorch-lightning
+      - pytorch-lightning==1.5.9
       - mlflow
       - flwr==0.17.0
       - hydra-core
