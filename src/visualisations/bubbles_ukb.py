@@ -71,13 +71,15 @@ def ethnicity_from_dataset(df: pd.DataFrame):
     return df
 
 
-def normalize_by_centr_median(df: pd.DataFrame):
-    # df.loc[:, ['lower', 'median', 'upper']] =  (df.loc[:, ['lower', 'median', 'upper']] 
-    #      - df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze())\
-    #     / (df.loc[df['type']=='centralized', 'median'].squeeze()
-    #         - df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze())
+def normalize_by_centr_median(df: pd.DataFrame, mode=None):
+    if mode='centralized_minus_covariates':
+        df.loc[:, ['lower', 'median', 'upper']] =  (df.loc[:, ['lower', 'median', 'upper']] 
+            - df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze())\
+            / (df.loc[df['type']=='centralized', 'median'].squeeze()
+            - df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze())
 
-    # df.loc[:, ['lower', 'median', 'upper']] = df.loc[:, ['lower', 'median', 'upper']] / df.loc[df['type']=='centralized', 'median'].squeeze()
+    elif mode='centralized':
+        df.loc[:, ['lower', 'median', 'upper']] = df.loc[:, ['lower', 'median', 'upper']] / df.loc[df['type']=='centralized', 'median'].squeeze()
 
     return df
 
