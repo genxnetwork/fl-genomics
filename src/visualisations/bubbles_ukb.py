@@ -3,6 +3,7 @@ import pandas as pd
 
 import mlflow
 import plotly.express as px
+import plotly.graph_objects as go
 
 from mlflow.tracking import MlflowClient
 
@@ -195,13 +196,31 @@ def plot(df, df_local_globaltestset, out_fn):
     df['type'] = df['type'].replace({'centralized': 'Centralized + centralized GWAS', 'covariates_only': 'Covariates only',
                                      'federated': 'Federated + meta-GWAS', 'local-globaltestset': 'Local + local GWAS',
                                     'local-globaltestset-meta': 'Local + meta-GWAS'})
-    fig = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
+    fig1 = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
                      error_y='error_up', error_y_minus='error_down',
-                     size='sample_count', color='type', size_max=16,
+                     color='type',
+                     facet_col_spacing=0,
+                     facet_row_spacing=0,
+                     width=1200, height=1000)
+
+    # add bubble traces as fig2.data
+    fig2 = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
+                     size='sample_count', color='type',
+                     size_max=16,
                      facet_col_spacing=0,
                      facet_row_spacing=0,
                      opacity=0.3,
                      width=1200, height=1000)
+
+    # need to supress legend for all traces of fig2 (not via layout)
+    def trace_no_legend(tr):
+        tr['showlegend'] = False
+        return tr
+
+    fig2.for_each_trace(trace_no_legend)
+
+    # add traces and take layout from fig1
+    fig = go.Figure(data=fig1.data + fig2.data, layout=fig1.layout)
 
     fig.update_xaxes(categoryorder='array',
                      categoryarray=df_local_globaltestset[['tags.dataset', 'tags.sample_count']].drop_duplicates()
