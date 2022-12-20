@@ -227,7 +227,7 @@ def plot(df, df_local_globaltestset, out_fn):
                      categoryarray=df_local_globaltestset[['tags.dataset', 'tags.sample_count']].drop_duplicates()
                      .sort_values('tags.sample_count')['tags.dataset'].tolist() + ['federated'],
                      tick0=0.0, dtick=1.0,
-                     showticklabels=False, title=None)
+                     showticklabels=True, tickangle=135, title=None)
     fig.update_yaxes(tick0=0.0, dtick=0.05,
                      showticklabels=True,
                      matches=None,
