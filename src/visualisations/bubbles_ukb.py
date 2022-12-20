@@ -159,6 +159,13 @@ def impute_missing_columns(df_local_globaltestset, df_meta_globaltestset, df_fed
     return df_local_globaltestset, df_meta_globaltestset, df_feder, df_cov
 
 
+
+def rename_datasets(x):
+    if '_' in x:
+        return f"{x.split('_')[0]} ({int(x.split('_')[1])/1000:.1f} k)"
+    else:
+        return x
+
 def prepare_data_to_plot(df_local_localtestset, df_meta_localtestset,
                          df_local_globaltestset, df_meta_globaltestset,
                          df_centr, df_centr_meta,
@@ -175,12 +182,16 @@ def prepare_data_to_plot(df_local_localtestset, df_meta_localtestset,
                     df_cov.drop(columns=['tags.node_index'])
                     ])
 
+    df['tags.dataset'] = df['tags.dataset'].apply(rename_datasets)
+
     # converting folds to quantiles (0.1, median, 0.9)
     df = folds_to_quantiles(df.query("metric_name == @metric_name"), fold_col='tags.fold_index', val_col='metric_value')
     # for each phenotype normalize all quantiles and types (local, centralized, federated) by centralized median
 
     df = df.set_index(['tags.phenotype']).groupby(['tags.phenotype'])[['type', 'tags.dataset', 'tags.sample_count', 'lower', 'median',
        'upper']].apply(normalize_by_centr_median).reset_index()
+
+
     return df
 
 
@@ -311,6 +322,8 @@ def continuous():
                               df_feder=df_feder,
                               df_cov=df_cov,
                               metric_name='metrics.test_r2')
+
+    df_local_globaltestset['tags.dataset'] = df_local_globaltestset['tags.dataset'].apply(rename_datasets)
 
     return df, df_local_globaltestset
 
