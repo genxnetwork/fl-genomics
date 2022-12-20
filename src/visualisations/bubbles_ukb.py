@@ -198,7 +198,7 @@ def plot(df, df_local_globaltestset, out_fn):
     fig = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
                      error_y='error_up', error_y_minus='error_down',
                      size='sample_count', color='type', size_max=16,
-                     facet_col_spacing=0,
+                     facet_col_spacing=0.0325,
                      facet_row_spacing=0,
                      opacity=0.3,
                      width=1200, height=1000)
@@ -214,6 +214,18 @@ def plot(df, df_local_globaltestset, out_fn):
                      title='test set R2: observed vs predicted'
                      )
     fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[1]))
+    for axis in [
+        fig.layout.yaxis2,
+        fig.layout.yaxis3,
+        fig.layout.yaxis4,
+        fig.layout.yaxis5,
+        fig.layout.yaxis7,
+        fig.layout.yaxis8,
+        fig.layout.yaxis9,
+        fig.layout.yaxis10,
+    ]:
+        axis.update({'title': {'text': ''}})
+    
     fig.write_html(out_fn)
 
 
@@ -314,7 +326,7 @@ def binary():
 if __name__ == '__main__':
     df, df_local_globaltestset = continuous()
 
-    plot(df, df_local_globaltestset, out_fn='/home/genxadmin/tmp_continuous.html')
+    plot(df, df_local_globaltestset, out_fn='continuous.html')
 
     # to plot binary pheotypes:    
     # df2, _ = binary()
