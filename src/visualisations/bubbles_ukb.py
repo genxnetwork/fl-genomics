@@ -201,15 +201,15 @@ def plot(df, df_local_globaltestset, out_fn):
                      error_y='error_up', error_y_minus='error_down',
                      color='type',
                      facet_col_spacing=facet_col_spacing,
-                     facet_row_spacing=0,
-                     width=1200, height=1000)
+                     facet_row_spacing=0.15,
+                     width=1200, height=1200)
 
     # add bubble traces as fig2.data
     fig2 = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
                      size='sample_count', color='type',
                      size_max=16,
                      facet_col_spacing=facet_col_spacing,
-                     facet_row_spacing=0,
+                     facet_row_spacing=0.15,
                      opacity=0.3,
                      width=1200, height=1000)
 
@@ -227,7 +227,7 @@ def plot(df, df_local_globaltestset, out_fn):
                      categoryarray=df_local_globaltestset[['tags.dataset', 'tags.sample_count']].drop_duplicates()
                      .sort_values('tags.sample_count')['tags.dataset'].tolist() + ['federated'],
                      tick0=0.0, dtick=1.0,
-                     showticklabels=True, tickangle=135, title=None)
+                     showticklabels=True, tickangle=-45, title=None)
     fig.update_yaxes(tick0=0.0, dtick=0.05,
                      showticklabels=True,
                      matches=None,
@@ -242,10 +242,21 @@ def plot(df, df_local_globaltestset, out_fn):
         fig.layout.yaxis7,
         fig.layout.yaxis8,
         fig.layout.yaxis9,
-        fig.layout.yaxis10,
+        fig.layout.yaxis10
     ]:
         axis.update({'title': {'text': ''}})
-    
+    for axis in [
+        fig.layout.xaxis,
+        fig.layout.xaxis2,
+        fig.layout.xaxis3,
+        fig.layout.xaxis4,
+        fig.layout.xaxis5,
+        fig.layout.xaxis7,
+        fig.layout.xaxis8,
+        fig.layout.xaxis9,
+        fig.layout.xaxis10
+    ]:
+        axis.update({'showticklabels': False})
     fig.write_html(out_fn)
 
 
