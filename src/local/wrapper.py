@@ -38,16 +38,19 @@ def append_args_to_wrapper(arg_list: list):
     mem = calculate_memory(node_index, split, snp_count)
     wrapper = wrapper.replace('$MEM', str(mem))
     gpu_models = ['mlp', 'lassonet']
+    
     if model_name in gpu_models: # Request gpu from Slurm if required
-        wrapper = wrapper.replace('#gpu_placeholder', '#SBATCH --gpus 1')    
-    partition_type = 'gpu' if (model_name in gpu_models and mem > 58000) else ('gpu' if mem < 58000 else 'cpu')
+      wrapper = wrapper.replace('#gpu_placeholder', '#SBATCH --gpus 1')    
+    
+    partition_type = 'gpu' if model_name in gpu_models else 'cpu'
     wrapper = wrapper.replace('$PARTITION_TYPE', partition_type)    
     wrapper += f"+model={model_name} "
 
     if run_experiment:
         arg_list.remove(f'experiment.run={run_experiment}')
         wrapper += f"+experiment={run_experiment} "
-    
+   
+    arg_list.remove(f'model.name={model_name}')
     wrapper += " ".join(arg_list) 
     return wrapper
 

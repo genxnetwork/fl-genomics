@@ -33,9 +33,9 @@ class CallbackFactory:
         # callbacks.append(early_stopping)
         if params.strategy.name == 'scaffold':
             callbacks.append(
-                ScaffoldCallback(params.strategy.args.K, 
-                                 log_grad=params.log_grad, 
-                                 log_diff=params.log_weights, 
+                ScaffoldCallback(params.strategy.args.K,
+                                 log_grad=params.log_grad,
+                                 log_diff=params.log_weights,
                                  grad_lr=params.strategy.args.grad_lr)
             )
         return callbacks
@@ -45,7 +45,7 @@ class MetricsLogger(ABC):
     @abstractmethod
     def log_eval_metric(self, metric: ModelMetrics):
         pass
-    
+
     @abstractmethod
     def log_weights(self, rnd: int, layers: List[str], old_weights: Weights, new_weights: Weights):
         pass
@@ -58,7 +58,7 @@ class MLFlowMetricsLogger(MetricsLogger):
 
     def log_weights(self, rnd: int, layers: List[str], old_weights: Weights, new_weights: Weights):
         # logging.info(f'weights shape: {[w.shape for w in new_weights]}')
-        
+
         client_diffs = {layer: numpy.linalg.norm(cw - aw).item() for layer, cw, aw in zip(layers, old_weights, new_weights)}
         for layer, diff in client_diffs.items():
             mlflow.log_metric(f'{layer}.l2', diff, rnd)
@@ -74,7 +74,7 @@ class FLClient(NumPyClient):
             params (DictConfig): OmegaConf DictConfig with subnodes strategy and node. `node` should have `model`, and `training` parameters
             logger (Logger): Process-specific logger of text messages
             metrics_logger (MetricsLogger): Process-specific logger of metrics and weights (mlflow, neptune, etc)
-        """        
+        """
         self.server = server
         self.callbacks = CallbackFactory.create_callbacks(params)
         self.experiment = experiment
@@ -105,18 +105,18 @@ class FLClient(NumPyClient):
         for callback in self.callbacks:
             if isinstance(callback, ScaffoldCallback):
                 callback.c_global = weights_to_module_params(self._get_layer_names(), bytes_to_weights(update_params['c_global']))
-                
+
     def update_callbacks_after_fit(self, update_params: Dict, **kwargs):
         if self.callbacks is None:
             return
         for callback in self.callbacks:
             if isinstance(callback, ScaffoldCallback):
                 callback.update_c_local(
-                    kwargs['eta'], callback.c_global, 
+                    kwargs['eta'], callback.c_global,
                     old_params=weights_to_module_params(self._get_layer_names(), kwargs['old_params']),
                     new_params=weights_to_module_params(self._get_layer_names(), kwargs['new_params'])
                 )
-    
+
     def _reseed_torch(self):
         torch.manual_seed(hash(self.params.node.index) + self.experiment.model.current_round)
 
@@ -171,7 +171,7 @@ class FLClient(NumPyClient):
         self.set_parameters(parameters)
         self.experiment.model.eval()
 
-        start = time()                
+        start = time()
         need_test_eval = 'current_round' in config and config['current_round'] == -1
         unreduced_metrics = self.experiment.model.predict_and_eval(self.experiment.data_module, 
                                                         test=need_test_eval)

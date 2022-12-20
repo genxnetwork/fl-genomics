@@ -5,17 +5,19 @@ phenotype:
   type: 'real'
 phenotype_codes:
   standing_height: 50
-# platelet_count: 30080
   platelet_volume: 30100
-#  body_mass_index: 23104
-#  basal_metabolic_rate: 23105
-#  hls_reticulocyte_count: 30300
-#  forced_vital_capacity: 3062
   erythrocyte_count: 30010
-#  reticulocyte_count: 30250
-#  mean_sphered_cell_volume: 30270
-#  triglycerides: 30870
-#  alanine_aminotransferase: 30620
+  triglycerides: 30870
+  hdl_cholesterol: 30760
+  vitamin_d: 30890
+  creatinine: 30700
+  alkaline_phosphatase: 30610
+  cystatin_c: 30720
+  gamma_glutamyltransferase: 30730
+  ebmd: 3148
+  apolipoprotein_a: 30630
+  shbg: 30630
+
 covariates: 
   '31': 'sex'
   '21003': 'age' 

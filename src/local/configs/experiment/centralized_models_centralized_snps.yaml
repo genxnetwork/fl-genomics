@@ -1,0 +1,5 @@
+# @package _global_
+
+experiment:
+  name: centralized-models-centralized-snps-fixed 
+  snp_count: 10000

@@ -1,0 +1,8 @@
+# @package _global_
+
+experiment:
+  name: centralized-models-meta-snps-fixed 
+  snp_count: 10000
+
+data:
+  gwas: ${split_dir}/gwas/${data.phenotype.name}/fold_${fold_index}.meta.tsv

@@ -30,7 +30,8 @@ from nn.train import prepare_trainer
 from nn.utils import LassoNetRegMetrics
 from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor, LinearClassifier
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
-    TYPE_METRIC_DICT, get_accuracy
+    TYPE_METRIC_DICT
+from utils.metrics import get_accuracy
 from utils.loaders import Y, ExperimentDataLoader
 from utils.landscape import plot_loss_landscape
 
@@ -74,9 +75,7 @@ class LocalExperiment(object):
                 'sample_count': str(round(num_samples, -2)),
                 'sample_count_exact': str(num_samples),
                 'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
-                'different_node_gwas': str(int(self.cfg.experiment.different_node_gwas)),
-                'covariates': str(int(self.cfg.experiment.include_covariates)),
-                'snps': str(int(self.cfg.experiment.include_genotype))
+                'gwas': self.cfg.data.gwas
             }
         elif self.cfg.study == 'simulation':
             study_tags = {
@@ -364,15 +363,17 @@ class TGNNExperiment(NNExperiment):
 
     def eval_and_log(self, metric_fun=get_accuracy, metric_name='accuracy'):
         self.model.eval()
-        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
 
-        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
-        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
-        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
+        train_loader, validation_loader, test_loader = self.data_module.predict_dataloader()
 
-        metric_train = metric_fun(self.y.train, train_preds)
-        metric_val = metric_fun(self.y.val, val_preds)
-        metric_test = metric_fun(self.y.test, test_preds)
+        y_pred, y_true = self.model.predict(train_loader)
+        metric_train = metric_fun(y_true, y_pred)
+
+        y_pred, y_true = self.model.predict(validation_loader)
+        metric_val = metric_fun(y_true, y_pred)
+
+        y_pred, y_true = self.model.predict(test_loader)
+        metric_test = metric_fun(y_true, y_pred)
 
         print(f"Train {metric_name}: {metric_train}")
         mlflow.log_metric(f'train_{metric_name}', metric_train)
