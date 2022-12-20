@@ -196,18 +196,19 @@ def plot(df, df_local_globaltestset, out_fn):
     df['type'] = df['type'].replace({'centralized': 'Centralized + centralized GWAS', 'covariates_only': 'Covariates only',
                                      'federated': 'Federated + meta-GWAS', 'local-globaltestset': 'Local + local GWAS',
                                     'local-globaltestset-meta': 'Local + meta-GWAS'})
+    df['size_scaled'] = np.power(df['sample_count'], 0.6)
     facet_col_spacing = 0.0325
     fig1 = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
                      error_y='error_up', error_y_minus='error_down',
                      color='type',
                      facet_col_spacing=facet_col_spacing,
                      facet_row_spacing=0.15,
-                     width=1200, height=1200)
+                     width=1200, height=1000)
 
     # add bubble traces as fig2.data
     fig2 = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
-                     size='sample_count', color='type',
-                     size_max=16,
+                     size='size_scaled', color='type',
+                     size_max=18,
                      facet_col_spacing=facet_col_spacing,
                      facet_row_spacing=0.15,
                      opacity=0.3,
