@@ -464,7 +464,7 @@ class LassoNetRegressor(BaseNet):
         cov_weights = torch.tensor(weights, dtype=self.layer.weight.dtype).unsqueeze(0).tile((self.hidden_size, 1))
 
         weight = self.layer.weight.data
-        snp_count = self.layer.weight.shape[1] - cov_weights.shape[2]
+        snp_count = self.layer.weight.shape[1] - cov_weights.shape[1]
         logging.info(f'covariate weight shapes are: weight={weight.shape}, snp_count={snp_count}, cov_weights={cov_weights.shape}, {weight[:, snp_count:].shape}')
         weight[:, snp_count:] = cov_weights
         self.layer.weight = torch.nn.Parameter(weight)
@@ -476,7 +476,7 @@ class LassoNetClassifier(LassoNetRegressor):
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
-        return binary_cross_entropy_with_logits(y_hat, y)
+        return binary_cross_entropy_with_logits(y_hat, y, pos_weight=torch.Tensor([5.0]))
     
     
     def one_col_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> ClfMetrics:

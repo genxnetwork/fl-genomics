@@ -149,6 +149,10 @@ class Node(Process):
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
         self.experiment.load_data()
+        train_pr = self.experiment.y.train.mean()
+        val_pr = self.experiment.y.val.mean()
+        test_pr = self.experiment.y.test.mean()
+        
         metrics_logger = MLFlowMetricsLogger()
         client_callbacks = self.create_callbacks()
         client = FLClient(self.server_url,
@@ -174,6 +178,10 @@ class Node(Process):
         ):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
+            
+            mlflow.log_metric('train_prevalence', float(train_pr))
+            mlflow.log_metric('val_prevalence', float(val_pr))
+            mlflow.log_metric('test_prevalence', float(test_pr))            
             
             if self.cfg.experiment.pretrain_on_cov == 'substract':
                 residual = self.experiment.pretrain_and_substract()

@@ -112,11 +112,11 @@ class LassoNetModelMetrics(ModelMetrics):
     
     def to_dict(self) -> Dict[str, float]:
         mm_metrics = self.reduce()
-        return mm_metrics.to_dict()
+        return mm_metrics.to_dict() | {'best_col': self.best_col}
     
     def __str__(self) -> str:
         mm_metrics = self.reduce()
-        return str(mm_metrics)
+        return str(mm_metrics) + f'\tbest_col={self.best_col}'
     
 
 @dataclass

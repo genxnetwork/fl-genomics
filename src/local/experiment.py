@@ -221,7 +221,10 @@ class NNExperiment(LocalExperiment):
         mlflow.log_params({'model': self.cfg.model})
         mlflow.log_params({'optimizer': self.cfg.optimizer})
         mlflow.log_params({'scheduler': self.cfg.get('scheduler', None)})
-
+        
+        prevalence = self.y.sum().mean()
+        mlflow.log_metric('prevalence', float(prevalence))
+        
         self.create_model()
 
         if self.cfg.experiment.pretrain_on_cov == 'weights':
@@ -285,7 +288,7 @@ class NNExperiment(LocalExperiment):
             samples, cov_count = self.x_cov.train.shape
             print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_acc:.4f} train accuracy and {val_acc:.4f} val accuracy')
             print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_auc:.4f} train AUC and {val_auc:.4f} val AUC')
-            return lr.coef_
+            return lr.coef_[0, :]
 
         elif phenotype_type == 'continuous':
             lr = LinearRegression()

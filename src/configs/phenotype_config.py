@@ -24,7 +24,10 @@ QUANTITATIVE_PHENO_LIST = [
 
 PHENO_TYPE_DICT = {'ancestry': 'discrete',
                    'simulated': 'continuous',
-                   'asthma': 'binary'}
+                   'asthma': 'binary',
+                   'diabetes': 'binary',
+                   'hypertension': 'binary',
+                   'hypothyroidism': 'binary'}
 
 TYPE_LOSS_DICT = {'continuous': mse_loss,
                   'discrete': cross_entropy,
@@ -34,6 +37,9 @@ PHENO_NUMPY_DICT = {'standing_height': np.float32,
                     'ebmd': np.float32,
                     'ancestry': np.ndarray,
                     'asthma': np.float32,
+                    'diabetes': np.float32,
+                    'hypertension': np.float32,
+                    'hypothyroidism': np.float32,
                     'platelet_volume': np.float32}
 
 
