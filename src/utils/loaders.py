@@ -44,7 +44,7 @@ class ExperimentDataLoader:
         self.logger = logging.getLogger()
 
     def _load_phenotype(self, path: str) -> numpy.ndarray:
-        phenotype = load_phenotype(path, out_type=PHENO_NUMPY_DICT[self.cfg.data.phenotype.name], encode=(self.cfg.study == 'tg'))
+        phenotype = load_phenotype(path, out_type=PHENO_NUMPY_DICT.get(self.cfg.data.phenotype.name, numpy.float32), encode=(self.cfg.study == 'tg'))
         if numpy.isnan(phenotype).sum() > 0:
             raise ValueError(f'There are {numpy.isnan(phenotype).sum()} nan values in phenotype from {path}')
         if (PHENO_TYPE_DICT[self.cfg.data.phenotype.name] == 'binary'):

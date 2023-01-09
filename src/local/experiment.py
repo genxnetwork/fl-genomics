@@ -1,5 +1,6 @@
 from abc import abstractmethod
 import sys
+from typing import Type
 
 
 sys.path.append('..')
@@ -15,7 +16,7 @@ from mlflow.xgboost import autolog
 from mlflow.types import Schema, TensorSpec
 from mlflow.models.signature import ModelSignature
 from numpy import argmax, amax
-from sklearn.linear_model import LassoCV, LinearRegression, LogisticRegressionCV
+from sklearn.linear_model import LassoCV, LinearRegression, LogisticRegressionCV, LogisticRegression
 from xgboost import XGBRegressor
 from sklearn.metrics import r2_score, mean_squared_error, roc_auc_score, accuracy_score
 import torch
@@ -27,7 +28,7 @@ from fl.datasets.memory import load_covariates
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
 from nn.utils import LassoNetRegMetrics
-from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor
+from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor, LinearClassifier
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.metrics import get_accuracy
@@ -173,9 +174,22 @@ class RandomForestExperiment(LocalExperiment):
     	pass
 
 
+def get_model_class(model_name: str) -> Type:
+    model_class_dict = {
+        'lassonet_regressor': LassoNetRegressor,
+        'lassonet_classifier': LassoNetClassifier,
+        'mlp_regressor': MLPPredictor,
+        'mlp_classifier': MLPClassifier,
+        'linear_regressor': LinearRegressor,
+        'linear_classifier': LinearClassifier
+    }
+    return model_class_dict[model_name]
+
+
 class NNExperiment(LocalExperiment):
     def __init__(self, cfg):
         LocalExperiment.__init__(self, cfg)
+        self.model_class: Type = get_model_class(cfg.model.name)
 
     def load_data(self):
         LocalExperiment.load_data(self)
@@ -185,30 +199,40 @@ class NNExperiment(LocalExperiment):
                                       batch_size=self.cfg.model.get('batch_size', len(self.x.train)))
 
     def create_model(self):
-        self.model = MLPPredictor(input_size=self.x.train.shape[1],
-                                  hidden_size=self.cfg.model.hidden_size,
-                                  l1=self.cfg.model.alpha,
-                                  optim_params=self.cfg.optimizer,
-                                  scheduler_params=self.cfg.scheduler,
-                                  loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
-                                  )
+        self.model: self.model_class = self.model_class(input_size=self.x.train.shape[1],
+                                                        optim_params=self.cfg.optimizer,
+                                                        scheduler_params=self.cfg.scheduler,
+                                                        loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
+                                                        **self.cfg.model.params
+                                                        )
 
     def load_best_model(self):
-        self.model = MLPPredictor.load_from_checkpoint(
+        self.model = self.model_class.load_from_checkpoint(
                 self.trainer.checkpoint_callback.best_model_path,
                 input_size=self.x.train.shape[1],
-                hidden_size=self.cfg.model.hidden_size,
-                l1=self.cfg.model.alpha,
                 optim_params=self.cfg.optimizer,
-                scheduler_params=self.cfg.scheduler
+                scheduler_params=self.cfg.scheduler,
+                loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
+                **self.model.params
             )
 
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
         mlflow.log_params({'optimizer': self.cfg.optimizer})
         mlflow.log_params({'scheduler': self.cfg.get('scheduler', None)})
-
+        
+        prevalence = self.y.sum().mean()
+        mlflow.log_metric('prevalence', float(prevalence))
+        
         self.create_model()
+
+        if self.cfg.experiment.pretrain_on_cov == 'weights':
+            cov_weights = self.pretrain()
+            self.model.set_covariate_weights(cov_weights)
+        elif self.cfg.experiment.pretrain_on_cov == 'substract':
+            residual = self.pretrain_and_substract()
+            self.data_module.update_y(residual)
+        
         self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
                                        gpus=self.cfg.training.get('gpus', 0),
                                        precision=self.cfg.training.get('precision', 32),
@@ -249,13 +273,33 @@ class NNExperiment(LocalExperiment):
         Returns:
             numpy.ndarray: Coefficients of covarites without intercept
         """
-        lr = LinearRegression()
-        lr.fit(self.x_cov.train, self.y.train)
-        val_r2 = lr.score(self.x_cov.val, self.y.val)
-        train_r2 = lr.score(self.x_cov.train, self.y.train)
-        samples, cov_count = self.x_cov.train.shape
-        print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
-        return lr.coef_
+        phenotype_type = PHENO_TYPE_DICT[self.cfg.data.phenotype.name]
+        if phenotype_type == 'binary':
+            lr = LogisticRegression()
+            lr.fit(self.x_cov.train, self.y.train)
+            val_pred = lr.predict_proba(self.x_cov.val)[:, 1]
+            train_pred = lr.predict_proba(self.x_cov.train)[:, 1]
+            val_auc = roc_auc_score(self.y.val, val_pred)
+            train_auc = roc_auc_score(self.y.train, train_pred)
+            
+            val_acc = lr.score(self.x_cov.val, self.y.val)
+            train_acc = lr.score(self.x_cov.train, self.y.train)
+            samples, cov_count = self.x_cov.train.shape
+            print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_acc:.4f} train accuracy and {val_acc:.4f} val accuracy')
+            print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_auc:.4f} train AUC and {val_auc:.4f} val AUC')
+            return lr.coef_[0, :]
+
+        elif phenotype_type == 'continuous':
+            lr = LinearRegression()
+            lr.fit(self.x_cov.train, self.y.train)
+            val_r2 = lr.score(self.x_cov.val, self.y.val)
+            train_r2 = lr.score(self.x_cov.train, self.y.train)
+            samples, cov_count = self.x_cov.train.shape
+            print(f'pretraining on {samples} samples and {cov_count} covariates gives {train_r2:.4f} train r2 and {val_r2:.4f} val r2')
+            return lr.coef_
+        
+        else:
+            raise ValueError(f'for phenotype type {phenotype_type} pretraining is not implemented')
 
     def pretrain_and_substract(self) -> Y:
         """Pretrains linear regression on phenotype and covariates
@@ -264,6 +308,8 @@ class NNExperiment(LocalExperiment):
         Returns:
             Y: phenotype residual unexplained by linear covariate-only model
         """
+        if PHENO_TYPE_DICT[self.cfg.data.phenotype.name] != 'continuous':
+            raise ValueError(f'for phenotype type {PHENO_TYPE_DICT[self.cfg.data.phenotype.name]} substracting is not implemented')
         lr = LinearRegression()
         lr.fit(self.x_cov.train, self.y.train)
         y_train = self.y.train - lr.predict(self.x_cov.train)
@@ -278,45 +324,6 @@ class NNExperiment(LocalExperiment):
         residual = Y(y_train, y_val, y_test)
         return residual.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name])
 
-
-
-class MlpRegressorExperiment(NNExperiment):
-    def create_model(self):
-        self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                   optim_params=self.cfg.experiment.optimizer,
-                                   scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                   loss=torch.nn.functional.mse_loss,
-                                   binary=True
-                                   )
-
-
-    def load_best_model(self):
-        self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
-                                                        nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                                        optim_params=self.cfg.experiment.optimizer,
-                                                        scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                                        loss=torch.nn.functional.mse_loss,
-                                                        binary=True
-                                                        )
-
-class MlpClfExperiment(NNExperiment):
-    def create_model(self):
-        self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                   optim_params=self.cfg.experiment.optimizer,
-                                   scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                   loss=torch.nn.functional.binary_cross_entropy_with_logits,
-                                   binary=True
-                                   )
-
-
-    def load_best_model(self):
-        self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
-                                                        nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                                        optim_params=self.cfg.experiment.optimizer,
-                                                        scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                                        loss=torch.nn.functional.binary_cross_entropy_with_logits,
-                                                        binary=True
-                                                        )
 
 class TGNNExperiment(NNExperiment):
     def load_data(self):
@@ -375,240 +382,16 @@ class TGNNExperiment(NNExperiment):
         print(f"Test {metric_name}: {metric_test}")
         mlflow.log_metric(f'test_{metric_name}', metric_test)
 
-class ClfNNExperiment(NNExperiment):
-    def create_model(self):
-        self.model = MLPPredictor(input_size=self.x.train.shape[1],
-                                  hidden_size=self.cfg.model.hidden_size,
-                                  l1=self.cfg.model.alpha,
-                                  optim_params=self.cfg.experiment.optimizer,
-                                  scheduler_params=self.cfg.experiment.scheduler,
-                                  loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
-                                  )
-
-    def load_best_model(self):
-        self.model = MLPPredictor.load_from_checkpoint(
-                self.trainer.checkpoint_callback.best_model_path,
-                input_size=self.x.train.shape[1],
-                hidden_size=self.cfg.model.hidden_size,
-                l1=self.cfg.model.alpha,
-                optim_params=self.cfg.experiment.optimizer,
-                scheduler_params=self.cfg.experiment.scheduler
-            )
-
-class QuadraticNNExperiment(NNExperiment):
-    """Experiment class for training linear model with two parameters on a simulated dataset with two features
-    It is called quadratic because loss function landscape will be quadratic
-
-    Args:
-        NNExperiment (_type_): _description_
-    """
-    def __init__(self, cfg):
-        NNExperiment.__init__(self, cfg)
-
-    def _train_sklearn_regression(self):
-        lr = LinearRegression()
-        lr.fit(self.data_module.train_dataset.X, self.data_module.train_dataset.y)
-        y_train_pred = lr.predict(self.data_module.train_dataset.X)
-        y_val_pred = lr.predict(self.data_module.val_dataset.X)
-        y_test_pred = lr.predict(self.data_module.test_dataset.X)
-        train_r2 = r2_score(self.data_module.train_dataset.y, y_train_pred)
-        val_r2 = r2_score(self.data_module.val_dataset.y, y_val_pred)
-        test_r2 = r2_score(self.data_module.test_dataset.y, y_test_pred)
-        print(f'sklearn LR train_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f}\ttest_r2: {test_r2:.4f}')
-
-
-    def load_data(self):
-        seed = self.cfg.data.random_state if not 'node' in self.cfg else hash(self.cfg.node.index) + self.cfg.data.random_state
-        rng = numpy.random.default_rng(seed)
-        self.data = rng.normal(0, 1.0, size=(self.cfg.data.samples, 2))
-        # data = PolynomialFeatures(degree=2).transform(data)
-        split = self.cfg.get('split', None)
-        if split is None:
-            self.beta = rng.normal(0, 1.0, size=(2, 1))
-        else:
-            self.beta = numpy.array(self.cfg.split.nodes[self.cfg.node.name].true_beta).reshape(-1, 1)
-        self.logger.info(f'beta is {self.beta} for random_state {self.cfg.data.random_state}')
-        self.y = self.data.dot(self.beta)[:, 0]
-        # print('quadratic data shapes are', y.shape, data.shape)
-        x_train, x_val_test, y_train, y_val_test = train_test_split(self.data, self.y, train_size=0.8)
-        x_val, x_test, y_val, y_test = train_test_split(x_val_test, y_val_test, train_size=0.5)
-
-        self.data_module = DataModule(*[a.astype(numpy.float32) for a in [x_train, x_val, x_test, y_train, y_val, y_test]],
-                                        batch_size=self.cfg.model.get('batch_size', len(x_train)))
-
-        self._train_sklearn_regression()
-
-    def create_model(self):
-        self.model = LinearRegressor(2, 0.0,
-                                     optim_params=self.cfg.optimizer,
-                                     scheduler_params=self.cfg.scheduler)
-
-    def load_best_model(self):
-        self.model = LinearRegressor.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
-                                                          input_size=2,
-                                                          l1=0.0,
-                                                          optim_params=self.cfg.optimizer,
-                                                          scheduler_params=self.cfg.scheduler)
-
-    def train(self):
-        mlflow.log_params({'model': self.cfg.model})
-        mlflow.log_params({'optimizer': self.cfg.optimizer})
-        mlflow.log_params({'scheduler': self.cfg.get('scheduler', None)})
-
-        self.create_model()
-        for epoch in range(self.cfg.training.max_epochs):
-            self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}',
-                                            gpus=self.cfg.experiment.get('gpus', 0),
-                                            precision=self.cfg.model.get('precision', 32),
-                                            max_epochs=1, weights_summary='full', patience=self.cfg.training.patience, log_every_n_steps=5)
-
-
-            self.trainer.fit(self.model, self.data_module)
-            train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
-
-            train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
-            val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
-            test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
-
-        plot_loss_landscape(self.model, self.data, self.y, self.beta)
-        self.load_best_model()
-
-
-    def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
-        self.model.eval()
-        train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
-
-        train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
-        val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
-        test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
-
-        '''
-        metric_train = metric_fun(y_true=self.y.train, y_pred=train_preds)
-        metric_val = metric_fun(y_true=self.y.val, y_pred=val_preds)
-        metric_test = metric_fun(y_true=self.y.test, y_pred=test_preds)
-
-        print(f"Train {metric_name}: {metric_train}")
-        mlflow.log_metric(f'train_{metric_name}', metric_train)
-        print(f"Val {metric_name}: {metric_val}")
-        mlflow.log_metric(f'val_{metric_name}', metric_val)
-        print(f"Test {metric_name}: {metric_test}")
-        mlflow.log_metric(f'test_{metric_name}', metric_test)
-        '''
-
-class LassoNetExperiment(NNExperiment):
-
-    def create_model(self, model=LassoNetRegressor):
-        self.model: model = model(
-            input_size=self.x.train.shape[1],
-            hidden_size=self.cfg.model.hidden_size,
-            optim_params=self.cfg.experiment.optimizer,
-            scheduler_params=self.cfg.experiment.scheduler,
-            cov_count=2,
-            alpha_start=self.cfg.model.alpha_start,
-            alpha_end=self.cfg.model.alpha_end,
-            init_limit=self.cfg.model.init_limit
-        )
-
-    def load_best_model(self, model=LassoNetRegressor):
-        self.model = model.load_from_checkpoint(
-            self.trainer.checkpoint_callback.best_model_path,
-            input_size=self.x.train.shape[1],
-            hidden_size=self.cfg.model.hidden_size,
-            optim_params=self.cfg.experiment.optimizer,
-            scheduler_params=self.cfg.experiment.scheduler,
-            cov_count=2,
-            alpha_start=self.cfg.model.alpha_start,
-            alpha_end=self.cfg.model.alpha_end,
-            init_limit=self.cfg.model.init_limit
-        )
-
-    def train(self):
-        lr = LinearRegression()
-        cov_train = load_covariates(self.cfg.data.covariates.train)
-        cov_val = load_covariates(self.cfg.data.covariates.val)
-        lr.fit(cov_train, self.y.train)
-        val_r2 = lr.score(cov_val, self.y.val)
-        train_r2 = lr.score(cov_train, self.y.train)
-        cov_count = cov_train.shape[1]
-        snp_count = self.x.train.shape[1] - cov_count
-        self.logger.info(f"cov only train_r2: {train_r2:.4f}\tval_r2: {val_r2:.4f} for {cov_count} covariates")
-
-        mlflow.log_params({'model': self.cfg.model})
-        mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
-        mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
-
-        self.create_model()
-        cov_weights = torch.tensor(lr.coef_, dtype=self.model.layer.weight.dtype).unsqueeze(0).tile((self.cfg.model.hidden_size, 1))
-        self.logger.info(f"covariates weights are {cov_weights}")
-        self.logger.info(f"cov-only model intercept is {lr.intercept_}")
-
-        weight = self.model.layer.weight.data
-        weight[:, snp_count:] = cov_weights
-        self.model.layer.weight = torch.nn.Parameter(weight)
-        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
-                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
-
-        print("Fitting")
-        self.trainer.fit(self.model, self.data_module)
-        print("Fitted")
-        self.load_best_model()
-        print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
-
-
-    def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
-        if self.cfg.experiment.get('log_model', None):
-            self.logger.info("Logging model")
-            input_schema = Schema([
-                TensorSpec(numpy.dtype(numpy.float32), (-1, self.x.train.shape[1])),
-            ])
-            output_schema = Schema([TensorSpec(numpy.dtype(numpy.float32), (-1, self.cfg.model.batch_size))])
-            signature = ModelSignature(inputs=input_schema, outputs=output_schema)
-            mlflow.pytorch.log_model(self.model,
-                                     artifact_path='lassonet-model',
-                                     registered_model_name=f"lassonet_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node_index}_fold_{self.cfg.fold_index}",
-                                     signature=signature,
-                                     pickle_protocol=4)
-
-            self.logger.info("Model logged")
-
-        self.logger.info("Evaluating model and logging metrics")
-        self.model.eval()
-        metrics: LassoNetRegMetrics = self.model.predict_and_eval(self.data_module, test=True)
-
-        print(f'Best alpha: {self.model.alphas[metrics.best_col]:.6f}')
-        metrics.log_to_mlflow()
-        print(f'metrics: {metrics}')
-        mlflow.log_metric('best_alpha', self.model.alphas[metrics.best_col])
-        mlflow.log_metric('best_alpha_index', metrics.best_col)
-
-
-class LassoNetClassifierExperiment(LassoNetExperiment):
-
-    def train(self):
-        mlflow.log_params({'model': self.cfg.model})
-        mlflow.log_params({'optimizer': self.cfg.experiment.optimizer})
-        mlflow.log_params({'scheduler': self.cfg.experiment.scheduler})
-
-        self.create_model(model=LassoNetClassifier)
-        self.trainer = prepare_trainer('models', 'logs', f'{self.cfg.model.name}/{self.cfg.data.phenotype.name}', f'run{self.run.info.run_id}', gpus=self.cfg.experiment.gpus, precision=self.cfg.model.precision,
-                                    max_epochs=self.cfg.model.max_epochs, weights_summary='full', patience=self.cfg.model.patience, log_every_n_steps=5)
-
-        print("Fitting")
-        self.trainer.fit(self.model, self.data_module)
-        print("Fitted")
-        self.load_best_model(model=LassoNetClassifier)
-        print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
-
 
 # Dict of possible experiment types and their corresponding classes
 ukb_experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
     'logistic_regression': simple_estimator_factory(LogisticRegressionCV),
     'xgboost': XGBExperiment,
-    'lassonet': LassoNetExperiment,
-    'lassonet_classifier': LassoNetClassifierExperiment,
-    'mlp_regressor': MlpRegressorExperiment,
-    'mlp_classifier': MlpClfExperiment
+    'lassonet_regressor': NNExperiment,
+    'lassonet_classifier': NNExperiment,
+    'mlp_regressor': NNExperiment,
+    'mlp_classifier': NNExperiment
 }
 
 tg_experiment_dict = {
@@ -616,25 +399,17 @@ tg_experiment_dict = {
     'random_forest': RandomForestExperiment
 }
 
-simulation_experiment_dict = {
-    'linear_regressor': QuadraticNNExperiment
-}
-
 
 @hydra.main(config_path='configs', config_name='default')
 def local_experiment(cfg: DictConfig):
     print(cfg)
-    assert cfg.study in ['tg', 'ukb', 'simulation']
+    assert cfg.study in ['tg', 'ukb']
     if cfg.study == 'ukb':
         assert cfg.model.name in ukb_experiment_dict.keys()
         experiment = ukb_experiment_dict[cfg.model.name](cfg)
     elif cfg.study == 'tg':
         assert cfg.model.name in tg_experiment_dict.keys()
         experiment = tg_experiment_dict[cfg.model.name](cfg)
-    else:
-        assert cfg.model.name in simulation_experiment_dict.keys()
-        experiment = simulation_experiment_dict[cfg.model.name](cfg)
-
 
     experiment.run()
 

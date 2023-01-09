@@ -18,7 +18,7 @@ import flwr
 import torch
 
 from fl.federation.client import FLClient, MLFlowMetricsLogger, MetricsLogger
-from local.experiment import NNExperiment, QuadraticNNExperiment, TGNNExperiment
+from local.experiment import NNExperiment, TGNNExperiment
 from fl.federation.callbacks import PlotLandscapeCallback, CovariateWeightsCallback
 
 
@@ -64,8 +64,6 @@ class Node(Process):
         self.log_dir = log_dir
         node_cfg = OmegaConf.from_dotlist(self.trainer_info.to_dotlist())
         self.cfg = OmegaConf.merge(cfg, node_cfg)
-        torch.set_num_threads(1)
-
         torch.set_num_threads(1)
 
         if self.cfg.study == 'tg':
@@ -142,12 +140,6 @@ class Node(Process):
         if callbacks_desc is None:
             return callbacks
         
-        for node in callbacks_desc:
-            print(node)
-            if node == 'plot_landscape':
-                assert isinstance(self.experiment, QuadraticNNExperiment)
-                callbacks.append(PlotLandscapeCallback(self.experiment.data, self.experiment.y, self.experiment.beta))
-
         return callbacks        
 
     def run(self) -> None:
@@ -157,10 +149,14 @@ class Node(Process):
         # logging.info(f'logging is configured')
         mlflow_client = MlflowClient()
         self.experiment.load_data()
+        train_pr = self.experiment.y.train.mean()
+        val_pr = self.experiment.y.val.mean()
+        test_pr = self.experiment.y.test.mean()
+        
         metrics_logger = MLFlowMetricsLogger()
         client_callbacks = self.create_callbacks()
         client = FLClient(self.server_url,
-                          self.experiment.data_module,
+                          self.experiment,
                           self.cfg,
                           self.logger,
                           metrics_logger,
@@ -183,13 +179,12 @@ class Node(Process):
             mlflow.log_params(OmegaConf.to_container(self.cfg.node, resolve=True))
             self.log(f'Started run for node {self.node_index}')
             
+            mlflow.log_metric('train_prevalence', float(train_pr))
+            mlflow.log_metric('val_prevalence', float(val_pr))
+            mlflow.log_metric('test_prevalence', float(test_pr))            
+            
             if self.cfg.experiment.pretrain_on_cov == 'substract':
                 residual = self.experiment.pretrain_and_substract()
                 self.experiment.data_module.update_y(residual)
             
-            try:
-                self._train_model(client)
-            except Exception as e:
-                self.logger.info(e)
-                self.logger.error(e)
-            
+            self._train_model(client)

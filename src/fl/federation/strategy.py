@@ -27,7 +27,8 @@ from flwr.server.strategy.aggregate import aggregate
 from flwr.server.client_manager import ClientManager
 
 from fl.federation.utils import weights_to_bytes, bytes_to_weights
-from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+#from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from nn.metrics import FederatedMetrics, ModelMetrics
 from utils.landscape import add_beta_to_loss_landscape
 
 
@@ -44,7 +45,7 @@ RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 
 class StrategyLogger:
-    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+    def log_losses(self, rnd: int, metrics: ModelMetrics) -> None:
         pass
 
     def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
@@ -52,17 +53,12 @@ class StrategyLogger:
 
 
 class MlflowLogger(StrategyLogger):
-    def __init__(self, epochs_in_round: int, model_type: str) -> None:
+    def __init__(self, epochs_in_round: int) -> None:
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
-        known_model_types = ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier', 'linear_regressor']
-        if model_type not in known_model_types:
-            raise ValueError(f'model_type should be one of the {known_model_types} and not {model_type}')
 
-        self.model_type = model_type
-
-    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+    def log_losses(self, rnd: int, metrics: ModelMetrics) -> None:
         """Logs val_loss, val and train r^2 or auc to mlflow
 
         Args:
@@ -74,7 +70,8 @@ class MlflowLogger(StrategyLogger):
         """       
         # logging.info(avg_metrics)
         logging.info(f'round {rnd}\t' + str(metrics))
-        metrics.log_to_mlflow()
+        mm_dict = metrics.to_dict()
+        mlflow.log_metrics(mm_dict, metrics.epoch)
 
     def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
         pass
@@ -94,11 +91,11 @@ class Checkpointer:
         self.best_metrics = None
         self.last_metrics = None
 
-    def add_loss_to_history(self, metrics: Metrics) -> None:
+    def add_loss_to_history(self, metrics: ModelMetrics) -> None:
         logging.info(f'adding metrics {metrics} to history')
         self.history.append(metrics.val_loss)
 
-    def set_best_metrics(self, metrics: Metrics) -> None:
+    def set_best_metrics(self, metrics: ModelMetrics) -> None:
         if self.history[-1] == min(self.history):
             self.best_metrics = metrics
             
@@ -151,13 +148,10 @@ class MCMixin:
         kwargs['on_evaluate_config_fn'] = self.on_evaluate_config_fn_closure
         super().__init__(**kwargs)
 
-    def _aggregate_metrics(self, rnd: int, results: RESULTS) -> Metrics:
+    def _aggregate_metrics(self, rnd: int, results: RESULTS) -> ModelMetrics:
 
         metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
-        if isinstance(metric_list[0], ClfMetrics):
-            fed_metrics = ClfFederatedMetrics(metric_list, rnd)
-        else:
-            fed_metrics = RegFederatedMetrics(metric_list, rnd)
+        fed_metrics = FederatedMetrics(metric_list)
         # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
         # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
         avg_metrics = fed_metrics.reduce()
