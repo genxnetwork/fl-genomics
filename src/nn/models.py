@@ -476,7 +476,7 @@ class LassoNetClassifier(LassoNetRegressor):
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
-        return binary_cross_entropy_with_logits(y_hat, y, pos_weight=torch.Tensor([5.0]))
+        return binary_cross_entropy_with_logits(y_hat, y)
     
     
     def one_col_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> ClfMetrics:
