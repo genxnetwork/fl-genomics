@@ -11,44 +11,61 @@ MEAN_PHENO_DICT = {
 }
 
 QUANTITATIVE_PHENO_LIST = [
-    'standing_height',
-    'platelet_volume',
-    'erythrocyte_count',
-    'triglycerides',
-    'hdl_cholesterol',
-    'vitamin_d',
-    'creatinine',
-    'alkaline_phosphatase',
-    'cystatin_c',
-    'gamma_glutamyltransferase',
-    'ebmd',
-    'apolipoprotein_a',
-    'shbg'
-]
+        'standing_height',
+        'platelet_volume',
+        'erythrocyte_count',
+        'triglycerides',
+        'hdl_cholesterol',
+        'vitamin_d',
+        'creatinine',
+        'alkaline_phosphatase',
+        'cystatin_c',
+        'gamma_glutamyltransferase',
+        'ebmd',
+        'apolipoprotein_a',
+        'shbg']
 
-PHENO_TYPE_DICT = {
-    'ancestry': 'discrete',
-    'simulated': 'continuous',
-    'asthma': 'binary'
-}
+BINARY_PHENO_LIST = [
+        'asthma',
+        'hypothyroidism', 
+        'hypertension',
+        'diabetes',
+        'psoriasis',
+        'rhinitis',
+        'osteoarthritis',
+        'depression',
+        'gastric_reflux',
+        'angina',
+        'migraine'
+        ]
+
+PHENO_TYPE_DICT = {'ancestry': 'discrete',
+                   'simulated': 'continuous',
+                   'asthma': 'binary',
+                   'diabetes': 'binary',
+                   'hypertension': 'binary',
+                   'hypothyroidism': 'binary'}
 
 
+PHENO_NUMPY_DICT = {'standing_height': np.float32,
+                    'ebmd': np.float32,
+                    'ancestry': np.ndarray,
+                    'asthma': np.float32,
+                    'diabetes': np.float32,
+                    'hypertension': np.float32,
+                    'hypothyroidism': np.float32,
+                    'platelet_volume': np.float32}
 TYPE_LOSS_DICT = {
     'continuous': mse_loss,
     'discrete': cross_entropy,
     'binary': binary_cross_entropy
 }
 
-PHENO_NUMPY_DICT = {
-    'standing_height': np.float32,
-    'ebmd': np.float32,
-    'ancestry': np.ndarray,
-    'asthma': np.float32,
-    'platelet_volume': np.float32
-}
 
 PHENO_TYPE_DICT.update({phenotype: 'continuous' for phenotype in QUANTITATIVE_PHENO_LIST})
+PHENO_TYPE_DICT.update({phenotype: 'binary' for phenotype in BINARY_PHENO_LIST})
 PHENO_NUMPY_DICT.update({phenotype: np.float32 for phenotype in QUANTITATIVE_PHENO_LIST})
+PHENO_NUMPY_DICT.update({phenotype: np.float32 for phenotype in BINARY_PHENO_LIST})
 
 TYPE_METRIC_DICT = {
     'continuous': {
