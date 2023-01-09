@@ -396,7 +396,7 @@ class Scaffold(FedAvg):
             c_deltas = [-cg_layer + (1/cdc)*(old_layer_weight - cw[layer_index]) \
                 for cdc, cw in zip(c_delta_coefs, client_weights)]
             
-            c_avg_delta = sum([cd*bc for cd, bc in zip(c_deltas, batch_counts)])/(len(client_weights)*sum(batch_counts))
+            c_avg_delta = sum([cd*bc for cd, bc in zip(c_deltas, batch_counts)])/sum(batch_counts)
             # logging.info(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
             for i, cw in enumerate(client_weights):
                 logging.debug(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
