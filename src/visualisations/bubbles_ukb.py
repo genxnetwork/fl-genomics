@@ -150,7 +150,7 @@ def impute_missing_columns(df_local_globaltestset, df_meta_globaltestset, df_fed
     df_feder['tags.model'] = 'lassonet'
     df_feder['tags.snp_count'] = df_local_localtestset['tags.snp_count'].iloc[0]
     df_feder['tags.sample_count'] = df_centr['tags.sample_count']
-    df_feder['tags.dataset'] = 'federated'
+    df_feder['tags.dataset'] = 'Federated, 352.9 k'
 
     # df_cov['tags.dataset'] = 'covariates_only'
     df_cov['tags.model'] = 'lassonet'
@@ -162,7 +162,7 @@ def impute_missing_columns(df_local_globaltestset, df_meta_globaltestset, df_fed
 
 def rename_datasets(x):
     if '_' in x:
-        return f"{x.split('_')[0]} ({int(x.split('_')[1])/1000:.1f} k)"
+        return f"{x.split('_')[0]}, {int(x.split('_')[1])/1000:.1f} k"
     else:
         return x
 
@@ -238,7 +238,7 @@ def plot(df, df_local_globaltestset, out_fn):
 
     fig.update_xaxes(categoryorder='array',
                      categoryarray=df_local_globaltestset[['tags.dataset', 'tags.sample_count']].drop_duplicates()
-                     .sort_values('tags.sample_count')['tags.dataset'].tolist() + ['federated'],
+                     .sort_values('tags.sample_count')['tags.dataset'].tolist() + ['Federated, 352.9 k'],
                      tick0=0.0, dtick=1.0,
                      showticklabels=True, tickangle=-45, title=None)
     fig.update_yaxes(tick0=0.0, dtick=0.05,
