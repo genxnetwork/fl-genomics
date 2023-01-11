@@ -1,0 +1,8 @@
+# @package _global_
+
+experiment:
+  snp_count: 10000
+  log_model: True
+
+data:
+  gwas: ${split_dir}/gwas/${data.phenotype.name}/fold_${fold_index}.meta.tsv
