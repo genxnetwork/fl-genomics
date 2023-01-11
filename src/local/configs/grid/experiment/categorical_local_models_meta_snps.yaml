@@ -12,15 +12,15 @@ model:
 data:
   phenotype:
     name:
-      #- asthma
-          #- hypothyroidism
-          #  - hypertension
-          # - diabetes
-          #- psoriasis
-        - rhinitis
-        - osteoarthritis
-        - depression
-        - gastric_reflux
-        - angina
-        - migraine
+      - asthma
+      - hypothyroidism
+      - hypertension
+      - diabetes
+      - psoriasis
+      - rhinitis
+      - osteoarthritis
+      - depression
+      - gastric_reflux
+      - angina
+      - migraine
 

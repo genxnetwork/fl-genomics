@@ -12,11 +12,11 @@ model:
 data:
   phenotype:
     name:
-      #- asthma
-          #- hypothyroidism
-          #  - hypertension
-          # - diabetes
-          #- psoriasis
+        - asthma
+        - hypothyroidism
+        - hypertension
+        - diabetes
+        - psoriasis
         - rhinitis
         - osteoarthritis
         - depression
