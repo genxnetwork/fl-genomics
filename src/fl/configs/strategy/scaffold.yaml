@@ -1,6 +1,7 @@
 name: scaffold
 active_nodes: all
-args: 
+args:
   K: 16
   local_lr: 1e-3
   global_lr: 0.1
+  grad_lr: 1.0

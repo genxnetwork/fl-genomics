@@ -24,7 +24,7 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: 
 
     Returns:
         FedAvg: flwr Strategy with checkpointing and mlflow logging capabilities
-    """    
+    """
     default_args = OmegaConf.create({
         "fraction_fit": 0.9,
         "fraction_eval": 0.9,
@@ -39,7 +39,7 @@ def get_strategy(strategy_params: DictConfig, epochs_in_round: int, node_count: 
 
     logging.info(f'strategy args: {args}')
 
-    mlflow_logger = MlflowLogger(epochs_in_round, model_type)
+    mlflow_logger = MlflowLogger(epochs_in_round)
     checkpointer = Checkpointer(checkpoint_dir)
     if strategy_params.name == 'fedavg':
         return MCFedAvg(mlflow_logger, checkpointer, on_fit_config_fn=fit_round, **args)
@@ -64,7 +64,7 @@ class Server(Process):
             queue (Queue): Queue for communication between processes
             params_hash (str): Parameters hash for choosing the directory for saving model checkpoints
             cfg_path (str): Path to full yaml configs file
-        """        
+        """
         Process.__init__(self, **kwargs)
         self.log_dir = log_dir
         self.queue = queue
@@ -77,11 +77,11 @@ class Server(Process):
 
     def run(self) -> None:
         """Runs flower server federated learning training
-        """        
+        """
         self._configure_logging()
         node_count = len(self.cfg.split.nodes) if self.cfg.strategy.active_nodes == 'all' else len(self.cfg.strategy.active_nodes)
-        strategy = get_strategy(self.cfg.strategy, 
-                                self.cfg.scheduler.epochs_in_round, 
+        strategy = get_strategy(self.cfg.strategy,
+                                self.cfg.scheduler.epochs_in_round,
                                 node_count,
                                 os.path.join(self.cfg.server.checkpoint_dir, self.params_hash),
                                 self.cfg.model.name)
@@ -93,5 +93,5 @@ class Server(Process):
                     config={"num_rounds": self.cfg.server.rounds},
                     force_final_distributed_eval=True
         )
-    
+
         strategy.checkpointer.copy_best_model(os.path.join(self.cfg.server.checkpoint_dir, self.params_hash, 'best_model.ckpt'))

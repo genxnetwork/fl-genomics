@@ -4,6 +4,7 @@ model:
   precision: 32
   max_epochs: 8192
   patience: 1024
+  batch_size: 64
 
 experiment:
   gpus: 1

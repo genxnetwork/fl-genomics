@@ -11,7 +11,7 @@ from utils.split import Split
 from preprocess.train_val_split import CVSplitter
 from configs import pruning_config
 from configs.global_config import TG_BFILE_PATH, SPLIT_DIR, SPLIT_GENO_DIR, FEDERATED_PCA_DIR, SPLIT_ID_DIR, PCA_DIR
-from configs.qc_config import sample_qc_config, variant_qc_config
+from configs.qc_config import sample_qc_config, variant_qc_config_tg
 from configs.split_config import FOLDS_NUMBER
 
 from preprocess.pruning import PlinkPruningRunner
@@ -48,8 +48,13 @@ if __name__ == '__main__':
         'stages', metavar='stage', type=str, nargs='*',
         help=f'Available stages: {Stage.all()}'
     )
+    parser.add_argument(
+        'diss', type=float, default=1.0,
+        help='Dissimilarity degree: 1 means heterogeneous and 0 means homogeneous'
+    )
     args = parser.parse_args()
     stages = set(args.stages) if args.stages else Stage.centralized()
+    dissimilarity = args.diss
 
 
     logging.basicConfig(
@@ -79,14 +84,14 @@ if __name__ == '__main__':
     varqc_prefix = TG_BFILE_PATH + '_varqc'
     if Stage.VARIANT_QC in stages:
         logger.info('Centralised variant QC')
-        QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config)
+        QC.qc(input_prefix=TG_BFILE_PATH, output_prefix=varqc_prefix, qc_config=variant_qc_config_tg)
 
     # 2. Split into ethnic datasets and then QC each local dataset
     splitter_anc = SplitTG()
     nodes = splitter_anc.nodes
     if Stage.POPULATION_SPLIT in stages:
         logger.info('Splitting ethnic dataset')
-        splitter_anc.split(input_prefix=varqc_prefix, make_pgen=True, alpha=1)
+        splitter_anc.split(input_prefix=varqc_prefix, make_pgen=True, alpha=dissimilarity)
 
     # 3. Perform sample QC on each node separately
     if Stage.SAMPLE_QC in stages:

@@ -1,7 +1,7 @@
-  name: lassonet_regressor
+  name: lassonet_classifier
   batch_size: 16
   params:
     hidden_size: 256
     alpha_start: -3
-    alpha_end: 0.5
+    alpha_end: 1
     init_limit: 0.01

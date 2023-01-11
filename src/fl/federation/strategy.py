@@ -27,7 +27,8 @@ from flwr.server.strategy.aggregate import aggregate
 from flwr.server.client_manager import ClientManager
 
 from fl.federation.utils import weights_to_bytes, bytes_to_weights
-from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+#from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
+from nn.metrics import FederatedMetrics, ModelMetrics
 from utils.landscape import add_beta_to_loss_landscape
 
 
@@ -44,7 +45,7 @@ RESULTS = List[Tuple[ClientProxy, EvaluateRes]]
 
 
 class StrategyLogger:
-    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+    def log_losses(self, rnd: int, metrics: ModelMetrics) -> None:
         pass
 
     def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
@@ -52,17 +53,12 @@ class StrategyLogger:
 
 
 class MlflowLogger(StrategyLogger):
-    def __init__(self, epochs_in_round: int, model_type: str) -> None:
+    def __init__(self, epochs_in_round: int) -> None:
         """Logs server-side per-round metrics to mlflow
         """        
         self.epochs_in_round = epochs_in_round
-        known_model_types = ['lassonet_regressor', 'mlp_regressor', 'mlp_classifier', 'linear_regressor']
-        if model_type not in known_model_types:
-            raise ValueError(f'model_type should be one of the {known_model_types} and not {model_type}')
 
-        self.model_type = model_type
-
-    def log_losses(self, rnd: int, metrics: Metrics) -> None:
+    def log_losses(self, rnd: int, metrics: ModelMetrics) -> None:
         """Logs val_loss, val and train r^2 or auc to mlflow
 
         Args:
@@ -74,7 +70,8 @@ class MlflowLogger(StrategyLogger):
         """       
         # logging.info(avg_metrics)
         logging.info(f'round {rnd}\t' + str(metrics))
-        metrics.log_to_mlflow()
+        mm_dict = metrics.to_dict()
+        mlflow.log_metrics(mm_dict, metrics.epoch)
 
     def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
         pass
@@ -94,21 +91,31 @@ class Checkpointer:
         self.best_metrics = None
         self.last_metrics = None
 
-    def add_loss_to_history(self, metrics: Metrics) -> None:
+    def add_loss_to_history(self, metrics: ModelMetrics) -> None:
         logging.info(f'adding metrics {metrics} to history')
         self.history.append(metrics.val_loss)
 
-    def set_best_metrics(self, metrics: Metrics) -> None:
+    def set_best_metrics(self, metrics: ModelMetrics) -> None:
         if self.history[-1] == min(self.history):
             self.best_metrics = metrics
+            
+    def _clear_old_checkpoints(self, start_rnd: int, current_rnd: int) -> None:
+        best_rnd = numpy.argmin(self.history)
+        for old_rnd in range(start_rnd, current_rnd):
+            if old_rnd != best_rnd:
+                os.remove(os.path.join(self.checkpoint_dir, f'round-{old_rnd}.ckpt.npz'))
 
     def save_checkpoint(self, rnd: int, aggregated_parameters: Parameters) -> None:
-        """Checks if current model has minimum loss and if so, saves it to 'best_temp_model.ckpt'
+        """Saves current round weights to {self.checkpoint_dir}/round-{rnd}.ckpt
+        Removes old checkpoint with loss worse then minimum each 10 rounds
 
         Args:
             rnd (int): Current FL round
             aggregated_parameters (Parameters): Aggregated model parameters
         """        
+        if rnd != 0 and rnd % 10 == 0:
+            self._clear_old_checkpoints(max(1, rnd - 10), rnd)
+            
         if aggregated_parameters is not None:
             aggregated_weights = parameters_to_weights(aggregated_parameters)
             numpy.savez(os.path.join(self.checkpoint_dir, f'round-{rnd}.ckpt'), *aggregated_weights)
@@ -141,13 +148,10 @@ class MCMixin:
         kwargs['on_evaluate_config_fn'] = self.on_evaluate_config_fn_closure
         super().__init__(**kwargs)
 
-    def _aggregate_metrics(self, rnd: int, results: RESULTS) -> Metrics:
+    def _aggregate_metrics(self, rnd: int, results: RESULTS) -> ModelMetrics:
 
         metric_list = [pickle.loads(r[1].metrics['metrics']) for r in results]
-        if isinstance(metric_list[0], ClfMetrics):
-            fed_metrics = ClfFederatedMetrics(metric_list, rnd)
-        else:
-            fed_metrics = RegFederatedMetrics(metric_list, rnd)
+        fed_metrics = FederatedMetrics(metric_list)
         # LassoNetRegMetrics averaged by clients axis, i.e. one aggregated metric value for each alpha value
         # Other metrics are averaged by client axis but have only one value in total for train, val, test datasets
         avg_metrics = fed_metrics.reduce()
@@ -274,7 +278,9 @@ class MCFedAdam(MCMixin,FedAdam):
 
 
 class Scaffold(FedAvg):
-    def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, **kwargs) -> None:
+    def __init__(self, K: int = 1, local_lr: float = 0.01, global_lr: float = 0.1, grad_lr: float = 1.0, 
+                 local_gamma: float = 1.0, epochs_in_round: int = 1,
+                 **kwargs) -> None:
         """FL strategy for heterogenious data which uses control variates for adjusting gradients on nodes.
         c_global variate is an estimation of true gradient of all clients.
         c_local variate is an estimation of node gradient.
@@ -289,6 +295,9 @@ class Scaffold(FedAvg):
         self.K = K
         self.local_lr = local_lr
         self.global_lr = global_lr
+        self.grad_lr = grad_lr
+        self.local_gamma = local_gamma
+        self.epochs_in_round = epochs_in_round
         self.c_global = None
         self.old_weights = None
         super().__init__(**kwargs)
@@ -316,6 +325,13 @@ class Scaffold(FedAvg):
         fig.add_trace(go.Scatter(x=[self.c_global[0][0, 0]], y=[self.c_global[0][0, 1]], mode='markers', name=f'c_global'))
         
         mlflow.log_figure(fig, f'global_loss_landscape_rnd_{rnd}.png')
+        
+    def _get_mean_local_lr(self, rnd: int):
+        assert rnd > 0
+        start_lr = self.local_lr*self.local_gamma**((rnd - 1)*self.epochs_in_round)
+        end_lr = self.local_lr*self.local_gamma**(rnd*self.epochs_in_round - 1)
+        mean_lr = numpy.mean(numpy.geomspace(start_lr, end_lr))
+        return mean_lr
 
     def aggregate_fit(
         self, rnd: int, results: List[Tuple[ClientProxy, FitRes]], failures: List[BaseException]
@@ -325,11 +341,13 @@ class Scaffold(FedAvg):
         # self._plot_2d_landscape(rnd, results)
         client_weights = [parameters_to_weights(fit_res.parameters) for _, fit_res in results]
 
+        mean_local_lr = self._get_mean_local_lr(rnd)
+        logging.info(f'mean_local_lr is {mean_local_lr} for rnd {rnd} and epochs in round {self.epochs_in_round}')
         for layer_index, old_layer_weight in enumerate(self.old_weights):
             cg_layer = self.c_global[layer_index]
-            c_deltas = [-cg_layer + (1/(self.K*self.local_lr))*(old_layer_weight - cw[layer_index]) for cw in client_weights]
+            c_deltas = [-cg_layer + (1/(self.K*mean_local_lr))*(old_layer_weight - cw[layer_index]) for cw in client_weights]
             c_avg_delta = sum(c_deltas)/len(client_weights)
-            logging.info(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
+            # logging.info(f'AGGREGATE_FIT: {layer_index}\tcg_layer: {norm(cg_layer):.4f}\tc_avg_delta: {norm(c_avg_delta):.4f}')
             for i, cw in enumerate(client_weights):
                 logging.debug(f'client: {i}\t{norm(old_layer_weight - cw[layer_index]):.4f}')
             

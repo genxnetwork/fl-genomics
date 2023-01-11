@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Tuple, Optional
 import numpy
 from pytorch_lightning import LightningModule
+from sklearn.metrics import roc_auc_score
 import torch
 from torch.nn import Linear, BatchNorm1d
 from torch.nn.init import uniform_ as init_uniform_
@@ -11,10 +12,12 @@ import mlflow
 from mlflow.tracking.client import MlflowClient
 from mlflow.entities import Metric
 import time
+import logging
 
 from configs.phenotype_config import TYPE_LOSS_DICT
 from nn.lightning import DataModule
-from nn.utils import ClfLoaderMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
+# from nn.utils import ClfLoaderMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
+from nn.metrics import ModelMetrics, DatasetMetrics, RegMetrics, ClfMetrics, LassoNetModelMetrics
 
 
 class BaseNet(LightningModule):
@@ -183,8 +186,11 @@ class BaseNet(LightningModule):
             y_pred.append(self(x).detach().cpu())
             y_true.append(y.cpu())
         return torch.cat(y_pred, dim=0), torch.cat(y_true, dim=0)
+    
+    def loader_metrics(self, y_hat: torch.Tensor, y: torch.Tensor) -> DatasetMetrics:
+        raise NotImplementedError('subclasses of BaseNet should implement loader_metrics')
 
-    def predict_and_eval(self, datamodule: DataModule, **kwargs: Any) -> Metrics:
+    def predict_and_eval(self, datamodule: DataModule, **kwargs: Any) -> ModelMetrics:
         raise NotImplementedError('subclasses of BaseNet should implement predict_end_eval')
 
 
@@ -217,25 +223,25 @@ class LinearRegressor(BaseNet):
         mlflow.log_metric('grad_norm', torch.norm(self.layer.weight.grad).item(), self.fl_current_epoch())
         return super().on_after_backward()
 
-    def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
+    def loader_metrics(self, y_hat: torch.Tensor, y: torch.Tensor) -> RegMetrics:
         mse = mse_loss(y_hat.squeeze(1), y)
         r2 = self.r2_score(y_hat.squeeze(1), y)
-        return RegLoaderMetrics(prefix, mse.item(), r2.item(), self.fl_current_epoch(), y_hat.shape[0])
+        return RegMetrics(mse.item(), r2.item(), self.fl_current_epoch(), y_hat.shape[0])
 
-    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> ModelMetrics:
         train_loader, val_loader, test_loader = datamodule.predict_dataloader()
         y_train_pred, y_train = self.predict(train_loader)
         y_val_pred, y_val = self.predict(val_loader)
 
-        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
-        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
+        train_metrics = self.loader_metrics(y_train_pred, y_train)
+        val_metrics = self.loader_metrics(y_val_pred, y_val)
 
         if test:
             y_test_pred, y_test = self.predict(test_loader)
-            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
+            test_metrics = self.loader_metrics(y_test_pred, y_test)
         else:
             test_metrics = None
-        metrics = RegMetrics(train_metrics, val_metrics, test_metrics, epoch=self.fl_current_epoch())
+        metrics = ModelMetrics(train_metrics, val_metrics, test_metrics)
         return metrics
 
 
@@ -268,6 +274,11 @@ class LinearClassifier(BaseNet):
         self.log('val_loss', avg_loss)
         self.log('val_accuracy', avg_accuracy)
 
+    def loader_metrics(self, y_hat: torch.Tensor, y: torch.Tensor) -> RegMetrics:
+        bce = binary_cross_entropy_with_logits(y_hat, y)
+        accuracy = accuracy = (y_hat.argmax(dim=1) == y).float().mean()
+        return ClfMetrics(bce.item(), accuracy.item(), self.fl_current_epoch(), y_hat.shape[0])
+
 
 class MLPPredictor(BaseNet):
     def __init__(self, input_size: int, hidden_size: int, l1: float, optim_params: Dict, scheduler_params: Dict, loss = mse_loss) -> None:
@@ -294,26 +305,10 @@ class MLPPredictor(BaseNet):
     def calculate_loss(self, y_hat, y):
         return self.loss(y_hat.squeeze(1), y)
 
-    def _pred_metrics(self, prefix: str, y_hat: torch.Tensor, y: torch.Tensor) -> RegLoaderMetrics:
+    def loader_metrics(self, y_hat: torch.Tensor, y: torch.Tensor) -> RegMetrics:
         mse = mse_loss(y_hat.squeeze(1), y)
         r2 = self.r2_score(y_hat.squeeze(1), y)
-        return RegLoaderMetrics(prefix, mse.item(), r2.item(), self.fl_current_epoch(), y_hat.shape[0])
-
-    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
-        train_loader, val_loader, test_loader = datamodule.predict_dataloader()
-        y_train_pred, y_train = self.predict(train_loader)
-        y_val_pred, y_val = self.predict(val_loader)
-
-        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
-        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
-
-        if test:
-            y_test_pred, y_test = self.predict(test_loader)
-            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
-        else:
-            test_metrics = None
-        metrics = RegMetrics(train_metrics, val_metrics, test_metrics, epoch=self.fl_current_epoch())
-        return metrics
+        return RegMetrics(mse.item(), r2.item(), self.fl_current_epoch(), y_hat.shape[0])
 
 
 class MLPClassifier(BaseNet):
@@ -383,35 +378,18 @@ class MLPClassifier(BaseNet):
         self._add_to_history('val_accuracy', avg_accuracy, step=self.fl_current_epoch())
         self.log('val_loss', avg_loss, prog_bar=True)
 
-    def _pred_metrics(self, prefix: str, y_pred: torch.Tensor, y_true: torch.Tensor) -> Metrics:
+    def loader_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> ClfMetrics:
         loss = self.calculate_loss(y_pred, y_true)
         accuracy = Accuracy(num_classes=self.nclass)
-        return ClfLoaderMetrics(prefix, loss.item(), accuracy(y_pred, y_true).item(),
-                                epoch=self.fl_current_epoch(), samples=y_pred.shape[0])
-
-    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
-        train_loader, val_loader, test_loader = datamodule.predict_dataloader()
-        y_train_pred, y_train = self.predict(train_loader)
-        y_val_pred, y_val = self.predict(val_loader)
-
-        train_metrics = self._pred_metrics('train', y_train_pred, y_train)
-        val_metrics = self._pred_metrics('val', y_val_pred, y_val)
-
-        if test:
-            y_test_pred, y_test = self.predict(test_loader)
-            test_metrics = self._pred_metrics('test', y_test_pred, y_test)
-        else:
-            test_metrics = None
-
-        metrics = ClfMetrics(train_metrics, val_metrics, test_metrics, self.fl_current_epoch())
-        return metrics
+        return ClfMetrics(loss.item(), accuracy(y_pred, y_true).item(), epoch=self.fl_current_epoch(), samples=y_pred.shape[0])
 
 
 class LassoNetRegressor(BaseNet):
     def __init__(self, input_size: int, hidden_size: int,
                  optim_params: Dict, scheduler_params: Dict,
-                 cov_count: int = 0, 
+                 cov_count: int = 0,
                  alpha_start: float = -1, alpha_end: float = -1, init_limit: float = 0.01, use_bn: bool = True,
+                 loss = None,
                  logger = None) -> None:
         super().__init__(input_size, optim_params, scheduler_params)
 
@@ -432,7 +410,7 @@ class LassoNetRegressor(BaseNet):
         if self.use_bn:
             x = self.bn(x)
         out = self.layer(x)
-        return out 
+        return out
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
@@ -456,26 +434,25 @@ class LassoNetRegressor(BaseNet):
         r2 = [r.item() for r in self.r2_score(y_pred, y)]
         return r2
 
-    def _unreduced_pred_metrics(self, prefix: str, y_pred: torch.Tensor, y_true: torch.Tensor) -> List[RegLoaderMetrics]:
+    def loader_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> List[RegMetrics]:
         losses = self._unreduced_mse_loss(y_pred, y_true)
         r2s = self._unreduced_r2_score(y_pred, y_true)
-        return [RegLoaderMetrics(prefix, loss, r2, self.fl_current_epoch(), samples=y_true.shape[0]) for loss, r2 in zip(losses, r2s)]
+        return [RegMetrics(loss, r2, self.fl_current_epoch(), samples=y_true.shape[0]) for loss, r2 in zip(losses, r2s)]
 
-    def predict_and_eval(self, datamodule: DataModule, test=False) -> Metrics:
+    def predict_and_eval(self, datamodule: DataModule, test=False) -> LassoNetModelMetrics:
         train_loader, val_loader, test_loader = datamodule.predict_dataloader()
         y_train_pred, y_train = self.predict(train_loader)
         y_val_pred, y_val = self.predict(val_loader)
 
-        train_metrics = self._unreduced_pred_metrics('train', y_train_pred, y_train)
-        val_metrics = self._unreduced_pred_metrics('val', y_val_pred, y_val)
+        train_metrics = self.loader_metrics(y_train_pred, y_train)
+        val_metrics = self.loader_metrics(y_val_pred, y_val)
 
         if test:
             y_test_pred, y_test = self.predict(test_loader)
-            test_metrics = self._unreduced_pred_metrics('test', y_test_pred, y_test)
+            test_metrics = self.loader_metrics(y_test_pred, y_test)
         else:
             test_metrics = None
-        best_col = numpy.argmax([m.r2 for m in val_metrics])
-        metrics = LassoNetRegMetrics(train_metrics, val_metrics, test_metrics, self.fl_current_epoch(), best_col=best_col)
+        metrics = LassoNetModelMetrics(train_metrics, val_metrics, test_metrics)
 
         return metrics
 
@@ -488,9 +465,10 @@ class LassoNetRegressor(BaseNet):
 
         weight = self.layer.weight.data
         snp_count = self.layer.weight.shape[1] - cov_weights.shape[1]
-        #('covariate weight shapes are ', weight.shape, snp_count, cov_weights.shape, weight[:, snp_count:].shape)
+        logging.info(f'covariate weight shapes are: weight={weight.shape}, snp_count={snp_count}, cov_weights={cov_weights.shape}, {weight[:, snp_count:].shape}')
         weight[:, snp_count:] = cov_weights
         self.layer.weight = torch.nn.Parameter(weight)
+
 
 class LassoNetClassifier(LassoNetRegressor):
     def __init__(self, *args, **kwargs) -> None:
@@ -498,4 +476,22 @@ class LassoNetClassifier(LassoNetRegressor):
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
-        return binary_cross_entropy_with_logits(y_hat, y)
+        return binary_cross_entropy_with_logits(y_hat, y, pos_weight=torch.Tensor([5.0]))
+    
+    
+    def one_col_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> ClfMetrics:
+         
+        loss = binary_cross_entropy_with_logits(y_pred, y_true).item()
+        accuracy = ((y_pred > 0.5).float() == y_true).float().mean().item()
+        auc = roc_auc_score(y_true.detach().cpu().numpy(), y_pred.detach().cpu().numpy())
+        return ClfMetrics(loss, accuracy, auc, self.fl_current_epoch(), y_true.shape[0])
+    
+    
+    def loader_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> List[ClfMetrics]:
+        
+        result: List[ClfMetrics] = []
+        for col in range(y_pred.shape[1]):
+            col_metrics = self.one_col_metrics(y_pred[:, col], y_true)
+            result.append(col_metrics)
+            
+        return result
