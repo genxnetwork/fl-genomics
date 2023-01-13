@@ -59,10 +59,14 @@ class DataModule(LightningDataModule):
 
     def predict_dataloader(self) -> List[DataLoader]:
         if self.sw is not None and self.sw.train is not None:
-            sampler = WeightedRandomSampler(self.sw.train, num_samples=int(self.sw.train.shape[0]*self.sw.train.mean()), replacement=True)
+            sampler = WeightedRandomSampler(
+                self.sw.train, num_samples=int(self.sw.train.shape[0]*self.sw.train.mean()), replacement=True
+            )
             train_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, sampler=sampler)
         else:
-            train_loader = self.train_dataloader()
+            train_loader = DataLoader(
+                self.train_dataset, batch_size=self.batch_size, shuffle=False, num_workers=0, drop_last=self.drop_last
+            )
         val_loader = self.val_dataloader()
         test_loader = self.test_dataloader()
         return [train_loader, val_loader, test_loader]

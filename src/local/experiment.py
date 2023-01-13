@@ -28,7 +28,7 @@ from fl.datasets.memory import load_covariates
 from nn.lightning import DataModule
 from nn.train import prepare_trainer
 from nn.utils import LassoNetRegMetrics
-from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor, LinearClassifier
+from nn.models import MLPPredictor, LassoNetRegressor, LassoNetClassifier, MLPClassifier, LinearRegressor, LinearClassifier, DeepMLPClassifier
 from configs.phenotype_config import MEAN_PHENO_DICT, PHENO_TYPE_DICT, PHENO_NUMPY_DICT, TYPE_LOSS_DICT, \
     TYPE_METRIC_DICT
 from utils.metrics import get_accuracy
@@ -67,14 +67,14 @@ class LocalExperiment(object):
                 'fold_index': self.cfg.fold_index
             }
         elif self.cfg.study == 'ukb':
-            num_samples = node_size_dict[split][self.cfg.node_index]
+            num_samples = node_size_dict[split][self.cfg.node.index]
             study_tags={
-                'fold_index': str(self.cfg.fold_index),
-                'node_index': str(self.cfg.node_index),
+                'fold_index': str(self.cfg.fold.index),
+                'node_index': str(self.cfg.node.index),
                 'snp_count': str(self.cfg.experiment.snp_count),
                 'sample_count': str(round(num_samples, -2)),
                 'sample_count_exact': str(num_samples),
-                'dataset': f"{node_name_dict[split][self.cfg.node_index]}_{round(num_samples, -2)}",
+                'dataset': f"{node_name_dict[split][self.cfg.node.index]}_{round(num_samples, -2)}",
                 'gwas': self.cfg.data.gwas
             }
         elif self.cfg.study == 'simulation':
@@ -180,6 +180,8 @@ def get_model_class(model_name: str) -> Type:
         'lassonet_classifier': LassoNetClassifier,
         'mlp_regressor': MLPPredictor,
         'mlp_classifier': MLPClassifier,
+        'mlp_binary_classifier': MLPClassifier,
+        'deep_mlp_classifier': DeepMLPClassifier,
         'linear_regressor': LinearRegressor,
         'linear_classifier': LinearClassifier
     }
@@ -221,8 +223,9 @@ class NNExperiment(LocalExperiment):
         mlflow.log_params({'optimizer': self.cfg.optimizer})
         mlflow.log_params({'scheduler': self.cfg.get('scheduler', None)})
         
-        prevalence = self.y.sum().mean()
-        mlflow.log_metric('prevalence', float(prevalence))
+        mlflow.log_metric('train_prevalence', float(self.y.train.mean()))
+        mlflow.log_metric('val_prevalence', float(self.y.val.mean()))
+        mlflow.log_metric('test_prevalence', float(self.y.test.mean()))
         
         self.create_model()
 
@@ -346,20 +349,21 @@ class TGNNExperiment(NNExperiment):
         )
 
     def create_model(self):
-        self.model = MLPClassifier(nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                   optim_params=self.cfg.experiment.optimizer,
-                                   scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                   loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
-                                   )
+        self.model: self.model_class = self.model_class(nclass=len(set(self.y.train)), 
+                                                        nfeat=self.x.train.shape[1],
+                                                        optim_params=self.cfg.optimizer,
+                                                        scheduler_params=self.cfg.get('scheduler', None),
+                                                        loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
+                                                        )
 
 
     def load_best_model(self):
-        self.model = MLPClassifier.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
-                                                        nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
-                                                        optim_params=self.cfg.experiment.optimizer,
-                                                        scheduler_params=self.cfg.experiment.get('scheduler', None),
-                                                        loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
-                                                        )
+        self.model = self.model_class.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                          nclass=len(set(self.y.train)), nfeat=self.x.train.shape[1],
+                                                          optim_params=self.cfg.optimizer,
+                                                          scheduler_params=self.cfg.get('scheduler', None),
+                                                          loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]]
+                                                          )
 
     def eval_and_log(self, metric_fun=get_accuracy, metric_name='accuracy'):
         self.model.eval()
@@ -383,6 +387,36 @@ class TGNNExperiment(NNExperiment):
         mlflow.log_metric(f'test_{metric_name}', metric_test)
 
 
+
+class UKBNNExperiment(NNExperiment):
+    def load_data(self):
+        LocalExperiment.load_data(self)
+
+        self.data_module = DataModule(
+            self.x,
+            self.y.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name]),
+            batch_size=self.cfg.model.get('batch_size', len(self.x.train)),
+            drop_last=False
+        )
+
+    def create_model(self):
+        self.model = self.model_class(nclass=1, nfeat=self.x.train.shape[1],
+                                     optim_params=self.cfg.optimizer,
+                                     scheduler_params=self.cfg.get('scheduler', None),
+                                     loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
+                                     **self.cfg.model.params
+                                     )
+
+
+    def load_best_model(self):
+        self.model = self.model_class.load_from_checkpoint(self.trainer.checkpoint_callback.best_model_path,
+                                                           nclass=1, nfeat=self.x.train.shape[1],
+                                                           optim_params=self.cfg.optimizer,
+                                                           scheduler_params=self.cfg.get('scheduler', None),
+                                                           loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
+                                                           **self.cfg.model.params
+                                                           )
+
 # Dict of possible experiment types and their corresponding classes
 ukb_experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
@@ -391,7 +425,8 @@ ukb_experiment_dict = {
     'lassonet_regressor': NNExperiment,
     'lassonet_classifier': NNExperiment,
     'mlp_regressor': NNExperiment,
-    'mlp_classifier': NNExperiment
+    'mlp_classifier': UKBNNExperiment,
+    'deep_mlp_classifier': UKBNNExperiment
 }
 
 tg_experiment_dict = {

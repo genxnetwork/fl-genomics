@@ -4,3 +4,6 @@ experiment:
   name: local-models-local-snps
   snp_count: 10000
   log_model: True
+  include_genotype: True
+  include_covariates: True
+  pretrain_on_cov: null

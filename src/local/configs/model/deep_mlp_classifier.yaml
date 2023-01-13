@@ -1,0 +1,10 @@
+# @package _global_
+model:
+  name: deep_mlp_classifier
+  precision: 32
+  max_epochs: 64
+  batch_size: 512
+  patience: 16
+  params:
+    hidden_size: 200
+    hidden_size2: 50

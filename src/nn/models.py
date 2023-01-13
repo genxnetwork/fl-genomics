@@ -3,7 +3,7 @@ import numpy
 from pytorch_lightning import LightningModule
 from sklearn.metrics import roc_auc_score
 import torch
-from torch.nn import Linear, BatchNorm1d
+from torch.nn import Linear, BatchNorm1d, ReLU, Sequential, Dropout
 from torch.nn.init import uniform_ as init_uniform_
 from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu6, softmax, relu, selu
 from torch.utils.data import DataLoader
@@ -328,12 +328,13 @@ class MLPClassifier(BaseNet):
         x = selu(self.fc1(x))
         x = selu(self.fc2(x))
         # x = softmax(, dim=1)
-        return self.fc3(x)
+        return torch.sigmoid(self.fc3(x))
 
     def regularization(self):
         return torch.tensor(0)
 
     def calculate_loss(self, y_hat, y):
+        # print(f'SHAPES IN LOSS ARE: {y_hat.shape}, {y.shape}')
         return self.loss(y_hat.squeeze(1), y)
 
     def training_step(self, batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int) -> Dict[str, Any]:
@@ -382,6 +383,36 @@ class MLPClassifier(BaseNet):
         loss = self.calculate_loss(y_pred, y_true)
         accuracy = Accuracy(num_classes=self.nclass)
         return ClfMetrics(loss.item(), accuracy(y_pred, y_true).item(), epoch=self.fl_current_epoch(), samples=y_pred.shape[0])
+
+
+class DeepMLPClassifier(MLPClassifier):
+    def __init__(self, nclass, nfeat, optim_params, scheduler_params, loss, hidden_size=800, hidden_size2=200, dropout=0.0, binary=False) -> None:
+        super().__init__(nclass, nfeat, optim_params=optim_params, scheduler_params=scheduler_params,
+                         loss=loss, hidden_size=hidden_size, hidden_size2=hidden_size2)
+        self.nclass = nclass
+        layers = [
+            BatchNorm1d(nfeat), 
+            Linear(nfeat, hidden_size), BatchNorm1d(hidden_size), ReLU(), Dropout(dropout),
+            Linear(hidden_size, hidden_size), BatchNorm1d(hidden_size), ReLU(), Dropout(dropout),
+            Linear(hidden_size, hidden_size2), BatchNorm1d(hidden_size2), ReLU(), Dropout(dropout),
+            Linear(hidden_size2, hidden_size2), BatchNorm1d(hidden_size2), ReLU(), Dropout(dropout),
+            Linear(hidden_size2, nclass),
+            
+        ]
+        self.layers = Sequential(*layers)
+        self.loss = loss
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
+        x = self.layers(x)
+        return torch.sigmoid(x)
+    
+    def _add_to_history(self, name: str, value, step: int):
+        timestamp = int(time.time() * 1000)
+        self.history.append(Metric(name, value, timestamp, step))
+        if len(self.history) % 5 == 0:
+            self.mlflow_client.log_batch(mlflow.active_run().info.run_id, self.history[-5:])
+            self.logged_count = len(self.history)
 
 
 class LassoNetRegressor(BaseNet):

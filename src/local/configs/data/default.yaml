@@ -1,17 +1,17 @@
 
-genotype: ${split_dir}/genotypes/node_${node_index}
+genotype: ${split_dir}/genotypes/node_${node.index}
 
 phenotype:
     name: standing_height
-    root: ${split_dir}/phenotypes/${data.phenotype.name}/node_${node_index}/fold_${fold_index}
+    root: ${split_dir}/phenotypes/${data.phenotype.name}/node_${node.index}/fold_${fold.index}
     train: ${.root}_train.tsv
     val: ${.root}_val.tsv
     test: ${.root}_test.tsv
 
 covariates:
-    root: ${split_dir}/covariates/${data.phenotype.name}/node_${node_index}/fold_${fold_index}
+    root: ${split_dir}/covariates/${data.phenotype.name}/node_${node.index}/fold_${fold.index}
     train: ${.root}_train.tsv
     val: ${.root}_val.tsv
     test: ${.root}_test.tsv
 
-gwas: ${split_dir}/gwas/${data.phenotype.name}/node_${node_index}/fold_${fold_index}.gwas.tsv
+gwas: ${split_dir}/gwas/${data.phenotype.name}/node_${node.index}/fold_${fold.index}.gwas.tsv

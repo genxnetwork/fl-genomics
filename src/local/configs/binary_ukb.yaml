@@ -1,0 +1,15 @@
+defaults:
+  - _self_
+  - data: default
+  - model: mlp_binary_classifier
+  - experiment: local_models_local_snps
+  - optimizer: sgd
+  - scheduler: exponential_lr
+  - training: default
+
+study: ukb
+split_dir: /gpfs/gpfs0/ukb_data/test/ac_split
+node: 
+  index: 0
+fold:
+  index: 0
