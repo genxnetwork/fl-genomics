@@ -1,11 +1,11 @@
 from typing import Dict, Any, List, Tuple, Optional
 import numpy
 from pytorch_lightning import LightningModule
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, roc_curve
 import torch
 from torch.nn import Linear, BatchNorm1d, ReLU, Sequential, Dropout
 from torch.nn.init import uniform_ as init_uniform_
-from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu6, softmax, relu, selu
+from torch.nn.functional import mse_loss, binary_cross_entropy_with_logits, relu6, softmax, relu, selu, binary_cross_entropy
 from torch.utils.data import DataLoader
 from torchmetrics import Accuracy, R2Score
 import mlflow
@@ -18,6 +18,8 @@ from configs.phenotype_config import TYPE_LOSS_DICT
 from nn.lightning import DataModule
 # from nn.utils import ClfLoaderMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegLoaderMetrics, RegMetrics
 from nn.metrics import ModelMetrics, DatasetMetrics, RegMetrics, ClfMetrics, LassoNetModelMetrics
+from utils.loaders import Y
+from utils.ml import RawPreds
 
 
 class BaseNet(LightningModule):
@@ -470,7 +472,7 @@ class LassoNetRegressor(BaseNet):
         r2s = self._unreduced_r2_score(y_pred, y_true)
         return [RegMetrics(loss, r2, self.fl_current_epoch(), samples=y_true.shape[0]) for loss, r2 in zip(losses, r2s)]
 
-    def predict_and_eval(self, datamodule: DataModule, test=False) -> LassoNetModelMetrics:
+    def predict_and_eval(self, datamodule: DataModule, test=False, return_preds=False) -> LassoNetModelMetrics:
         train_loader, val_loader, test_loader = datamodule.predict_dataloader()
         y_train_pred, y_train = self.predict(train_loader)
         y_val_pred, y_val = self.predict(val_loader)
@@ -485,6 +487,18 @@ class LassoNetRegressor(BaseNet):
             test_metrics = None
         metrics = LassoNetModelMetrics(train_metrics, val_metrics, test_metrics)
 
+        
+        if return_preds:
+            preds = RawPreds(
+                Y(y_train.numpy(), y_val.numpy(), None), 
+                Y(y_train_pred.numpy(), y_val_pred.numpy(), None)
+            )
+            if test:
+                preds.y_true.test = y_test.numpy()
+                preds.y_pred.test = y_test_pred.numpy()
+                
+            return metrics, preds
+        
         return metrics
 
     def get_best_predictions(self, train_preds: torch.Tensor, val_preds: torch.Tensor, test_preds: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -504,15 +518,21 @@ class LassoNetRegressor(BaseNet):
 class LassoNetClassifier(LassoNetRegressor):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.use_bn:
+            x = self.bn(x)
+        out = self.layer(x)
+        return torch.sigmoid(out)
 
     def calculate_loss(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
-        return binary_cross_entropy_with_logits(y_hat, y)
+        return binary_cross_entropy(y_hat, y)
     
     
     def one_col_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> ClfMetrics:
          
-        loss = binary_cross_entropy_with_logits(y_pred, y_true).item()
+        loss = binary_cross_entropy(y_pred, y_true).item()
         accuracy = ((y_pred > 0.5).float() == y_true).float().mean().item()
         auc = roc_auc_score(y_true.detach().cpu().numpy(), y_pred.detach().cpu().numpy())
         return ClfMetrics(loss, accuracy, auc, self.fl_current_epoch(), y_true.shape[0])

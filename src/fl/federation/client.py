@@ -173,12 +173,15 @@ class FLClient(NumPyClient):
 
         start = time()
         need_test_eval = 'current_round' in config and config['current_round'] == -1
-        unreduced_metrics = self.experiment.model.predict_and_eval(self.experiment.data_module, 
-                                                        test=need_test_eval)
+        unreduced_metrics, unreduced_preds = self.experiment.model.predict_and_eval(self.experiment.data_module, 
+                                                        test=need_test_eval, return_preds=True)
 
         self.metrics_logger.log_eval_metric(unreduced_metrics)
         val_len = self.experiment.data_module.val_len()
         end = time()
         self.log(f'node: {self.params.node.index}\tround: {self.experiment.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
         
-        return unreduced_metrics.val_loss, val_len, {'metrics': pickle.dumps(unreduced_metrics)}
+        return unreduced_metrics.val_loss, val_len, {
+            'metrics': pickle.dumps(unreduced_metrics), 
+            'preds': pickle.dumps(unreduced_preds)
+        }

@@ -9,6 +9,7 @@ from numpy.linalg import norm
 import os
 import mlflow
 import plotly.graph_objects as go
+from sklearn.metrics import r2_score, roc_auc_score, average_precision_score
 
 from flwr.common import (
     EvaluateRes,
@@ -30,6 +31,8 @@ from fl.federation.utils import weights_to_bytes, bytes_to_weights
 #from nn.utils import ClfFederatedMetrics, ClfMetrics, LassoNetRegMetrics, Metrics, RegFederatedMetrics
 from nn.metrics import FederatedMetrics, ModelMetrics
 from utils.landscape import add_beta_to_loss_landscape
+from utils.ml import RawPreds
+from utils.loaders import Y
 
 
 def fit_round(rnd: int):
@@ -72,6 +75,29 @@ class MlflowLogger(StrategyLogger):
         logging.info(f'round {rnd}\t' + str(metrics))
         mm_dict = metrics.to_dict()
         mlflow.log_metrics(mm_dict, metrics.epoch)
+        
+    def log_preds_losses(self, epoch: int, preds: RawPreds, loss_type: str = 'binary') -> None:
+        if loss_type == 'binary':
+            if len(preds.y_pred.train.shape) > 1 and preds.y_pred.train.shape[1] > 1:
+                models_count = preds.y_pred.train.shape[1]
+                # lassonet-like preds, many models trained in parallel on the same client
+                train_aucs = [roc_auc_score(preds.y_true.train, preds.y_pred.train[:, i]) for i in range(models_count)]
+                val_aucs = [roc_auc_score(preds.y_true.val, preds.y_pred.val[:, i]) for i in range(models_count)]
+                best_col = numpy.argmax(val_aucs)
+                train_auc, val_auc = train_aucs[best_col], val_aucs[best_col]
+                mlflow.log_metric('c_train_auc', train_auc, epoch)
+                mlflow.log_metric('c_val_auc', val_auc, epoch)
+        elif loss_type == 'continuous':
+            if len(preds.y_pred.train.shape) > 1 and preds.y_pred.train.shape[1] > 1:
+                models_count = preds.y_pred.train.shape[1]
+                # lassonet-like preds, many models trained in parallel on the same client
+                train_r2s = [r2_score(preds.y_true.train, preds.y_pred.train[:, i]) for i in range(models_count)]
+                val_r2s = [r2_score(preds.y_true.val, preds.y_pred.val[:, i]) for i in range(models_count)]
+                best_col = numpy.argmax(val_r2s)
+                train_r2, val_r2 = train_r2s[best_col], val_r2s[best_col]
+                mlflow.log_metric('c_train_r2', train_r2, epoch)
+                mlflow.log_metric('c_val_r2', val_r2, epoch)
+                                
 
     def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
         pass
@@ -157,6 +183,26 @@ class MCMixin:
         avg_metrics = fed_metrics.reduce()
         return avg_metrics
 
+    def _aggregate_preds(self, rnd: int, results: RESULTS) -> RawPreds:
+        
+        preds_list: List[RawPreds] = [pickle.loads(r[1].metrics['preds']) for r in results]
+        logging.info(f'PRED SHAPE: {preds_list[0].y_pred.train.shape}\tTRUE SHAPE {preds_list[0].y_true.train.shape}')
+        train_preds = numpy.vstack([pl.y_pred.train for pl in preds_list])
+        val_preds = numpy.vstack([pl.y_pred.val for pl in preds_list])
+        
+        train_target = numpy.hstack([pl.y_true.train for pl in preds_list])
+        val_target = numpy.hstack([pl.y_true.val for pl in preds_list])
+        
+        if rnd == -1:
+            test_preds = numpy.vstack([pl.y_pred.test for pl in preds_list])
+            test_target = numpy.hstack([pl.y_true.test for pl in preds_list])
+        else:
+            test_preds, test_target = None, None
+        
+        aggregated_preds = RawPreds(Y(train_target, val_target, test_target), 
+                                    Y(train_preds, val_preds, test_preds))
+        return aggregated_preds
+        
     def aggregate_evaluate(
         self,
         rnd: int,
@@ -168,6 +214,8 @@ class MCMixin:
             return None
 
         metrics = self._aggregate_metrics(rnd, results)
+        preds = self._aggregate_preds(rnd, results)
+        self.strategy_logger.log_preds_losses(metrics.epoch, preds)
         self.strategy_logger.log_losses(rnd, metrics)
         reduced_metrics = metrics.reduce() 
         self.checkpointer.add_loss_to_history(reduced_metrics)
