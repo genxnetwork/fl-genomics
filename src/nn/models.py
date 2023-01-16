@@ -491,7 +491,8 @@ class LassoNetRegressor(BaseNet):
         if return_preds:
             preds = RawPreds(
                 Y(y_train.numpy(), y_val.numpy(), None), 
-                Y(y_train_pred.numpy(), y_val_pred.numpy(), None)
+                Y(y_train_pred.numpy(), y_val_pred.numpy(), None),
+                "continuous"
             )
             if test:
                 preds.y_true.test = y_test.numpy()
@@ -546,3 +547,11 @@ class LassoNetClassifier(LassoNetRegressor):
             result.append(col_metrics)
             
         return result
+
+
+    def predict_and_eval(self, datamodule: DataModule, test=False, return_preds=False) -> LassoNetModelMetrics:
+        if return_preds:
+            metrics, preds = super().predict_and_eval(datamodule, test=test, return_preds=return_preds)
+            preds.task_type = "binary"
+            return metrics, preds
+        return super().predict_and_eval(datamodule, test=test, return_preds=return_preds)

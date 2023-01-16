@@ -6,3 +6,5 @@ from utils.loaders import Y
 class RawPreds:
     y_true: Y
     y_pred: Y
+    # one of binary, discrete, continuous
+    task_type: str = "binary" 

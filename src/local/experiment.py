@@ -251,8 +251,25 @@ class NNExperiment(LocalExperiment):
         self.load_best_model()
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
 
+    def save_model(self):
+        self.logger.info("Logging model")
+        input_schema = Schema([
+            TensorSpec(numpy.dtype(numpy.float32), (-1, self.x.train.shape[1])),
+        ])
+        output_schema = Schema([TensorSpec(numpy.dtype(numpy.float32), (-1, self.cfg.model.batch_size))])
+        signature = ModelSignature(inputs=input_schema, outputs=output_schema)
+        mlflow.pytorch.log_model(self.model,
+                                 artifact_path='nn-model',
+                                 registered_model_name=f"{self.cfg.model.name}_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node.index}",
+                                 signature=signature,
+                                 pickle_protocol=4)
+
+        self.logger.info("Model logged")
+    
     def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
         self.model.eval()
+        if self.cfg.experiment.get('log_model', None):
+            self.save_model()
         train_preds, val_preds, test_preds = self.trainer.predict(self.model, self.data_module)
 
         train_preds = torch.cat(train_preds).squeeze().cpu().numpy()

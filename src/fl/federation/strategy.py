@@ -76,8 +76,8 @@ class MlflowLogger(StrategyLogger):
         mm_dict = metrics.to_dict()
         mlflow.log_metrics(mm_dict, metrics.epoch)
         
-    def log_preds_losses(self, epoch: int, preds: RawPreds, loss_type: str = 'binary') -> None:
-        if loss_type == 'binary':
+    def log_preds_losses(self, epoch: int, preds: RawPreds) -> None:
+        if preds.task_type == "binary":
             if len(preds.y_pred.train.shape) > 1 and preds.y_pred.train.shape[1] > 1:
                 models_count = preds.y_pred.train.shape[1]
                 # lassonet-like preds, many models trained in parallel on the same client
@@ -87,7 +87,7 @@ class MlflowLogger(StrategyLogger):
                 train_auc, val_auc = train_aucs[best_col], val_aucs[best_col]
                 mlflow.log_metric('c_train_auc', train_auc, epoch)
                 mlflow.log_metric('c_val_auc', val_auc, epoch)
-        elif loss_type == 'continuous':
+        elif preds.task_type == 'continuous':
             if len(preds.y_pred.train.shape) > 1 and preds.y_pred.train.shape[1] > 1:
                 models_count = preds.y_pred.train.shape[1]
                 # lassonet-like preds, many models trained in parallel on the same client
@@ -200,7 +200,8 @@ class MCMixin:
             test_preds, test_target = None, None
         
         aggregated_preds = RawPreds(Y(train_target, val_target, test_target), 
-                                    Y(train_preds, val_preds, test_preds))
+                                    Y(train_preds, val_preds, test_preds),
+                                    task_type=preds_list[0].task_type)
         return aggregated_preds
         
     def aggregate_evaluate(
