@@ -181,6 +181,9 @@ class FLClient(NumPyClient):
         end = time()
         self.log(f'node: {self.params.node.index}\tround: {self.experiment.model.current_round}\t' + str(unreduced_metrics) + f'\telapsed: {end-start:.2f}s')
         
+        if 'save_model' in config and config['save_model']:
+            self.experiment.save_model()
+        
         return unreduced_metrics.val_loss, val_len, {
             'metrics': pickle.dumps(unreduced_metrics), 
             'preds': pickle.dumps(unreduced_preds)

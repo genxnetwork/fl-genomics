@@ -260,7 +260,7 @@ class NNExperiment(LocalExperiment):
         signature = ModelSignature(inputs=input_schema, outputs=output_schema)
         mlflow.pytorch.log_model(self.model,
                                  artifact_path='nn-model',
-                                 registered_model_name=f"{self.cfg.model.name}_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node.index}",
+                                 registered_model_name=f"{self.cfg.model.name}_{self.cfg.split.path.split('/')[-1]}_node_{self.cfg.node.index}",
                                  signature=signature,
                                  pickle_protocol=4)
 

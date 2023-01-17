@@ -8,8 +8,11 @@ import numpy
 from numpy.linalg import norm
 import os
 import mlflow
+from mlflow.types import Schema, TensorSpec
+from mlflow.models.signature import ModelSignature
 import plotly.graph_objects as go
 from sklearn.metrics import r2_score, roc_auc_score, average_precision_score
+from copy import deepcopy
 
 from flwr.common import (
     EvaluateRes,
@@ -87,9 +90,6 @@ class MlflowLogger(StrategyLogger):
         best_col = numpy.argmax(val_metrics)
         train_metric, val_metric = train_metrics[best_col], val_metrics[best_col]
         
-        for tm, vm in zip(train_metrics, val_metrics):
-            logging.info(f'tm: {tm:.4f}\tvm: {vm:.4f}')
-        
         mlflow.log_metric(f'c_train_{metric_fun_name}', train_metric, epoch)
         mlflow.log_metric(f'c_val_{metric_fun_name}', val_metric, epoch)
         
@@ -106,7 +106,7 @@ class MlflowLogger(StrategyLogger):
 
     def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:
         pass
-        
+    
 
 class Checkpointer:
     def __init__(self, checkpoint_dir: str) -> None:
@@ -257,8 +257,21 @@ class MCMixin:
         if rnd == -1:
             # print(f'loading best parameters for final evaluation')
             parameters = self.checkpointer.load_best_parameters()
-        return super().configure_evaluate(rnd, parameters, client_manager)
-
+        eval_instructions = super().configure_evaluate(rnd, parameters, client_manager)
+        
+        # we are telling first client to save model
+        if rnd == -1:
+            logging.info(f'eval instructions 0 before modifying config: {eval_instructions[0][1].config}')
+            logging.info(f'eval instructions 1 before modifying config: {eval_instructions[1][1].config}')
+            
+            first_ins = deepcopy(eval_instructions[0][1])
+            first_ins.config['save_model'] = True
+            eval_instructions[0] = (eval_instructions[0][0], first_ins)
+            logging.info(f'eval instructions after modifying config: {eval_instructions[0][1].config}')
+            logging.info(f'eval instructions after modifying config: {eval_instructions[1][1].config}')
+            
+        return eval_instructions
+    
     def on_evaluate_config_fn_closure(self, rnd: int):
         return {'current_round': rnd}
 
