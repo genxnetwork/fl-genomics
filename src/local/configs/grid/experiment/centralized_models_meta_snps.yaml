@@ -2,13 +2,26 @@
 
 split_dir: /trinity/home/s.mishra/test2/ac_split
 fold_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-node_index: [19]
-#node_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+node_index: 19
 experiment:
-  snp_count: [10000]
-  run: centralized_models_meta_snps
+  name: centralized-models-meta-snps
+  snp_count: 10000
+  run: meta
 model:
-  name: ['lassonet_centralized']
+  name: lassonet
+  batch_size: 64
 data:
   phenotype:
-    name: ['standing_height', 'erythrocyte_count', 'platelet_volume']
+    name:
+        - standing_height
+        - erythrocyte_count
+        - platelet_volume
+        - triglycerides
+        - hdl_cholesterol
+        - vitamin_d
+        - creatinine
+        - alkaline_phosphatase
+        - cystatin_c
+        - gamma_glutamyltransferase
+        - apolipoprotein_a
+        - shbg

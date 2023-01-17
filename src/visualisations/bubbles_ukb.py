@@ -1,8 +1,10 @@
 import os
 import pandas as pd
+import numpy as np
 
 import mlflow
 import plotly.express as px
+import plotly.graph_objects as go
 
 from mlflow.tracking import MlflowClient
 
@@ -72,13 +74,12 @@ def ethnicity_from_dataset(df: pd.DataFrame):
 
 
 def normalize_by_centr_median(df: pd.DataFrame, mode=None):
-    if mode='centralized_minus_covariates':
-        df.loc[:, ['lower', 'median', 'upper']] =  (df.loc[:, ['lower', 'median', 'upper']] 
-            - df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze())\
-            / (df.loc[df['type']=='centralized', 'median'].squeeze()
-            - df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze())
+    if mode == 'centralized_minus_covariates':
+        df.loc[:, ['lower', 'median', 'upper']] = (df.loc[:, ['lower', 'median', 'upper']] -
+                                                   df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze()) / \
+                                                   (df.loc[df['type']=='centralized', 'median'].squeeze() - df.loc[(df['type']=='covariates_only') & (df['tags.dataset'].str.contains('Centralized')), 'median'].squeeze())
 
-    elif mode='centralized':
+    elif mode == 'centralized':
         df.loc[:, ['lower', 'median', 'upper']] = df.loc[:, ['lower', 'median', 'upper']] / df.loc[df['type']=='centralized', 'median'].squeeze()
 
     return df
@@ -149,7 +150,7 @@ def impute_missing_columns(df_local_globaltestset, df_meta_globaltestset, df_fed
     df_feder['tags.model'] = 'lassonet'
     df_feder['tags.snp_count'] = df_local_localtestset['tags.snp_count'].iloc[0]
     df_feder['tags.sample_count'] = df_centr['tags.sample_count']
-    df_feder['tags.dataset'] = 'federated'
+    df_feder['tags.dataset'] = 'Federated, 352.9 k'
 
     # df_cov['tags.dataset'] = 'covariates_only'
     df_cov['tags.model'] = 'lassonet'
@@ -157,6 +158,13 @@ def impute_missing_columns(df_local_globaltestset, df_meta_globaltestset, df_fed
     # df_cov['tags.sample_count'] = df_centr['tags.sample_count']
     return df_local_globaltestset, df_meta_globaltestset, df_feder, df_cov
 
+
+
+def rename_datasets(x):
+    if '_' in x:
+        return f"{x.split('_')[0]}, {int(x.split('_')[1])/1000:.1f} k"
+    else:
+        return x
 
 def prepare_data_to_plot(df_local_localtestset, df_meta_localtestset,
                          df_local_globaltestset, df_meta_globaltestset,
@@ -174,12 +182,16 @@ def prepare_data_to_plot(df_local_localtestset, df_meta_localtestset,
                     df_cov.drop(columns=['tags.node_index'])
                     ])
 
+    df['tags.dataset'] = df['tags.dataset'].apply(rename_datasets)
+
     # converting folds to quantiles (0.1, median, 0.9)
     df = folds_to_quantiles(df.query("metric_name == @metric_name"), fold_col='tags.fold_index', val_col='metric_value')
     # for each phenotype normalize all quantiles and types (local, centralized, federated) by centralized median
 
     df = df.set_index(['tags.phenotype']).groupby(['tags.phenotype'])[['type', 'tags.dataset', 'tags.sample_count', 'lower', 'median',
        'upper']].apply(normalize_by_centr_median).reset_index()
+
+
     return df
 
 
@@ -188,22 +200,76 @@ def plot(df, df_local_globaltestset, out_fn):
     df['error_up'] = df['upper'] - df['median']
     df['error_down'] = df['median'] - df['lower']
     df.columns = [i.replace('tags.', '') for i in df.columns]
-    fig = px.scatter(df, y='dataset', facet_col='phenotype', x='median', facet_col_wrap=2,
-                     error_x='error_up', error_x_minus='error_down',
-                     size='sample_count', color='type', size_max=16,
-                     facet_col_spacing=0,
-                     facet_row_spacing=0,
+    df['phenotype'] = df['phenotype'].replace({'alkaline_phosphatase': 'Alkaline phosphatase', 'apolipoprotein_a': 'Apolipoprotein A',
+                                               'cystatin_c': 'Cystatin C', 'erythrocyte_count': 'Erythrocyte count',
+                                               'hdl_cholesterol': 'HDL Cholesterol', 'platelet_volume': 'Platelet volume',
+                                               'shbg': 'SHBG', 'standing_height': 'Standing height',
+                                               'triglycerides': 'Triglycerides'})
+    df['type'] = df['type'].replace({'centralized': 'Centralized + centralized GWAS', 'covariates_only': 'Covariates only',
+                                     'federated': 'Federated + meta-GWAS', 'local-globaltestset': 'Local + local GWAS',
+                                    'local-globaltestset-meta': 'Local + meta-GWAS'})
+    df['size_scaled'] = np.power(df['sample_count'], 0.6)
+    facet_col_spacing = 0.0325
+    fig1 = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
+                     error_y='error_up', error_y_minus='error_down',
+                     color='type',
+                     facet_col_spacing=facet_col_spacing,
+                     facet_row_spacing=0.15,
+                     width=1200, height=1000)
+
+    # add bubble traces as fig2.data
+    fig2 = px.scatter(df, x='dataset', facet_col='phenotype', y='median', facet_col_wrap=5,
+                     size='size_scaled', color='type',
+                     size_max=18,
+                     facet_col_spacing=facet_col_spacing,
+                     facet_row_spacing=0.15,
                      opacity=0.3,
                      width=1200, height=1000)
 
-    fig.update_yaxes(categoryorder='array',
+    # need to supress legend for all traces of fig2 (not via layout)
+    def trace_no_legend(tr):
+        tr['showlegend'] = False
+        return tr
+
+    fig2.for_each_trace(trace_no_legend)
+
+    # add traces and take layout from fig1
+    fig = go.Figure(data=fig1.data + fig2.data, layout=fig1.layout)
+
+    fig.update_xaxes(categoryorder='array',
                      categoryarray=df_local_globaltestset[['tags.dataset', 'tags.sample_count']].drop_duplicates()
-                     .sort_values('tags.sample_count')['tags.dataset'].tolist() + ['federated'],
+                     .sort_values('tags.sample_count')['tags.dataset'].tolist() + ['Federated, 352.9 k'],
                      tick0=0.0, dtick=1.0,
-                     showticklabels=False)
-    fig.update_xaxes(tick0=0.0, dtick=0.05,
+                     showticklabels=True, tickangle=-45, title=None)
+    fig.update_yaxes(tick0=0.0, dtick=0.05,
                      showticklabels=True,
-                     matches=None)
+                     matches=None,
+                     title='test set R2: observed vs predicted'
+                     )
+    fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[1]))
+    for axis in [
+        fig.layout.yaxis2,
+        fig.layout.yaxis3,
+        fig.layout.yaxis4,
+        fig.layout.yaxis5,
+        fig.layout.yaxis7,
+        fig.layout.yaxis8,
+        fig.layout.yaxis9,
+        fig.layout.yaxis10
+    ]:
+        axis.update({'title': {'text': ''}})
+    for axis in [
+        fig.layout.xaxis,
+        fig.layout.xaxis2,
+        fig.layout.xaxis3,
+        fig.layout.xaxis4,
+        fig.layout.xaxis5,
+        fig.layout.xaxis7,
+        fig.layout.xaxis8,
+        fig.layout.xaxis9,
+        fig.layout.xaxis10
+    ]:
+        axis.update({'showticklabels': False})
     fig.write_html(out_fn)
 
 
@@ -256,6 +322,8 @@ def continuous():
                               df_feder=df_feder,
                               df_cov=df_cov,
                               metric_name='metrics.test_r2')
+
+    df_local_globaltestset['tags.dataset'] = df_local_globaltestset['tags.dataset'].apply(rename_datasets)
 
     return df, df_local_globaltestset
 
