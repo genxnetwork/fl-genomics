@@ -6,4 +6,4 @@ strategy: ddp
 devices: ???
 accelerator: ???
 enable_checkpointing: False
-max_steps: 16
+max_steps: null

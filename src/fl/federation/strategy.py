@@ -55,6 +55,9 @@ class StrategyLogger:
         pass
 
 
+
+    
+
 class MlflowLogger(StrategyLogger):
     def __init__(self, epochs_in_round: int) -> None:
         """Logs server-side per-round metrics to mlflow
@@ -76,27 +79,29 @@ class MlflowLogger(StrategyLogger):
         mm_dict = metrics.to_dict()
         mlflow.log_metrics(mm_dict, metrics.epoch)
         
+    def log_best_col_metric(self, metric_fun, metric_fun_name: str, epoch: int, preds: RawPreds):
+        models_count = preds.y_pred.train.shape[1]
+        # lassonet-like preds, many models trained in parallel on the same client
+        train_metrics = [metric_fun(preds.y_true.train, preds.y_pred.train[:, i]) for i in range(models_count)]
+        val_metrics = [metric_fun(preds.y_true.val, preds.y_pred.val[:, i]) for i in range(models_count)]
+        best_col = numpy.argmax(val_metrics)
+        train_metric, val_metric = train_metrics[best_col], val_metrics[best_col]
+        
+        for tm, vm in zip(train_metrics, val_metrics):
+            logging.info(f'tm: {tm:.4f}\tvm: {vm:.4f}')
+        
+        mlflow.log_metric(f'c_train_{metric_fun_name}', train_metric, epoch)
+        mlflow.log_metric(f'c_val_{metric_fun_name}', val_metric, epoch)
+        
     def log_preds_losses(self, epoch: int, preds: RawPreds) -> None:
         if preds.task_type == "binary":
             if len(preds.y_pred.train.shape) > 1 and preds.y_pred.train.shape[1] > 1:
-                models_count = preds.y_pred.train.shape[1]
-                # lassonet-like preds, many models trained in parallel on the same client
-                train_aucs = [roc_auc_score(preds.y_true.train, preds.y_pred.train[:, i]) for i in range(models_count)]
-                val_aucs = [roc_auc_score(preds.y_true.val, preds.y_pred.val[:, i]) for i in range(models_count)]
-                best_col = numpy.argmax(val_aucs)
-                train_auc, val_auc = train_aucs[best_col], val_aucs[best_col]
-                mlflow.log_metric('c_train_auc', train_auc, epoch)
-                mlflow.log_metric('c_val_auc', val_auc, epoch)
+                self.log_best_col_metric(roc_auc_score, 'auc', epoch, preds)
+                self.log_best_col_metric(average_precision_score, 'aupr', epoch, preds)
+                
         elif preds.task_type == 'continuous':
             if len(preds.y_pred.train.shape) > 1 and preds.y_pred.train.shape[1] > 1:
-                models_count = preds.y_pred.train.shape[1]
-                # lassonet-like preds, many models trained in parallel on the same client
-                train_r2s = [r2_score(preds.y_true.train, preds.y_pred.train[:, i]) for i in range(models_count)]
-                val_r2s = [r2_score(preds.y_true.val, preds.y_pred.val[:, i]) for i in range(models_count)]
-                best_col = numpy.argmax(val_r2s)
-                train_r2, val_r2 = train_r2s[best_col], val_r2s[best_col]
-                mlflow.log_metric('c_train_r2', train_r2, epoch)
-                mlflow.log_metric('c_val_r2', val_r2, epoch)
+                self.log_best_col_metric(r2_score, 'r2', epoch, preds)
                                 
 
     def log_weights(self, rnd: int, layers: List[str], weights: List[Weights], aggregated_weights: Weights) -> None:

@@ -1,7 +1,7 @@
 from typing import Dict, Any, List, Tuple, Optional
 import numpy
 from pytorch_lightning import LightningModule
-from sklearn.metrics import roc_auc_score, roc_curve
+from sklearn.metrics import roc_auc_score, roc_curve, average_precision_score
 import torch
 from torch.nn import Linear, BatchNorm1d, ReLU, Sequential, Dropout
 from torch.nn.init import uniform_ as init_uniform_
@@ -530,14 +530,14 @@ class LassoNetClassifier(LassoNetRegressor):
         y = y.unsqueeze(1).tile(dims=(1, self.hidden_size))
         return binary_cross_entropy(y_hat, y)
     
-    
     def one_col_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> ClfMetrics:
          
         loss = binary_cross_entropy(y_pred, y_true).item()
         accuracy = ((y_pred > 0.5).float() == y_true).float().mean().item()
-        auc = roc_auc_score(y_true.detach().cpu().numpy(), y_pred.detach().cpu().numpy())
-        return ClfMetrics(loss, accuracy, auc, self.fl_current_epoch(), y_true.shape[0])
-    
+        y_true_n, y_pred_n = y_true.detach().cpu().numpy(), y_pred.detach().cpu().numpy()
+        auc = roc_auc_score(y_true_n, y_pred_n)
+        aupr = average_precision_score(y_true_n, y_pred_n)
+        return ClfMetrics(loss, accuracy, auc, self.fl_current_epoch(), y_true.shape[0], aupr)
     
     def loader_metrics(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> List[ClfMetrics]:
         
@@ -547,7 +547,6 @@ class LassoNetClassifier(LassoNetRegressor):
             result.append(col_metrics)
             
         return result
-
 
     def predict_and_eval(self, datamodule: DataModule, test=False, return_preds=False) -> LassoNetModelMetrics:
         if return_preds:
