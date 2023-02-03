@@ -1,4 +1,5 @@
-node_index: 2
+node:
+  index: 2
 split_dir: /gpfs/gpfs0/ukb_data/test/uneven_split
 experiment:
   snp_count: 10000

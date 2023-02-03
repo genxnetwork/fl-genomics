@@ -1,11 +1,15 @@
 defaults:
   - _self_
-  - data/default
-  - model/lassonet
-  - experiment/default
+  - data: default
+  - experiment: local
+  - model: lassonet_regressor
+  - optimizer: sgd_ukb
+  - scheduler: exponential_lr_ukb
+  - training: default
 
 study: ukb
-split_dir: /trinity/home/s.mishra/test2/ac_split
-node_index: 19 
-gwas_node_index: node_index
-fold_index: 0
+split_dir: /gpfs/gpfs0/ukb_data/test/ac_split
+node: 
+  index: 0
+fold:
+  index: 0

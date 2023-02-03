@@ -4,3 +4,5 @@ include_covariates: True
 different_node_gwas: False
 snp_count: 1000
 random_state: 0
+log_model: true
+pretrain_on_cov: null

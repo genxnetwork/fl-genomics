@@ -1,10 +1,12 @@
 # @package _global_
 
 split_dir: /trinity/home/s.mishra/test2/ac_split
-fold_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-node_index: [0, 2, 3, 6, 14, 10]
+fold:
+  index: [0]
+node:
+  index: [0, 2, 3, 6, 14, 10]
 experiment:
-  name: categorical-local-models-local-snps
+  name: categorical-local-models-local-snps-test
   snp_count: 10000
   run: local 
 model:
@@ -13,13 +15,13 @@ data:
   phenotype:
     name:
         - asthma
-        - hypothyroidism
-        - hypertension
-        - diabetes
-        - psoriasis
-        - rhinitis
-        - osteoarthritis
-        - depression
-        - gastric_reflux
-        - angina
-        - migraine
+          #- hypothyroidism
+          #- hypertension
+#         - diabetes
+#         - psoriasis
+#         - rhinitis
+#         - osteoarthritis
+#         - depression
+#         - gastric_reflux
+#         - angina
+#         - migraine
