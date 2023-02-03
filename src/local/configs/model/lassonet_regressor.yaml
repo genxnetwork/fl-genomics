@@ -1,0 +1,23 @@
+# @package _global_
+
+model:
+  name: lassonet_regressor
+  precision: 32
+  batch_size: 16
+  max_epochs: 128
+  params:
+      hidden_size: 256
+      alpha_start: -3
+      alpha_end: 1
+  
+# experiment:
+#   gpus: 1 
+#   optimizer:
+#     name: sgd
+#     lr: 5e-3
+#     weight_decay: 0.0
+#   scheduler:
+#     name: exponential_lr
+#     rounds: ${model.max_epochs}
+#     epochs_in_round: 1
+#     gamma: 0.99

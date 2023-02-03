@@ -1,24 +1,14 @@
 # @package _global_
-
+  
 model:
   name: lassonet_classifier
   precision: 32
-  batch_size: 512
-  max_epochs: 64
-  hidden_size: 512
-  alpha_start: -2
-  alpha_end: 0.5
-  init_limit: 0.002
-  patience: 16
-  
+  batch_size: 16
+  max_epochs: 1
+  params:
+    hidden_size: 256
+    alpha_start: -2
+    alpha_end: 0.5
+
 experiment:
-  gpus: 1
-  optimizer:
-    name: sgd
-    lr: 1e-2
-    weight_decay: 0.0
-  scheduler:
-    name: exponential_lr
-    rounds: ${model.max_epochs}
-    epochs_in_round: 1
-    gamma: 0.92
+  pretrain_on_cov: weights
