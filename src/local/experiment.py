@@ -215,7 +215,7 @@ class NNExperiment(LocalExperiment):
                 optim_params=self.cfg.optimizer,
                 scheduler_params=self.cfg.scheduler,
                 loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
-                **self.model.params
+                **self.cfg.model.params
             )
 
     def train(self):
@@ -260,7 +260,7 @@ class NNExperiment(LocalExperiment):
         signature = ModelSignature(inputs=input_schema, outputs=output_schema)
         mlflow.pytorch.log_model(self.model,
                                  artifact_path='nn-model',
-                                 registered_model_name=f"{self.cfg.model.name}_{self.cfg.split.path.split('/')[-1]}_node_{self.cfg.node.index}",
+                                 registered_model_name=f"{self.cfg.model.name}_{self.cfg.split_dir.split('/')[-1]}_node_{self.cfg.node.index}",
                                  signature=signature,
                                  pickle_protocol=4)
 
@@ -275,7 +275,7 @@ class NNExperiment(LocalExperiment):
         train_preds = torch.cat(train_preds).squeeze().cpu().numpy()
         val_preds = torch.cat(val_preds).squeeze().cpu().numpy()
         test_preds = torch.cat(test_preds).squeeze().cpu().numpy()
-
+        
         metric_train = metric_fun(self.y.train, train_preds, sample_weight=self.sw.train)
         metric_val = metric_fun(self.y.val, val_preds, sample_weight=self.sw.val)
         metric_test = metric_fun(self.y.test, test_preds, sample_weight=self.sw.test)
@@ -344,6 +344,21 @@ class NNExperiment(LocalExperiment):
         residual = Y(y_train, y_val, y_test)
         return residual.astype(PHENO_NUMPY_DICT[self.cfg.data.phenotype.name])
 
+class LassonetExperiment(NNExperiment):
+    def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
+        self.model.eval()
+        if self.cfg.experiment.get('log_model', None):
+            self.save_model()
+            
+        metrics = self.model.predict_and_eval(self.data_module, test=True)
+        
+        print(f'Best alpha: {self.model.alphas[metrics.best_col]:.6f}')
+        print(f'metrics: {metrics}')
+        metrics.log_to_mlflow()
+        mlflow.log_metric('best_alpha', self.model.alphas[metrics.best_col])
+        mlflow.log_metric('best_alpha_index', metrics.best_col)
+        
+        
 
 class TGNNExperiment(NNExperiment):
     def load_data(self):
@@ -439,8 +454,8 @@ ukb_experiment_dict = {
     'lasso': simple_estimator_factory(LassoCV),
     'logistic_regression': simple_estimator_factory(LogisticRegressionCV),
     'xgboost': XGBExperiment,
-    'lassonet_regressor': NNExperiment,
-    'lassonet_classifier': NNExperiment,
+    'lassonet_regressor': LassonetExperiment,
+    'lassonet_classifier': LassonetExperiment,
     'mlp_regressor': NNExperiment,
     'mlp_classifier': UKBNNExperiment,
     'deep_mlp_classifier': UKBNNExperiment
