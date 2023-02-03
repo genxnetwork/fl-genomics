@@ -8,12 +8,6 @@ import os
 
 from local.config import node_size_dict
 
-def calculate_memory(node_index, split, snp_count):
-    # Heuristic for dependence of memory requirement on number of samples*features
-    #mem = int(8000+node_size_dict[split][node_index]*snp_count/32000)
-    mem = 16000 # 16GB is enough for local experiments for now
-    return mem
-
 def append_args_to_wrapper(arg_list: list):
     """Takes a list of command line arguments for a local experiment and uses them
     to populate a template script for launching the experiment with Slurm.
@@ -26,30 +20,25 @@ def append_args_to_wrapper(arg_list: list):
     for arg in arg_list:
         if arg.split('=')[0] == 'model.name':
             model_name = arg.split('=')[1]
-        if arg.split('=')[0] == 'node_index':
-            node_index = int(arg.split('=')[1])
-        if arg.split('=')[0] == 'experiment.snp_count':
-            snp_count = int(arg.split('=')[1])
         if arg.split('=')[0] == 'experiment.run':
             run_experiment = arg.split('=')[1]
-        if arg.split('=')[0] == 'split_dir':
-            split = arg.split('=')[1].split('/')[-1]
 
-    mem = calculate_memory(node_index, split, snp_count)
+    mem = 16000
     wrapper = wrapper.replace('$MEM', str(mem))
-    gpu_models = ['mlp', 'lassonet']
+    gpu_models = ['mlp', 'lassonet_regressor', 'lassonet_classifier']
     
     if model_name in gpu_models: # Request gpu from Slurm if required
       wrapper = wrapper.replace('#gpu_placeholder', '#SBATCH --gpus 1')    
     
-    partition_type = 'gpu' if model_name in gpu_models else 'cpu'
-    wrapper = wrapper.replace('$PARTITION_TYPE', partition_type)    
-    wrapper += f"+model={model_name} "
 
     if run_experiment:
         arg_list.remove(f'experiment.run={run_experiment}')
-        wrapper += f"+experiment={run_experiment} "
+        wrapper += f"experiment={run_experiment} "
    
+    partition_type = 'gpu_devel' if model_name in gpu_models else 'cpu'
+    wrapper = wrapper.replace('$PARTITION_TYPE', partition_type)    
+    wrapper += f"model={model_name} "
+    
     arg_list.remove(f'model.name={model_name}')
     wrapper += " ".join(arg_list) 
     return wrapper
