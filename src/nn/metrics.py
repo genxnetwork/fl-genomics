@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import numpy
+import mlflow
 
 
 class DatasetMetrics(ABC):
@@ -27,7 +28,14 @@ class ClfMetrics(DatasetMetrics):
     def __str__(self) -> str:
         return f'loss={self.loss:.3f}\taccuracy={self.accuracy:.3f}\tauc={self.auc:.3f}\taupr: {self.aupr:.3f}'
     
-
+    def log_to_mlflow(self, prefix: str) -> None:
+        mlflow.log_metric(f'{prefix}_loss', self.loss, self.epoch)
+        mlflow.log_metric(f'{prefix}_auc', self.auc, self.epoch)
+        mlflow.log_metric(f'{prefix}_accuracy', self.accuracy, self.epoch)
+        mlflow.log_metric(f'{prefix}_aupr', self.aupr, self.epoch)
+        
+    
+    
 @dataclass
 class RegMetrics(DatasetMetrics):
     loss: float
@@ -40,6 +48,10 @@ class RegMetrics(DatasetMetrics):
     
     def __str__(self) -> str:
         return f'loss={self.loss:.4f}\tr2={self.r2:.4f}'
+    
+    def log_to_mlflow(self, prefix: str) -> None:
+        mlflow.log_metric(f'{prefix}_loss', self.loss, self.epoch)
+        mlflow.log_metric(f'{prefix}_r2', self.r2, self.epoch)
 
 
 @dataclass
@@ -118,6 +130,12 @@ class LassoNetModelMetrics(ModelMetrics):
     def __str__(self) -> str:
         mm_metrics = self.reduce()
         return str(mm_metrics) + f'\tbest_col={self.best_col}'
+    
+    def log_to_mlflow(self):
+        self.train[self.best_col].log_to_mlflow(prefix='train')
+        self.val[self.best_col].log_to_mlflow(prefix='val')
+        if self.test is not None:
+            self.test[self.best_col].log_to_mlflow(prefix='test')
     
 
 @dataclass
