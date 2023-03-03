@@ -36,6 +36,8 @@ class SimpleTrainer(object):
 
     def train(self, logger, xtrain, ytrain, xtest=None, ytest=None):
         train_only_mode = (xtest is None)
+        self.model = MLPClassifier(nclass=self.nclass, nfeat=self.nfeat, optim_params=None, scheduler_params=None,
+                                   loss=TYPE_LOSS_DICT['discrete'], binary=False)
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr)
         self.model.train()
         loss_train_list = []
