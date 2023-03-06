@@ -53,7 +53,7 @@ if __name__ == '__main__':
             '--pfile', tg_filt_prefix,
             '--freq', 'counts',
             '--out', tg_pca_prefix,
-            '--pca', 'allele-wts', '20'
+            '--pca', 'allele-wts', '30'
         ]
     )
 
