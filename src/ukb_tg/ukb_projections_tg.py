@@ -64,7 +64,7 @@ if __name__ == '__main__':
             '--pfile', all_filtered_fn,
             '--read-freq', tg_pca_prefix + '.acount',
             '--score', tg_pca_prefix + '.eigenvec.allele',
-            '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-25',
+            '2', '5', 'header-read', 'no-mean-imputation', 'variance-standardize', '--score-col-nums', '6-15',
             '--out', tg_pca_prefix,
             '--set-missing-var-ids', '@:#'
         ]
