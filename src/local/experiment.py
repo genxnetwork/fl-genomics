@@ -221,8 +221,9 @@ class NNExperiment(LocalExperiment):
         mlflow.log_params({'optimizer': self.cfg.optimizer})
         mlflow.log_params({'scheduler': self.cfg.get('scheduler', None)})
         
-        prevalence = self.y.sum().mean()
-        mlflow.log_metric('prevalence', float(prevalence))
+        # object has no attribute 'sum'. Probably because it is supposed to be a tuple of train, val, test
+        # prevalence = self.y.sum().mean()
+        # mlflow.log_metric('prevalence', float(prevalence))
         
         self.create_model()
 
