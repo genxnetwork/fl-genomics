@@ -215,6 +215,7 @@ class NNExperiment(LocalExperiment):
                 loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
                 **self.model.params
             )
+        torch.save(self.model, self.trainer.checkpoint_callback.best_model_path.replace('.ckpt', '.pt'))
 
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
