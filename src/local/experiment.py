@@ -249,7 +249,7 @@ class NNExperiment(LocalExperiment):
         print("Fitted")
         self.load_best_model()
         mlflow.log_param('model_saved', self.trainer.checkpoint_callback.best_model_path)
-        f = open(self.trainer.checkpoint_callback.best_model_path.replace('.cpkt', '.pkl'), 'wb')
+        f = open(self.trainer.checkpoint_callback.best_model_path.replace('.ckpt', '.pkl'), 'wb')
         pickle.dump(self.model, f)
         f.close()
 
