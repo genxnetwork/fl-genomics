@@ -7,3 +7,4 @@ experiment:
   random_state: 0
   test_samples_limit: null
   gpus: 0
+  pretrain_on_cov: False
