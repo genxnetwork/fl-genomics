@@ -18,25 +18,26 @@ from utils.plink import run_plink
 
 TG_EXT_DIR = os.path.join(TG_DATA_ROOT, 'external')
 TG_UKB_DIR = os.path.join(TG_EXT_DIR, 'ukb')
+TG_UKB_MODELS_DIR = os.path.join(TG_UKB_DIR, 'models')
 
 
 class UkbProjectionsTg(object):
     def __init__(self, num_pcs=20):
         logger.info(f'Initializing class with {num_pcs} PCs')
         self.num_pcs = num_pcs
-        self.tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca')
+        self.tg_pca_prefix = os.path.join(TG_UKB_MODELS_DIR, 'tg_pca')
         self.tg_pca_prefix_pcs = f'{self.tg_pca_prefix}_{num_pcs}pcs'
 
     def main(self):
         # 1. Take UKB variants file and leave only the rsid column
-        ukb_variants_fn = os.path.join(TG_UKB_DIR, 'ukb_filtered.bim')
-        ukb_rsids_fn = os.path.join(TG_UKB_DIR, 'ukb_rsids.txt')
+        ukb_variants_fn = os.path.join(TG_UKB_MODELS_DIR, 'ukb_filtered.bim')
+        ukb_rsids_fn = os.path.join(TG_UKB_MODELS_DIR, 'ukb_rsids.txt')
         os.system("awk '{print $2}' " + ukb_variants_fn + " > " + ukb_rsids_fn)
 
         # 2. Extract intersection variants
         logger.info(f'Filtering by samples present both in UKB and TG')
         all_filtered_fn = os.path.join(SPLIT_GENO_DIR, 'ALL_filtered')
-        tg_filt_prefix = os.path.join(TG_UKB_DIR, 'tg_filt')
+        tg_filt_prefix = os.path.join(TG_UKB_MODELS_DIR, 'tg_filt')
         run_plink(
             args_list=[
                 '--pfile', all_filtered_fn,
