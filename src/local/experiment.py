@@ -1,3 +1,4 @@
+import pickle
 from abc import abstractmethod
 import sys
 from typing import Type
@@ -215,7 +216,8 @@ class NNExperiment(LocalExperiment):
                 loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
                 **self.model.params
             )
-        torch.save(self.model, self.trainer.checkpoint_callback.best_model_path.replace('.ckpt', '.pt'))
+        with open('/home/genxadmin/tmp.pkl', 'w') as f:
+            pickle.dump(self.model, f)
 
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
