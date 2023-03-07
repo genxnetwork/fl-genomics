@@ -53,7 +53,7 @@ class UkbProjectionsTg(object):
                 '--pfile', tg_filt_prefix,
                 '--freq', 'counts',
                 '--out', self.tg_pca_prefix,
-                '--pca', 'allele-wts', self.num_pcs
+                '--pca', 'allele-wts', str(self.num_pcs)
             ]
         )
 
