@@ -20,10 +20,10 @@ from configs.split_config import TG_SUPERPOP_DICT, ethnic_background_name_map
 # plink2 --extract variants --out ukb_1kg_projections --pfile /gpfs/gpfs0/ukb_data/plink/plink --read-freq tg_pca.acount --score tg_pca.eigenvec.allele 2 5 variance-standardize --score-col-nums 6-25
 
 DATA_FOLDER = '/home/dkolobok/data/fl-genomics'
+MODELS_FOLDER = os.path.join(DATA_FOLDER, 'models')
 UKB_TG_PROJECTIONS_PATH = os.path.join(DATA_FOLDER, 'ukb_1kg_projections.sscore')
-TG_PCA_PATH = os.path.join(DATA_FOLDER, 'tg_pca.sscore')
 
-TG_ANCESTRY_MODEL_PATH = os.path.join(DATA_FOLDER, 'tg_pca.pkl')
+
 SUPERPOPULATIONS_OUTPUT_PATH = os.path.join(DATA_FOLDER, 'superpopulations.csv')
 
 SUPERPOP_NODE_MAP = {
@@ -36,26 +36,31 @@ SUPERPOP_NODE_MAP = {
 
 
 class UkbAncestryTg(object):
-    def __init__(self):
-        pass
+    def __init__(self, num_pcs=20):
+        self.num_pcs = num_pcs
+        self.tg_tag = f'tg_pca_{num_pcs}pcs'
+        self.tg_pca_path = os.path.join(MODELS_FOLDER, self.tg_tag + '.sscore')
+        self.tg_ancestry_model_path = os.path.join(MODELS_FOLDER, self.tg_tag + '.pkl')
 
     def first(self):
-        df_tg = pd.read_table(TG_PCA_PATH)
+        df_tg = pd.read_table(self.tg_pca_path)
         df_tg = df_tg.drop(['ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM'], axis=1)
         df_tg['pop'] = 'tg'
-        df_ukb = pd.read_table(UKB_TG_PROJECTIONS_PATH)
-        df_ukb = df_ukb.drop(['#FID', 'ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM'], axis=1)[::10]
-        df_ukb['pop'] = 'ukb'
-        df_ukb.columns = df_tg.columns
-        df = pd.concat([df_ukb, df_tg])
-        px.scatter(df, x='PC1_AVG', y='PC2_AVG', color='pop').write_html('/home/dkolobok/tmp.html')
+        # df_ukb = pd.read_table(UKB_TG_PROJECTIONS_PATH)
+        # df_ukb = df_ukb.drop(['#FID', 'ALLELE_CT', 'NAMED_ALLELE_DOSAGE_SUM'], axis=1)[::10]
+        # df_ukb['pop'] = 'ukb'
+        # df_ukb.columns = df_tg.columns
+        # df = pd.concat([df_ukb, df_tg])
+        # px.scatter(df, x='PC1_AVG', y='PC2_AVG', color='pop').write_html('/home/dkolobok/tmp.html')
         return df_tg
 
     def second(self, df_tg):
         ukb_tg_projections = pd.read_table(UKB_TG_PROJECTIONS_PATH)
         X = ukb_tg_projections.filter(like="_AVG").values
         # X = df_tg.filter(like="PC").values
-        ancestry_model = pickle.load(open(TG_ANCESTRY_MODEL_PATH, 'rb'))
+
+        # ancestry_model = pickle.load(open(self.tg_ancestry_model_path, 'rb'))
+        checkpoint = torch.load(os.path.join(MODELS_FOLDER, 'eepoch=4619-vlval_loss=0.1574.ckpt'))
         ancestry_model.eval()
         pred_probs = torch.softmax(ancestry_model.forward(torch.Tensor(X)), dim=1).detach().numpy()
 
@@ -102,6 +107,7 @@ class UkbAncestryTg(object):
             print("Value counts:")
             print(ukb_tg_projections.loc[ukb_tg_projections.sr_ancestry_code == code].pred_ancestry.value_counts())
             print("\n")
+        pass
 
 
 if __name__ == '__main__':
