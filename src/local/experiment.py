@@ -216,8 +216,6 @@ class NNExperiment(LocalExperiment):
                 loss=TYPE_LOSS_DICT[PHENO_TYPE_DICT[self.cfg.data.phenotype.name]],
                 **self.model.params
             )
-        with open('/home/genxadmin/tmp.pkl', 'w') as f:
-            pickle.dump(self.model, f)
 
     def train(self):
         mlflow.log_params({'model': self.cfg.model})
@@ -251,6 +249,11 @@ class NNExperiment(LocalExperiment):
         print("Fitted")
         self.load_best_model()
         mlflow.log_param('model_saved', self.trainer.checkpoint_callback.best_model_path)
+        with open('/home/genxadmin/tmp.pkl', 'w') as f:
+            pickle.dump(self.model, f)
+        with open('/home/genxadmin/tmp.txt', 'w') as f:
+            pickle.dump({1}, f)
+
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
 
     def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
