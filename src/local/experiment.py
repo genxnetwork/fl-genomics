@@ -248,6 +248,7 @@ class NNExperiment(LocalExperiment):
         self.trainer.fit(self.model, self.data_module)
         print("Fitted")
         self.load_best_model()
+        mlflow.log_params('model_saved', self.trainer.checkpoint_callback.best_model_path)
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
 
     def eval_and_log(self, metric_fun=r2_score, metric_name='r2'):
