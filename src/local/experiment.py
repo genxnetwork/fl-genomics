@@ -249,10 +249,12 @@ class NNExperiment(LocalExperiment):
         print("Fitted")
         self.load_best_model()
         mlflow.log_param('model_saved', self.trainer.checkpoint_callback.best_model_path)
-        with open('/home/genxadmin/tmp.txt', 'w') as f:
-            pickle.dump({1}, f)
-        with open('/home/genxadmin/tmp.pkl', 'w') as f:
-            pickle.dump(self.model, f)
+        f = open('/home/genxadmin/tmp.txt', 'w')
+        pickle.dump("Hello world", f)
+        f.close()
+        f = open('/home/genxadmin/tmp.pkl', 'w')
+        pickle.dump(self.model, f)
+        f.close()
 
         print(f'Loaded best model {self.trainer.checkpoint_callback.best_model_path}')
 
