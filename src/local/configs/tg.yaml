@@ -5,13 +5,13 @@ defaults:
   - optimizer: sgd
   - scheduler: exponential_lr
   - training: default
-  - pretrain_on_cov: False
 
 
 study: tg
 split_dir: /mnt/genx-bio-share/TG/data/chip/superpop_split
 node: ALL
 fold_index: 0
+pretrain_on_cov: False
 
 phenotype:
   name: ancestry

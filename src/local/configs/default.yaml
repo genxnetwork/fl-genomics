@@ -9,3 +9,5 @@ split_dir: /trinity/home/s.mishra/test2/ac_split
 node_index: 19 
 gwas_node_index: node_index
 fold_index: 0
+pretrain_on_cov: False
+
