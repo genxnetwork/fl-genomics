@@ -85,9 +85,8 @@ class UkbProjectionsTg(object):
         y = pd.read_csv(self.tg_pca_prefix + '.tsv', sep='\t').set_index('IID').reindex(x.index)['ancestry']
         _, y = np.unique(y, return_inverse=True)
         # # CV is commented out because it's needed only to check performance
-        # SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).run_cv(x=x.values, y=y, K=10)
-        SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).train_and_save(x=x.values, y=y,
-                                                                                                       out_fn=f'{self.tg_pca_prefix_pcs}.pkl')
+        SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.02).run_cv(x=x.values, y=y, K=10)
+        # SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.02).train_and_save(x=x.values, y=y, out_fn=f'{self.tg_pca_prefix_pcs}.pkl')
         logger.info(f'Done!')
 
 
