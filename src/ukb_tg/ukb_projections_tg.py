@@ -86,9 +86,9 @@ class UkbProjectionsTg(object):
         _, y = np.unique(y, return_inverse=True)
         # # CV is commented out because it's needed only to check performance
         logger.info(f'Training CV for {self.num_pcs} PCs...')
-        SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.02).run_cv(x=x.values, y=y, K=10)
-        logger.info(f'Training full model for {self.num_pcs} PCs...')
-        SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.02).train_and_save(x=x.values, y=y, out_fn=f'{self.tg_pca_prefix_pcs}.pkl')
+        # SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.05).run_cv(x=x.values, y=y, K=10)
+        # logger.info(f'Training full model for {self.num_pcs} PCs...')
+        SimpleTrainer(nclass=len(np.unique(y)), nfeat=x.shape[1], epochs=10000, lr=0.1).train_and_save(x=x.values, y=y, out_fn=f'{self.tg_pca_prefix_pcs}.pkl')
         logger.info(f'Done!')
 
 
