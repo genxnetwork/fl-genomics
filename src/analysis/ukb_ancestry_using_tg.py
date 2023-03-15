@@ -66,6 +66,8 @@ class UkbAncestryTg(object):
         tg_pops = pd.read_csv(os.path.join(DATA_FOLDER, 'tg_pca.tsv'), sep='\t').rename(columns={'IID': '#IID'})
         df_tg = pd.merge(df_tg, tg_pops, on='#IID', how='outer')
         logger.info(f"Model accuracy on TG: {(df_tg['pred_ancestry'] == df_tg['ancestry']).sum() / len(df_tg)}")
+        df_gbr = df_tg.query("ancestry == 'GBR'")
+        logger.info(f"Model accuracy on GBR samples from TG: {(df_gbr['pred_ancestry'] == df_gbr['ancestry']).sum() / len(df_gbr)}")
         pass
 
     def predictions_ukb(self, ancestry_model, ukb_tg_projections):

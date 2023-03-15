@@ -36,7 +36,7 @@ class UkbProjectionsTg(object):
         os.system("awk '{print $2}' " + ukb_variants_fn + " > " + ukb_rsids_fn)
 
         # 2. Extract intersection variants
-        logger.info(f'Filtering by samples present both in UKB and TG')
+        logger.info(f'Filtering by variants present both in UKB and TG')
         all_filtered_fn = os.path.join(SPLIT_GENO_DIR, 'ALL_filtered')
         tg_filt_prefix = os.path.join(TG_UKB_DIR, 'tg_filt')
         run_plink(
@@ -99,7 +99,7 @@ if __name__ == '__main__':
                         datefmt='%Y-%m-%d %H:%M:%S'
                         )
     logger = logging.getLogger()
-    for num_pcs in [20]:
+    for num_pcs in [10, 20, 30, 40, 50, 60]:
         UkbProjectionsTg(num_pcs=num_pcs).main()
 
 
