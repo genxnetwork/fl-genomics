@@ -1,5 +1,5 @@
 # partially copied from src/JupyterNotebooks/tg_ancestries.ipynb
-
+import logging
 import os.path
 
 import pandas as pd
@@ -37,10 +37,12 @@ SUPERPOP_NODE_MAP = {
 
 class UkbAncestryTg(object):
     def __init__(self, num_pcs=20):
+        logger.info(f"Processing {num_pcs} PCs")
         self.num_pcs = num_pcs
         self.tg_tag = f'tg_pca_{num_pcs}pcs'
         self.tg_pca_path = os.path.join(MODELS_FOLDER, self.tg_tag + '.sscore')
         self.tg_ancestry_model_path = os.path.join(MODELS_FOLDER, self.tg_tag + '.pkl')
+        self.populations = list(sorted(TG_SUPERPOP_DICT.keys()))
 
     def first(self):
         df_tg = pd.read_table(self.tg_pca_path)
@@ -54,27 +56,27 @@ class UkbAncestryTg(object):
         # px.scatter(df, x='PC1_AVG', y='PC2_AVG', color='pop').write_html('/home/dkolobok/tmp.html')
         return df_tg
 
-    def second(self, df_tg):
-        ukb_tg_projections = pd.read_table(UKB_TG_PROJECTIONS_PATH)
-        X = ukb_tg_projections.filter(like="_AVG").values
-        # X = df_tg.filter(like="PC").values
-
-        # ancestry_model = pickle.load(open(self.tg_ancestry_model_path, 'rb'))
-        checkpoint = torch.load(os.path.join(MODELS_FOLDER, 'eepoch=4619-vlval_loss=0.1574.ckpt'))
-        ancestry_model.eval()
+    def predictions_tg(self, ancestry_model, df_tg):
+        X = df_tg.filter(like="PC").values
         pred_probs = torch.softmax(ancestry_model.forward(torch.Tensor(X)), dim=1).detach().numpy()
 
-        populations = list(sorted(TG_SUPERPOP_DICT.keys()))
-        # df_tg['pred_ancestry'] = np.vectorize(lambda index: populations[index])(np.argmax(pred_probs, axis=1))
-        # df_tg['pred_superpop'] = df_tg.pred_ancestry.map(TG_SUPERPOP_DICT)
-        # df_tg['node_index'] = df_tg.pred_superpop.map(SUPERPOP_NODE_MAP)
+        df_tg['pred_ancestry'] = np.vectorize(lambda index: self.populations[index])(np.argmax(pred_probs, axis=1))
+        df_tg['pred_superpop'] = df_tg.pred_ancestry.map(TG_SUPERPOP_DICT)
+        df_tg['node_index'] = df_tg.pred_superpop.map(SUPERPOP_NODE_MAP)
+        tg_pops = pd.read_csv(os.path.join(DATA_FOLDER, 'tg_pca.tsv'), sep='\t').rename(columns={'IID': '#IID'})
+        df_tg = pd.merge(df_tg, tg_pops, on='#IID', how='outer')
+        logger.info(f"Model accuracy on TG: {(df_tg['pred_ancestry'] == df_tg['ancestry']).sum() / len(df_tg)}")
+        pass
 
+    def predictions_ukb(self, ancestry_model, ukb_tg_projections):
+        X = ukb_tg_projections.filter(like="_AVG").values
+        pred_probs = torch.softmax(ancestry_model.forward(torch.Tensor(X)), dim=1).detach().numpy()
 
-        ukb_tg_projections['pred_ancestry'] = np.vectorize(lambda index: populations[index])(np.argmax(pred_probs, axis=1))
+        ukb_tg_projections['pred_ancestry'] = np.vectorize(lambda index: self.populations[index])(np.argmax(pred_probs, axis=1))
         ukb_tg_projections['pred_superpop'] = ukb_tg_projections.pred_ancestry.map(TG_SUPERPOP_DICT)
         ukb_tg_projections['node_index'] = ukb_tg_projections.pred_superpop.map(SUPERPOP_NODE_MAP)
 
-        superpop_list = np.vectorize(lambda x: SUPERPOP_NODE_MAP[TG_SUPERPOP_DICT[x]])(populations)
+        superpop_list = np.vectorize(lambda x: SUPERPOP_NODE_MAP[TG_SUPERPOP_DICT[x]])(self.populations)
         superpop_probs = np.zeros((ukb_tg_projections.shape[0], len(SUPERPOP_NODE_MAP)))
         for i in range(len(SUPERPOP_NODE_MAP)):
             superpop_probs[:, i] = np.sum(pred_probs[:, superpop_list == i], axis=1)
@@ -84,11 +86,27 @@ class UkbAncestryTg(object):
         ukb_tg_projections.loc[ukb_tg_projections.superpop_confidence > 0.95, ['IID', 'node_index']].to_csv(SUPERPOPULATIONS_OUTPUT_PATH, index=False)
         ukb_tg_projections.pred_ancestry.value_counts()
         ukb_tg_projections.pred_superpop.value_counts()
+        return ukb_tg_projections
 
-        px.scatter(ukb_tg_projections, x='SCORE1_AVG', y='SCORE2_AVG', color='pred_ancestry').write_html('ancestries_pc1v2.html')
-        px.scatter(ukb_tg_projections, x='SCORE3_AVG', y='SCORE4_AVG', color='pred_ancestry').write_html('ancestries_pc3v4.html')
-        px.scatter(ukb_tg_projections, x='SCORE3_AVG', y='SCORE4_AVG', color='pred_superpop').write_html('superpopulations_pc3v4.html')
-        px.scatter(ukb_tg_projections, x='SCORE1_AVG', y='SCORE2_AVG', color='pred_superpop').write_html('superpopulations_pc1v2.html')
+    def second(self, df_tg):
+        ukb_tg_projections = pd.read_table(UKB_TG_PROJECTIONS_PATH)
+
+        ancestry_model = pickle.load(open(self.tg_ancestry_model_path, 'rb'))
+        # with open(os.path.join(MODELS_FOLDER, 'centr.pkl'), "rb") as input_file:
+        #     ancestry_model = pickle.load(input_file)
+        ancestry_model.eval()
+
+
+
+        self.predictions_tg(ancestry_model=ancestry_model, df_tg=df_tg)
+        ukb_tg_projections = self.predictions_ukb(ancestry_model=ancestry_model, ukb_tg_projections=ukb_tg_projections)
+
+
+
+        # px.scatter(ukb_tg_projections, x='SCORE1_AVG', y='SCORE2_AVG', color='pred_ancestry').write_html('ancestries_pc1v2.html')
+        # px.scatter(ukb_tg_projections, x='SCORE3_AVG', y='SCORE4_AVG', color='pred_ancestry').write_html('ancestries_pc3v4.html')
+        # px.scatter(ukb_tg_projections, x='SCORE3_AVG', y='SCORE4_AVG', color='pred_superpop').write_html('superpopulations_pc3v4.html')
+        # px.scatter(ukb_tg_projections, x='SCORE1_AVG', y='SCORE2_AVG', color='pred_superpop').write_html('superpopulations_pc1v2.html')
         return ukb_tg_projections
 
     def third(self, ukb_tg_projections):
@@ -111,6 +129,13 @@ class UkbAncestryTg(object):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO,
+                        stream=sys.stdout,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S'
+                        )
+    logger = logging.getLogger()
+
     uat = UkbAncestryTg()
     df_tg = uat.first()
     ukb_tg_projections = uat.second(df_tg=df_tg)

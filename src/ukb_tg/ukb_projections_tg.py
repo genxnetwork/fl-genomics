@@ -99,7 +99,7 @@ if __name__ == '__main__':
                         datefmt='%Y-%m-%d %H:%M:%S'
                         )
     logger = logging.getLogger()
-    for num_pcs in [10, 20, 30, 40]:
+    for num_pcs in [20]:
         UkbProjectionsTg(num_pcs=num_pcs).main()
 
 
