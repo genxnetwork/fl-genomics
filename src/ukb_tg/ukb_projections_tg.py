@@ -28,7 +28,7 @@ class UkbProjectionsTg(object):
         self.tg_pca_prefix = os.path.join(TG_UKB_DIR, 'tg_pca_100')
         self.tg_pca_models_prefix = os.path.join(TG_UKB_MODELS_DIR, 'tg_pca')
         self.tg_pca_prefix_pcs = f'{self.tg_pca_models_prefix}_{num_pcs}pcs'
-        self.input_pfile = os.path.join(TG_UKB_MODELS_DIR, 'tg_filt')
+        self.input_pfile = os.path.join(TG_UKB_DIR, 'tg_filt')
 
     def main(self):
         # # 1. Take UKB variants file and leave only the rsid column
