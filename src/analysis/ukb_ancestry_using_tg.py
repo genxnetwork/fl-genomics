@@ -11,6 +11,9 @@ import plotly.express as px
 import matplotlib.pyplot as plt
 
 import sys
+
+from sklearn.metrics import confusion_matrix
+
 sys.path.append('..')
 
 from configs.split_config import TG_SUPERPOP_DICT, ethnic_background_name_map
@@ -21,7 +24,8 @@ from configs.split_config import TG_SUPERPOP_DICT, ethnic_background_name_map
 
 DATA_FOLDER = '/home/dkolobok/data/fl-genomics'
 MODELS_FOLDER = os.path.join(DATA_FOLDER, 'models')
-UKB_TG_PROJECTIONS_PATH = os.path.join(DATA_FOLDER, 'ukb_1kg_projections.sscore')
+OUT_FOLDER = os.path.join(DATA_FOLDER, 'out')
+UKB_TG_PROJECTIONS_PATH = os.path.join(DATA_FOLDER, 'ukb_tg_projections_100.sscore')
 
 
 SUPERPOPULATIONS_OUTPUT_PATH = os.path.join(DATA_FOLDER, 'superpopulations.csv')
@@ -68,10 +72,13 @@ class UkbAncestryTg(object):
         logger.info(f"Model accuracy on TG: {(df_tg['pred_ancestry'] == df_tg['ancestry']).sum() / len(df_tg)}")
         df_gbr = df_tg.query("ancestry == 'GBR'")
         logger.info(f"Model accuracy on GBR samples from TG: {(df_gbr['pred_ancestry'] == df_gbr['ancestry']).sum() / len(df_gbr)}")
+        cm = pd.crosstab(df_tg['ancestry'], df_tg['pred_ancestry'])
+        px.imshow(cm, x=cm.columns, y=cm.index).write_html(os.path.join(OUT_FOLDER, f'tg_conf_matrix_{self.num_pcs}pcs.html'))
+
         pass
 
     def predictions_ukb(self, ancestry_model, ukb_tg_projections):
-        X = ukb_tg_projections.filter(like="_AVG").values
+        X = ukb_tg_projections.filter(like='AVG').values
         pred_probs = torch.softmax(ancestry_model.forward(torch.Tensor(X)), dim=1).detach().numpy()
 
         ukb_tg_projections['pred_ancestry'] = np.vectorize(lambda index: self.populations[index])(np.argmax(pred_probs, axis=1))
@@ -86,25 +93,18 @@ class UkbAncestryTg(object):
         ukb_tg_projections['superpop_confidence'] = np.max(superpop_probs, axis=1)
 
         ukb_tg_projections.loc[ukb_tg_projections.superpop_confidence > 0.95, ['IID', 'node_index']].to_csv(SUPERPOPULATIONS_OUTPUT_PATH, index=False)
-        ukb_tg_projections.pred_ancestry.value_counts()
-        ukb_tg_projections.pred_superpop.value_counts()
+        logger.info(f"Predicted superpopulations for UKB samples: {ukb_tg_projections.pred_superpop.value_counts()}")
+        logger.info(f"Predicted populations for UKB samples: {ukb_tg_projections.pred_ancestry.value_counts()}")
         return ukb_tg_projections
 
     def second(self, df_tg):
-        ukb_tg_projections = pd.read_table(UKB_TG_PROJECTIONS_PATH)
-
+        ukb_tg_projections = pd.read_table(UKB_TG_PROJECTIONS_PATH)[['IID'] + [f'SCORE{i}_AVG' for i in range(1, self.num_pcs + 1)]]
         ancestry_model = pickle.load(open(self.tg_ancestry_model_path, 'rb'))
         # with open(os.path.join(MODELS_FOLDER, 'centr.pkl'), "rb") as input_file:
         #     ancestry_model = pickle.load(input_file)
         ancestry_model.eval()
-
-
-
         self.predictions_tg(ancestry_model=ancestry_model, df_tg=df_tg)
         ukb_tg_projections = self.predictions_ukb(ancestry_model=ancestry_model, ukb_tg_projections=ukb_tg_projections)
-
-
-
         # px.scatter(ukb_tg_projections, x='SCORE1_AVG', y='SCORE2_AVG', color='pred_ancestry').write_html('ancestries_pc1v2.html')
         # px.scatter(ukb_tg_projections, x='SCORE3_AVG', y='SCORE4_AVG', color='pred_ancestry').write_html('ancestries_pc3v4.html')
         # px.scatter(ukb_tg_projections, x='SCORE3_AVG', y='SCORE4_AVG', color='pred_superpop').write_html('superpopulations_pc3v4.html')
@@ -137,8 +137,8 @@ if __name__ == '__main__':
                         datefmt='%Y-%m-%d %H:%M:%S'
                         )
     logger = logging.getLogger()
-
-    uat = UkbAncestryTg()
-    df_tg = uat.first()
-    ukb_tg_projections = uat.second(df_tg=df_tg)
-    uat.third(ukb_tg_projections=ukb_tg_projections)
+    for num_pcs in [10, 20, 30, 40, 50, 60]:
+        uat = UkbAncestryTg(num_pcs=num_pcs)
+        df_tg = uat.first()
+        ukb_tg_projections = uat.second(df_tg=df_tg)
+        # uat.third(ukb_tg_projections=ukb_tg_projections)
