@@ -69,12 +69,13 @@ class UkbAncestryTg(object):
         df_tg['node_index'] = df_tg.pred_superpop.map(SUPERPOP_NODE_MAP)
         tg_pops = pd.read_csv(os.path.join(DATA_FOLDER, 'tg_pca.tsv'), sep='\t').rename(columns={'IID': '#IID'})
         df_tg = pd.merge(df_tg, tg_pops, on='#IID', how='outer')
-        logger.info(f"Model accuracy on TG: {(df_tg['pred_ancestry'] == df_tg['ancestry']).sum() / len(df_tg)}")
+        self.acc_tg = (df_tg['pred_ancestry'] == df_tg['ancestry']).sum() / len(df_tg)
+        logger.info(f"Model accuracy on TG: {self.acc_tg}")
         df_gbr = df_tg.query("ancestry == 'GBR'")
-        logger.info(f"Model accuracy on GBR samples from TG: {(df_gbr['pred_ancestry'] == df_gbr['ancestry']).sum() / len(df_gbr)}")
+        self.acc_tg_gbr = (df_gbr['pred_ancestry'] == df_gbr['ancestry']).sum() / len(df_gbr)
+        logger.info(f"Model accuracy on GBR samples from TG: {self.acc_tg_gbr}")
         cm = pd.crosstab(df_tg['ancestry'], df_tg['pred_ancestry'])
         px.imshow(cm, x=cm.columns, y=cm.index).write_html(os.path.join(OUT_FOLDER, f'tg_conf_matrix_{self.num_pcs}pcs.html'))
-
         pass
 
     def predictions_ukb(self, ancestry_model, ukb_tg_projections):
@@ -92,9 +93,14 @@ class UkbAncestryTg(object):
 
         ukb_tg_projections['superpop_confidence'] = np.max(superpop_probs, axis=1)
 
+        ukb_tg_projections = self.add_ukb_reported_ancestry(ukb_tg_projections)
+
         ukb_tg_projections.loc[ukb_tg_projections.superpop_confidence > 0.95, ['IID', 'node_index']].to_csv(SUPERPOPULATIONS_OUTPUT_PATH, index=False)
-        logger.info(f"Predicted superpopulations for UKB samples: {ukb_tg_projections.pred_superpop.value_counts()}")
-        logger.info(f"Predicted populations for UKB samples: {ukb_tg_projections.pred_ancestry.value_counts()}")
+        # logger.info(f"Predicted superpopulations for UKB samples: \n{ukb_tg_projections.pred_superpop.value_counts()}")
+        ukb_tg_projections_brit = ukb_tg_projections.query("ethnic_background == 'British'")
+        self.acc_ukb_brit_pred_gbr = (ukb_tg_projections_brit['pred_ancestry'] == 'GBR').sum() / len(ukb_tg_projections_brit)
+        self.acc_ukb_brit_pred_ceu = (ukb_tg_projections_brit['pred_ancestry'] == 'CEU').sum() / len(ukb_tg_projections_brit)
+        logger.info(f"Predicted GBR and CEU populations for British UKB samples: \n{ukb_tg_projections_brit.pred_ancestry.value_counts().loc[['GBR', 'CEU']]}")
         return ukb_tg_projections
 
     def second(self, df_tg):
@@ -111,23 +117,10 @@ class UkbAncestryTg(object):
         # px.scatter(ukb_tg_projections, x='SCORE1_AVG', y='SCORE2_AVG', color='pred_superpop').write_html('superpopulations_pc1v2.html')
         return ukb_tg_projections
 
-    def third(self, ukb_tg_projections):
-        from preprocess.splitter import SplitBase
-
-        # df = SplitBase().get_ethnic_background()
+    def add_ukb_reported_ancestry(self, ukb_tg_projections):
         df = pd.read_csv(os.path.join(DATA_FOLDER, 'ethnic_backgrounds.tsv'), sep='\t')
-        df.index = df.IID
-        ukb_tg_projections.index = ukb_tg_projections.IID
-        ukb_tg_projections['sr_ancestry_code'] = df.ethnic_background
-
-        for code in ukb_tg_projections.sr_ancestry_code.unique():
-            print(f"EB code: {code}")
-            if code in ethnic_background_name_map:
-                print(f"Ethnicity: {ethnic_background_name_map[code]}")
-            print("Value counts:")
-            print(ukb_tg_projections.loc[ukb_tg_projections.sr_ancestry_code == code].pred_ancestry.value_counts())
-            print("\n")
-        pass
+        df['ethnic_background'] = df['ethnic_background'].replace(ethnic_background_name_map)
+        return pd.merge(ukb_tg_projections, df[['IID', 'ethnic_background']], on='IID', how='left')
 
 
 if __name__ == '__main__':
@@ -137,8 +130,11 @@ if __name__ == '__main__':
                         datefmt='%Y-%m-%d %H:%M:%S'
                         )
     logger = logging.getLogger()
-    for num_pcs in [10, 20, 30, 40, 50, 60]:
+    stats = pd.DataFrame(columns=['acc_tg', 'acc_tg_gbr', 'acc_ukb_brit_pred_gbr', 'acc_ukb_brit_pred_ceu'])
+    for num_pcs in [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
         uat = UkbAncestryTg(num_pcs=num_pcs)
         df_tg = uat.first()
         ukb_tg_projections = uat.second(df_tg=df_tg)
+        stats.loc[num_pcs, :] = [uat.acc_tg, uat.acc_tg_gbr, uat.acc_ukb_brit_pred_gbr, uat.acc_ukb_brit_pred_ceu]
         # uat.third(ukb_tg_projections=ukb_tg_projections)
+    pass
